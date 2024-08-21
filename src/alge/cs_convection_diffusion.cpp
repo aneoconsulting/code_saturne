@@ -990,13 +990,13 @@ _slope_test_gradient_d
  */
 /*----------------------------------------------------------------------------*/
 
-template <cs_lnum_t stride>
+template <cs_lnum_t stride, typename T>
 static void
 _slope_test_gradient_strided_h
   (cs_host_context             &ctx,
    const int                    inc,
    const cs_real_t              grad[][stride][3],
-   cs_real_t                  (*restrict grdpa)[stride][3],
+   T                  (*restrict grdpa)[stride][3],
    const cs_real_t              pvar[][stride],
    const cs_field_bc_coeffs_t  *bc_coeffs_v,
    const cs_real_t             *i_massflux)
@@ -1077,11 +1077,11 @@ _slope_test_gradient_strided_h
       /* U gradient */
 
       pfac *= i_f_face_surf[face_id];
-      cs_real_t vfac_i[3], vfac_j[3];
+      T vfac_i[3], vfac_j[3];
 
       for (cs_lnum_t jsou = 0; jsou < 3; jsou++) {
-        vfac_i[jsou] = pfac*i_face_u_normal[face_id][jsou];
-        vfac_j[jsou] = - vfac_i[jsou];
+        vfac_i[jsou] = (T) pfac*i_face_u_normal[face_id][jsou];
+        vfac_j[jsou] = (T) - vfac_i[jsou];
       }
 
       cs_dispatch_sum<3>(grdpa[ii][isou], vfac_i, i_sum_type);
@@ -1104,7 +1104,7 @@ _slope_test_gradient_strided_h
 
     for (cs_lnum_t isou = 0; isou < stride; isou++) {
       cs_real_t pfac = inc*coefa[face_id][isou];
-      cs_real_t vfac[3];
+      T vfac[3];
 
       /*coefu is a matrix */
       for (cs_lnum_t jsou = 0; jsou < stride; jsou++) {
@@ -1114,7 +1114,7 @@ _slope_test_gradient_strided_h
                                             + grad[ii][jsou][2]*diipbv[2]);
       }
       for (cs_lnum_t jsou =  0; jsou < 3; jsou++)
-        vfac[jsou] = pfac * _b_f_face_surf * b_face_u_normal[face_id][jsou];
+        vfac[jsou] = (T) pfac * _b_f_face_surf * b_face_u_normal[face_id][jsou];
 
       cs_dispatch_sum<3>(grdpa[ii][isou], vfac, b_sum_type);
     }
@@ -1153,13 +1153,13 @@ _slope_test_gradient_strided_h
 
 #if defined(HAVE_ACCEL)
 
-template <cs_lnum_t stride>
+template <cs_lnum_t stride, typename T>
 static void
 _slope_test_gradient_strided_d
   (cs_device_context           &ctx,
    const int                    inc,
    const cs_real_t              grad[][stride][3],
-   cs_real_t                  (*restrict grdpa)[stride][3],
+   T                  (*restrict grdpa)[stride][3],
    const cs_real_t              pvar[][stride],
    const cs_field_bc_coeffs_t  *bc_coeffs_v,
    const cs_real_t             *i_massflux)
@@ -1209,7 +1209,7 @@ _slope_test_gradient_strided_d
 
   ctx.parallel_for(n_cells, [=] CS_F_HOST_DEVICE (cs_lnum_t cell_id) {
 
-    cs_real_t grdpa_c[stride][3];
+    T grdpa_c[stride][3];
 
     for (cs_lnum_t isou = 0; isou < stride; isou++) {
       for (cs_lnum_t jsou = 0; jsou < 3; jsou++)
@@ -1282,7 +1282,7 @@ _slope_test_gradient_strided_d
 
     for (cs_lnum_t isou = 0; isou < stride; isou++) {
       cs_real_t pfac = inc*coefa[face_id][isou];
-      cs_real_t vfac[3];
+      T vfac[3];
 
       /*coefu is a matrix */
       for (cs_lnum_t jsou =  0; jsou < stride; jsou++) {
@@ -1292,7 +1292,7 @@ _slope_test_gradient_strided_d
                                             + grad[ii][jsou][2]*diipbv[2]);
       }
       for (cs_lnum_t jsou =  0; jsou < 3; jsou++)
-        vfac[jsou] = pfac * _b_f_face_surf_o_v * b_face_u_normal[face_id][jsou];
+        vfac[jsou] = (T) pfac * _b_f_face_surf_o_v * b_face_u_normal[face_id][jsou];
 
       cs_dispatch_sum<3>(grdpa[ii][isou], vfac, b_sum_type);
     }
@@ -1323,14 +1323,14 @@ _slope_test_gradient_strided_d
  */
 /*----------------------------------------------------------------------------*/
 
-template <cs_lnum_t stride>
+template <cs_lnum_t stride, typename T>
 static void
 _slope_test_gradient_strided
   (cs_dispatch_context         &ctx,
    const int                    inc,
    const cs_halo_type_t         halo_type,
    const cs_real_t              grad[][stride][3],
-   cs_real_t                  (*restrict grdpa)[stride][3],
+   T                  (* grdpa)[stride][3],
    const cs_real_t              pvar[][stride],
    const cs_field_bc_coeffs_t  *bc_coeffs_v,
    const cs_real_t             *i_massflux)
@@ -1347,7 +1347,7 @@ _slope_test_gradient_strided
   if (use_gpu) {
     cs_device_context &d_ctx = static_cast<cs_device_context&>(ctx);
 
-    _slope_test_gradient_strided_d<stride>
+    _slope_test_gradient_strided_d<stride, T>
       (d_ctx,
        inc,
        grad,
@@ -1362,7 +1362,7 @@ _slope_test_gradient_strided
   if (use_gpu == false) {
     cs_host_context &h_ctx = static_cast<cs_host_context&>(ctx);
 
-    _slope_test_gradient_strided_h<stride>
+    _slope_test_gradient_strided_h<stride, T>
       (h_ctx,
        inc,
        grad,
@@ -1374,13 +1374,35 @@ _slope_test_gradient_strided
 
   ctx.wait();
 
-  /* Handle parallelism and periodicity */
 
-  if (m->halo != NULL)
+  /* Handle parallelism and periodicity */
+  if (m->halo != NULL){
+    cs_alloc_mode_t amode = ctx.alloc_mode(true);
+    const cs_lnum_t n_cells_ext = m->n_cells_with_ghosts;
+    using grdpa_t = cs_real_t[stride][3];
+    grdpa_t *grdpa_double;
+    CS_MALLOC_HD(grdpa_double, n_cells_ext, grdpa_t, amode);
+    for (cs_lnum_t i = 0; i < n_cells_ext; i++) {
+      for (cs_lnum_t j = 0; j < stride; j++) {
+        std::copy(&grdpa[i][j][0], &grdpa[i][j][0] + stride * 3, &grdpa_double[i][j][0]);
+        std::copy(&grdpa[i][j][1], &grdpa[i][j][1] + stride * 3, &grdpa_double[i][j][1]);
+        std::copy(&grdpa[i][j][2], &grdpa[i][j][2] + stride * 3, &grdpa_double[i][j][2]);
+      }
+    }
+
     _sync_strided_gradient_halo<stride>(m,
                                         use_gpu,
                                         halo_type,
-                                        grdpa);
+                                        grdpa_double);
+
+    for (cs_lnum_t i = 0; i < n_cells_ext; i++) {
+      for (cs_lnum_t j = 0; j < stride; j++) {
+        std::copy(&grdpa_double[i][j][0], &grdpa_double[i][j][0] + stride * 3, &grdpa[i][j][0]);
+        std::copy(&grdpa_double[i][j][1], &grdpa_double[i][j][1] + stride * 3, &grdpa[i][j][1]);
+        std::copy(&grdpa_double[i][j][2], &grdpa_double[i][j][2] + stride * 3, &grdpa[i][j][2]);
+      }
+    }
+  }
 
   if (cs_glob_timer_kernels_flag > 0) {
     std::chrono::high_resolution_clock::time_point
@@ -5123,7 +5145,7 @@ _convection_diffusion_vector_steady(cs_field_t                 *f,
 
   /* Allocate work arrays */
 
-  cs_real_33_t *grdpa = nullptr;
+  cs_float_33_m *grdpa = nullptr;
 
   /* Choose gradient type */
 
@@ -5169,9 +5191,9 @@ _convection_diffusion_vector_steady(cs_field_t                 *f,
      ======================================================================*/
 
   if (iconvp > 0 && pure_upwind == false && isstpp == 0) {
-    CS_MALLOC_HD(grdpa, n_cells_ext, cs_real_33_t, cs_alloc_mode);
+    CS_MALLOC_HD(grdpa, n_cells_ext, cs_float_33_m, cs_alloc_mode);
 
-    _slope_test_gradient_strided<3>(ctx,
+    _slope_test_gradient_strided<3, cs_float_m>(ctx,
                                     inc,
                                     halo_type,
                                     (const cs_real_33_t *)grad,
@@ -5472,7 +5494,7 @@ _convection_diffusion_vector_steady(cs_field_t                 *f,
             bldfrp = cs_math_fmax(cs_math_fmin(df_limiter[ii], df_limiter[jj]),
                                   0.);
 
-          cs_i_cd_steady_slope_test_strided<3>(&upwind_switch,
+          cs_i_cd_steady_slope_test_strided<3, cs_float_m>(&upwind_switch,
                                                iconvp,
                                                bldfrp,
                                                ischcp,
@@ -5970,7 +5992,7 @@ _convection_diffusion_tensor_steady(cs_field_t                  *f,
 
   /* Allocate work arrays */
 
-  cs_real_63_t *grdpa = nullptr;
+  cs_float_63_m *grdpa = nullptr;
 
   /* Choose gradient type */
 
@@ -6011,9 +6033,9 @@ _convection_diffusion_tensor_steady(cs_field_t                  *f,
      ======================================================================*/
 
   if (iconvp > 0 && iupwin == 0 && isstpp == 0) {
-    BFT_MALLOC(grdpa, n_cells_ext, cs_real_63_t);
+    BFT_MALLOC(grdpa, n_cells_ext, cs_float_63_m);
 
-    _slope_test_gradient_strided<6>(ctx,
+    _slope_test_gradient_strided<6, cs_float_m>(ctx,
                                     inc,
                                     halo_type,
                                     (const cs_real_63_t *)grad,
@@ -6252,7 +6274,7 @@ _convection_diffusion_tensor_steady(cs_field_t                  *f,
             bldfrp = cs_math_fmax(cs_math_fmin(df_limiter[ii], df_limiter[jj]),
                                   0.);
 
-          cs_i_cd_steady_slope_test_strided<6>(&upwind_switch,
+          cs_i_cd_steady_slope_test_strided<6, cs_float_m>(&upwind_switch,
                                                iconvp,
                                                bldfrp,
                                                ischcp,
@@ -6476,6 +6498,7 @@ _convection_diffusion_unsteady_strided
    cs_real_t         (*restrict rhs)[stride])
 {
   using grad_t = cs_real_t[stride][3];
+  using grad_t_m = cs_float_m[stride][3];
   using var_t = cs_real_t[stride];
   using b_t = cs_real_t[stride][stride];
 
@@ -6624,14 +6647,14 @@ _convection_diffusion_unsteady_strided
      Compute uncentered gradient grdpa for the slope test
      ======================================================================*/
 
-  grad_t *grdpa = nullptr;
+  grad_t_m *grdpa = nullptr;
 
   ctx.wait();
 
   if (iconvp > 0 && pure_upwind == false && isstpp == 0) {
-    CS_MALLOC_HD(grdpa, n_cells_ext, grad_t, amode);
+    CS_MALLOC_HD(grdpa, n_cells_ext, grad_t_m, amode);
 
-    _slope_test_gradient_strided<stride>(ctx,
+    _slope_test_gradient_strided<stride, cs_float_m>(ctx,
                                          inc,
                                          halo_type,
                                          (const grad_t *)grad,
