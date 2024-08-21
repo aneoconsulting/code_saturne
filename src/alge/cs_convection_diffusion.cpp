@@ -1382,8 +1382,7 @@ _slope_test_gradient_strided
 
   elapsed = std::chrono::duration_cast
               <std::chrono::microseconds>(t_stop - t_start);
-  printf(", total_slope_after__slope_test_gradient_strided = %ld\n", elapsed.count());
-
+  printf(", total_slope_after__slope_test_gradient_%d = %ld\n", stride, elapsed.count());
 
   /* Handle parallelism and periodicity */
   if (m->halo != NULL){
@@ -1392,13 +1391,8 @@ _slope_test_gradient_strided
     using grdpa_t = cs_real_t[stride][3];
     grdpa_t *grdpa_double;
     CS_MALLOC_HD(grdpa_double, n_cells_ext, grdpa_t, amode);
-    for (cs_lnum_t i = 0; i < n_cells_ext; i++) {
-      for (cs_lnum_t j = 0; j < stride; j++) {
-        std::copy(&grdpa[i][j][0], &grdpa[i][j][0] + stride * 3, &grdpa_double[i][j][0]);
-        std::copy(&grdpa[i][j][1], &grdpa[i][j][1] + stride * 3, &grdpa_double[i][j][1]);
-        std::copy(&grdpa[i][j][2], &grdpa[i][j][2] + stride * 3, &grdpa_double[i][j][2]);
-      }
-    }
+
+    std::copy(&grdpa[0][0][0], &grdpa[0][0][0] + n_cells_ext * stride * 3, &grdpa_double[0][0][0]);
 
     t_start = std::chrono::high_resolution_clock::now();
     _sync_strided_gradient_halo<stride>(m,
@@ -1407,20 +1401,15 @@ _slope_test_gradient_strided
                                         grdpa_double);
     t_stop = std::chrono::high_resolution_clock::now();
 
-    for (cs_lnum_t i = 0; i < n_cells_ext; i++) {
-      for (cs_lnum_t j = 0; j < stride; j++) {
-        std::copy(&grdpa_double[i][j][0], &grdpa_double[i][j][0] + stride * 3, &grdpa[i][j][0]);
-        std::copy(&grdpa_double[i][j][1], &grdpa_double[i][j][1] + stride * 3, &grdpa[i][j][1]);
-        std::copy(&grdpa_double[i][j][2], &grdpa_double[i][j][2] + stride * 3, &grdpa[i][j][2]);
-      }
-    }
+    std::copy(&grdpa_double[0][0][0], &grdpa_double[0][0][0] + n_cells_ext * stride * 3, &grdpa[0][0][0]);
+    BFT_FREE(grdpa_double);
   }
 
   printf("%d: %s<%d>", cs_glob_rank_id, __func__, stride);
 
   elapsed = std::chrono::duration_cast
               <std::chrono::microseconds>(t_stop - t_start);
-  printf(", total_slope_after_copy = %ld\n", elapsed.count());
+  printf(", total_slope_after_copy_%d = %ld\n", stride, elapsed.count());
   if (cs_glob_timer_kernels_flag > 0) {
       t_stop = std::chrono::high_resolution_clock::now();
 
@@ -6664,6 +6653,7 @@ _convection_diffusion_unsteady_strided
      ======================================================================*/
 
   grad_t_m *grdpa = nullptr;
+  // grad_t *grdpa = nullptr;
 
   ctx.wait();
 
