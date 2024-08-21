@@ -1335,10 +1335,14 @@ _slope_test_gradient_strided
    const cs_field_bc_coeffs_t  *bc_coeffs_v,
    const cs_real_t             *i_massflux)
 {
+
   bool use_gpu = ctx.use_gpu();
   const cs_mesh_t  *m = cs_glob_mesh;
 
   std::chrono::high_resolution_clock::time_point t_start;
+  std::chrono::high_resolution_clock::time_point t_stop;
+  std::chrono::microseconds elapsed;
+  t_start = std::chrono::high_resolution_clock::now();
   if (cs_glob_timer_kernels_flag > 0)
     t_start = std::chrono::high_resolution_clock::now();
 
@@ -1373,6 +1377,12 @@ _slope_test_gradient_strided
   }
 
   ctx.wait();
+  t_stop = std::chrono::high_resolution_clock::now();
+  printf("%d: %s<%d>", cs_glob_rank_id, __func__, stride);
+
+  elapsed = std::chrono::duration_cast
+              <std::chrono::microseconds>(t_stop - t_start);
+  printf(", total_slope_after__slope_test_gradient_strided = %ld\n", elapsed.count());
 
 
   /* Handle parallelism and periodicity */
@@ -1390,10 +1400,12 @@ _slope_test_gradient_strided
       }
     }
 
+    t_start = std::chrono::high_resolution_clock::now();
     _sync_strided_gradient_halo<stride>(m,
                                         use_gpu,
                                         halo_type,
                                         grdpa_double);
+    t_stop = std::chrono::high_resolution_clock::now();
 
     for (cs_lnum_t i = 0; i < n_cells_ext; i++) {
       for (cs_lnum_t j = 0; j < stride; j++) {
@@ -1404,8 +1416,12 @@ _slope_test_gradient_strided
     }
   }
 
+  printf("%d: %s<%d>", cs_glob_rank_id, __func__, stride);
+
+  elapsed = std::chrono::duration_cast
+              <std::chrono::microseconds>(t_stop - t_start);
+  printf(", total_slope_after_copy = %ld\n", elapsed.count());
   if (cs_glob_timer_kernels_flag > 0) {
-    std::chrono::high_resolution_clock::time_point
       t_stop = std::chrono::high_resolution_clock::now();
 
     std::chrono::microseconds elapsed;
