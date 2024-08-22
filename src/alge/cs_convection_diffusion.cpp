@@ -1345,7 +1345,7 @@ _slope_test_gradient_strided
   t_start = std::chrono::high_resolution_clock::now();
   if (cs_glob_timer_kernels_flag > 0)
     t_start = std::chrono::high_resolution_clock::now();
-
+  // use_gpu = false;
 #if defined(HAVE_ACCEL)
 
   if (use_gpu) {
@@ -1382,8 +1382,8 @@ _slope_test_gradient_strided
 
   elapsed = std::chrono::duration_cast
               <std::chrono::microseconds>(t_stop - t_start);
-  printf(", total_slope_after__slope_test_gradient_strided = %ld\n", elapsed.count());
-
+  printf(", total_slope_after__slope_test_gradient_%d = %ld\n", stride, elapsed.count());
+  // use_gpu = true;
 
   /* Handle parallelism and periodicity */
   if (m->halo != NULL){
@@ -1392,13 +1392,8 @@ _slope_test_gradient_strided
     using grdpa_t = cs_real_t[stride][3];
     grdpa_t *grdpa_double;
     CS_MALLOC_HD(grdpa_double, n_cells_ext, grdpa_t, amode);
-    for (cs_lnum_t i = 0; i < n_cells_ext; i++) {
-      for (cs_lnum_t j = 0; j < stride; j++) {
-        std::copy(&grdpa[i][j][0], &grdpa[i][j][0] + stride * 3, &grdpa_double[i][j][0]);
-        std::copy(&grdpa[i][j][1], &grdpa[i][j][1] + stride * 3, &grdpa_double[i][j][1]);
-        std::copy(&grdpa[i][j][2], &grdpa[i][j][2] + stride * 3, &grdpa_double[i][j][2]);
-      }
-    }
+
+    std::copy(&grdpa[0][0][0], &grdpa[0][0][0] + n_cells_ext * stride * 3, &grdpa_double[0][0][0]);
 
     t_start = std::chrono::high_resolution_clock::now();
     _sync_strided_gradient_halo<stride>(m,
@@ -1407,20 +1402,15 @@ _slope_test_gradient_strided
                                         grdpa_double);
     t_stop = std::chrono::high_resolution_clock::now();
 
-    for (cs_lnum_t i = 0; i < n_cells_ext; i++) {
-      for (cs_lnum_t j = 0; j < stride; j++) {
-        std::copy(&grdpa_double[i][j][0], &grdpa_double[i][j][0] + stride * 3, &grdpa[i][j][0]);
-        std::copy(&grdpa_double[i][j][1], &grdpa_double[i][j][1] + stride * 3, &grdpa[i][j][1]);
-        std::copy(&grdpa_double[i][j][2], &grdpa_double[i][j][2] + stride * 3, &grdpa[i][j][2]);
-      }
-    }
+    std::copy(&grdpa_double[0][0][0], &grdpa_double[0][0][0] + n_cells_ext * stride * 3, &grdpa[0][0][0]);
+    BFT_FREE(grdpa_double);
   }
 
   printf("%d: %s<%d>", cs_glob_rank_id, __func__, stride);
 
   elapsed = std::chrono::duration_cast
               <std::chrono::microseconds>(t_stop - t_start);
-  printf(", total_slope_after_copy = %ld\n", elapsed.count());
+  printf(", total_slope_after_copy_%d = %ld\n", stride, elapsed.count());
   if (cs_glob_timer_kernels_flag > 0) {
       t_stop = std::chrono::high_resolution_clock::now();
 
@@ -5161,7 +5151,6 @@ _convection_diffusion_vector_steady(cs_field_t                 *f,
 
   /* Allocate work arrays */
 
-  cs_float_33_m *grdpa = nullptr;
 
   /* Choose gradient type */
 
@@ -5206,10 +5195,14 @@ _convection_diffusion_vector_steady(cs_field_t                 *f,
      ---> Compute uncentered gradient grdpa for the slope test
      ======================================================================*/
 
-  if (iconvp > 0 && pure_upwind == false && isstpp == 0) {
-    CS_MALLOC_HD(grdpa, n_cells_ext, cs_float_33_m, cs_alloc_mode);
+  cs_real_33_t*grdpa = nullptr;
+  // cs_float_33_m *grdpa = nullptr;
 
-    _slope_test_gradient_strided<3, cs_float_m>(ctx,
+  if (iconvp > 0 && pure_upwind == false && isstpp == 0) {
+    CS_MALLOC_HD(grdpa, n_cells_ext, cs_real_33_t, cs_alloc_mode);
+    // CS_MALLOC_HD(grdpa, n_cells_ext, cs_float_33_m, cs_alloc_mode);
+
+    _slope_test_gradient_strided<3, cs_real_t>(ctx,
                                     inc,
                                     halo_type,
                                     (const cs_real_33_t *)grad,
@@ -5510,7 +5503,8 @@ _convection_diffusion_vector_steady(cs_field_t                 *f,
             bldfrp = cs_math_fmax(cs_math_fmin(df_limiter[ii], df_limiter[jj]),
                                   0.);
 
-          cs_i_cd_steady_slope_test_strided<3, cs_float_m>(&upwind_switch,
+          cs_i_cd_steady_slope_test_strided<3, cs_real_t>(&upwind_switch,
+          // cs_i_cd_steady_slope_test_strided<3, cs_float_m>(&upwind_switch,
                                                iconvp,
                                                bldfrp,
                                                ischcp,
@@ -6008,7 +6002,6 @@ _convection_diffusion_tensor_steady(cs_field_t                  *f,
 
   /* Allocate work arrays */
 
-  cs_float_63_m *grdpa = nullptr;
 
   /* Choose gradient type */
 
@@ -6048,10 +6041,14 @@ _convection_diffusion_tensor_steady(cs_field_t                  *f,
      ---> Compute uncentered gradient grdpa for the slope test
      ======================================================================*/
 
-  if (iconvp > 0 && iupwin == 0 && isstpp == 0) {
-    BFT_MALLOC(grdpa, n_cells_ext, cs_float_63_m);
+  cs_real_63_t *grdpa = nullptr;
+  // cs_float_63_m *grdpa = nullptr;
 
-    _slope_test_gradient_strided<6, cs_float_m>(ctx,
+  if (iconvp > 0 && iupwin == 0 && isstpp == 0) {
+    BFT_MALLOC(grdpa, n_cells_ext, cs_real_63_t);
+    // BFT_MALLOC(grdpa, n_cells_ext, cs_float_63_m);
+
+    _slope_test_gradient_strided<6, cs_real_t>(ctx,
                                     inc,
                                     halo_type,
                                     (const cs_real_63_t *)grad,
@@ -6290,7 +6287,8 @@ _convection_diffusion_tensor_steady(cs_field_t                  *f,
             bldfrp = cs_math_fmax(cs_math_fmin(df_limiter[ii], df_limiter[jj]),
                                   0.);
 
-          cs_i_cd_steady_slope_test_strided<6, cs_float_m>(&upwind_switch,
+          cs_i_cd_steady_slope_test_strided<6, cs_real_t>(&upwind_switch,
+          // cs_i_cd_steady_slope_test_strided<6, cs_float_m>(&upwind_switch,
                                                iconvp,
                                                bldfrp,
                                                ischcp,
@@ -6663,14 +6661,16 @@ _convection_diffusion_unsteady_strided
      Compute uncentered gradient grdpa for the slope test
      ======================================================================*/
 
-  grad_t_m *grdpa = nullptr;
+  grad_t *grdpa = nullptr;
+  // grad_t_m *grdpa = nullptr;
 
   ctx.wait();
 
   if (iconvp > 0 && pure_upwind == false && isstpp == 0) {
-    CS_MALLOC_HD(grdpa, n_cells_ext, grad_t_m, amode);
+    CS_MALLOC_HD(grdpa, n_cells_ext, grad_t, amode);
+    // CS_MALLOC_HD(grdpa, n_cells_ext, grad_t_m, amode);
 
-    _slope_test_gradient_strided<stride, cs_float_m>(ctx,
+    _slope_test_gradient_strided<stride, cs_real_t>(ctx,
                                          inc,
                                          halo_type,
                                          (const grad_t *)grad,
