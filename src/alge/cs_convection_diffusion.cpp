@@ -1404,13 +1404,14 @@ _slope_test_gradient_strided
 
     std::copy(&grdpa_double[0][0][0], &grdpa_double[0][0][0] + n_cells_ext * stride * 3, &grdpa[0][0][0]);
     BFT_FREE(grdpa_double);
+
+    printf("%d: %s<%d>", cs_glob_rank_id, __func__, stride);
+
+    elapsed = std::chrono::duration_cast
+                <std::chrono::microseconds>(t_stop - t_start);
+    printf(", total_slope_after_copy_%d = %ld\n", stride, elapsed.count());
   }
-
-  printf("%d: %s<%d>", cs_glob_rank_id, __func__, stride);
-
-  elapsed = std::chrono::duration_cast
-              <std::chrono::microseconds>(t_stop - t_start);
-  printf(", total_slope_after_copy_%d = %ld\n", stride, elapsed.count());
+  
   if (cs_glob_timer_kernels_flag > 0) {
       t_stop = std::chrono::high_resolution_clock::now();
 
