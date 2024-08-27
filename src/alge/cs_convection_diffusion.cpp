@@ -77,6 +77,7 @@
 #include "cs_prototypes.h"
 #include "cs_timer.h"
 #include "cs_velocity_pressure.h"
+#include "cs_debug.h"
 
 /*----------------------------------------------------------------------------
  *  Header for the current file
@@ -1338,13 +1339,24 @@ _slope_test_gradient_strided
 
   bool use_gpu = ctx.use_gpu();
   const cs_mesh_t  *m = cs_glob_mesh;
+  bool accuracy = false, perf = false;
+  const cs_lnum_t n_cells = m->n_cells;
+  const cs_lnum_t n_cells_ext = m->n_cells_with_ghosts;
+  using grad_t = T[stride][3];
+  grad_t *grdpa_cpu, *grdpa_gpu_on_cpu;
+  size_t size = n_cells * sizeof(T) * stride *3;
+  CS_MALLOC_HD(grdpa_cpu, n_cells_ext, grad_t, CS_ALLOC_HOST_DEVICE_SHARED);
+  CS_MALLOC_HD(grdpa_gpu_on_cpu, n_cells_ext, grad_t, CS_ALLOC_HOST_DEVICE_SHARED);
 
   std::chrono::high_resolution_clock::time_point t_start;
   std::chrono::high_resolution_clock::time_point t_stop;
   std::chrono::microseconds elapsed;
-  t_start = std::chrono::high_resolution_clock::now();
+  if(perf){
+    t_start = std::chrono::high_resolution_clock::now();
+  }
   if (cs_glob_timer_kernels_flag > 0)
     t_start = std::chrono::high_resolution_clock::now();
+
   // use_gpu = false;
 #if defined(HAVE_ACCEL)
 
@@ -1363,6 +1375,7 @@ _slope_test_gradient_strided
 
 #endif
 
+  // use_gpu = false;
   if (use_gpu == false) {
     cs_host_context &h_ctx = static_cast<cs_host_context&>(ctx);
 
@@ -1375,42 +1388,71 @@ _slope_test_gradient_strided
        bc_coeffs_v,
        i_massflux);
   }
-
-  ctx.wait();
-  t_stop = std::chrono::high_resolution_clock::now();
-  printf("%d: %s<%d>", cs_glob_rank_id, __func__, stride);
-
-  elapsed = std::chrono::duration_cast
-              <std::chrono::microseconds>(t_stop - t_start);
-  printf(", total_slope_after__slope_test_gradient_%d = %ld\n", stride, elapsed.count());
   // use_gpu = true;
 
-  /* Handle parallelism and periodicity */
-  if (m->halo != NULL){
-    cs_alloc_mode_t amode = ctx.alloc_mode(true);
-    const cs_lnum_t n_cells_ext = m->n_cells_with_ghosts;
-    using grdpa_t = cs_real_t[stride][3];
-    grdpa_t *grdpa_double;
-    CS_MALLOC_HD(grdpa_double, n_cells_ext, grdpa_t, amode);
-
-    std::copy(&grdpa[0][0][0], &grdpa[0][0][0] + n_cells_ext * stride * 3, &grdpa_double[0][0][0]);
-
-    t_start = std::chrono::high_resolution_clock::now();
-    _sync_strided_gradient_halo<stride>(m,
-                                        use_gpu,
-                                        halo_type,
-                                        grdpa_double);
+  ctx.wait();
+  if(perf){
     t_stop = std::chrono::high_resolution_clock::now();
-
-    std::copy(&grdpa_double[0][0][0], &grdpa_double[0][0][0] + n_cells_ext * stride * 3, &grdpa[0][0][0]);
-    BFT_FREE(grdpa_double);
-
     printf("%d: %s<%d>", cs_glob_rank_id, __func__, stride);
 
     elapsed = std::chrono::duration_cast
                 <std::chrono::microseconds>(t_stop - t_start);
-    printf(", total_slope_after_copy_%d = %ld\n", stride, elapsed.count());
+    printf(", time_step = %d - total_slope_after__slope_test_gradient_%d = %ld\n", cs_glob_time_step->nt_cur, stride, elapsed.count());
   }
+  // use_gpu = true;
+
+  if(accuracy){
+      #if defined(HAVE_ACCEL)
+        cs_copy_d2h(grdpa_gpu_on_cpu, grdpa, size);
+        cs_real_t cpu, gpu;
+        double err;
+        for (cs_lnum_t c_id = 0; c_id < n_cells; c_id++) {
+            for (cs_lnum_t i = 0; i < stride; i++) {
+                for (cs_lnum_t j = 0; j < 3; j++) {
+                    cpu = grdpa_cpu[c_id][i][j];
+                    gpu = grdpa_gpu_on_cpu[c_id][i][j];
+                    err = (fabs(cpu - gpu) / fmax(fabs(cpu), 1e-6) );
+                    if (err> 1e-6) {
+                        printf("time_step = %d - slope_test DIFFERENCE @%d-%d-%d: CPU = %.17f\tGPU = %.17f\tdiff = %.17f\tdiff relative = %.17f\tulp = %a\n", cs_glob_time_step->nt_cur, c_id, i, j, cpu, gpu, fabs(cpu - gpu), err, cs_diff_ulp(cpu, gpu));
+                    }
+                }
+            }
+        }
+      #endif
+  }
+  BFT_FREE(grdpa_cpu);
+  BFT_FREE(grdpa_gpu_on_cpu);
+
+  /* Handle parallelism and periodicity */
+  // if (m->halo != NULL){
+  //   const cs_lnum_t n_cells_ext = m->n_cells_with_ghosts;
+  //   using grdpa_t = cs_real_t[stride][3];
+  //   grdpa_t *grdpa_double;
+  //   CS_MALLOC_HD(grdpa_double, n_cells_ext, grdpa_t, CS_ALLOC_HOST_DEVICE_SHARED);
+
+  //   std::copy(&grdpa[0][0][0], &grdpa[0][0][0] + n_cells_ext * stride * 3, &grdpa_double[0][0][0]);
+
+  //   if(perf){
+  //     t_start = std::chrono::high_resolution_clock::now();
+  //   }
+  //   _sync_strided_gradient_halo<stride>(m,
+  //                                       use_gpu,
+  //                                       halo_type,
+  //                                       grdpa_double);
+
+  //   if(perf){
+  //     t_stop = std::chrono::high_resolution_clock::now();
+  //   }
+
+  //   std::copy(&grdpa_double[0][0][0], &grdpa_double[0][0][0] + n_cells_ext * stride * 3, &grdpa[0][0][0]);
+  //   BFT_FREE(grdpa_double);
+
+  //   printf("%d: %s<%d>", cs_glob_rank_id, __func__, stride);
+
+  //   elapsed = std::chrono::duration_cast
+  //               <std::chrono::microseconds>(t_stop - t_start);
+  //   printf(", total_slope_after_copy_%d = %ld\n", stride, elapsed.count());
+  // }
   
   if (cs_glob_timer_kernels_flag > 0) {
       t_stop = std::chrono::high_resolution_clock::now();
@@ -6516,8 +6558,12 @@ _convection_diffusion_unsteady_strided
   using grad_t_m = cs_float_m[stride][3];
   using var_t = cs_real_t[stride];
   using b_t = cs_real_t[stride][stride];
+  bool perf = true;
 
   std::chrono::high_resolution_clock::time_point t_start;
+  if (perf > 0)
+    t_start = std::chrono::high_resolution_clock::now();
+
   if (cs_glob_timer_kernels_flag > 0)
     t_start = std::chrono::high_resolution_clock::now();
 
@@ -7512,6 +7558,18 @@ _convection_diffusion_unsteady_strided
 
   /* Free memory */
   CS_FREE_HD(grdpa);
+
+  if (perf) {
+    std::chrono::high_resolution_clock::time_point
+      t_stop = std::chrono::high_resolution_clock::now();
+
+    std::chrono::microseconds elapsed;
+    printf("%d: %s<%d>", cs_glob_rank_id, __func__, stride);
+
+    elapsed = std::chrono::duration_cast
+                <std::chrono::microseconds>(t_stop - t_start);
+    printf(", total convection unsteady = %ld\n", elapsed.count());
+  }
 
   if (cs_glob_timer_kernels_flag > 0) {
     std::chrono::high_resolution_clock::time_point
