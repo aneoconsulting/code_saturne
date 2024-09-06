@@ -1410,7 +1410,8 @@ _slope_test_gradient_strided
 
   if(accuracy){
       #if defined(HAVE_ACCEL)
-        cs_copy_d2h(grdpa_gpu_on_cpu, grdpa, size);
+        std::copy(&grdpa[0][0][0], &grdpa[0][0][0] + n_cells_ext * stride * 3, &grdpa_double[0][0][0]);
+        // cs_copy_d2h(grdpa_gpu_on_cpu, grdpa, size);
         cs_real_t cpu, gpu;
         double err;
         for (cs_lnum_t c_id = 0; c_id < n_cells; c_id++) {
@@ -1429,37 +1430,6 @@ _slope_test_gradient_strided
   }
   BFT_FREE(grdpa_cpu);
   BFT_FREE(grdpa_gpu_on_cpu);
-
-  /* Handle parallelism and periodicity */
-  // if (m->halo != NULL){
-  //   const cs_lnum_t n_cells_ext = m->n_cells_with_ghosts;
-  //   using grdpa_t = cs_real_t[stride][3];
-  //   grdpa_t *grdpa_double;
-  //   CS_MALLOC_HD(grdpa_double, n_cells_ext, grdpa_t, CS_ALLOC_HOST_DEVICE_SHARED);
-
-  //   std::copy(&grdpa[0][0][0], &grdpa[0][0][0] + n_cells_ext * stride * 3, &grdpa_double[0][0][0]);
-
-  //   if(perf){
-  //     t_start = std::chrono::high_resolution_clock::now();
-  //   }
-  //   _sync_strided_gradient_halo<stride>(m,
-  //                                       use_gpu,
-  //                                       halo_type,
-  //                                       grdpa_double);
-
-  //   if(perf){
-  //     t_stop = std::chrono::high_resolution_clock::now();
-  //   }
-
-  //   std::copy(&grdpa_double[0][0][0], &grdpa_double[0][0][0] + n_cells_ext * stride * 3, &grdpa[0][0][0]);
-  //   BFT_FREE(grdpa_double);
-
-  //   printf("%d: %s<%d>", cs_glob_rank_id, __func__, stride);
-
-  //   elapsed = std::chrono::duration_cast
-  //               <std::chrono::microseconds>(t_stop - t_start);
-  //   printf(", total_slope_after_copy_%d = %ld\n", stride, elapsed.count());
-  // }
   
   if (cs_glob_timer_kernels_flag > 0) {
       t_stop = std::chrono::high_resolution_clock::now();
