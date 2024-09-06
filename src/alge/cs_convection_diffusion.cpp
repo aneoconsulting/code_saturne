@@ -1338,11 +1338,15 @@ _slope_test_gradient_strided
 
   bool use_gpu = ctx.use_gpu();
   const cs_mesh_t  *m = cs_glob_mesh;
+  bool accuracy = false, perf = false;
 
   std::chrono::high_resolution_clock::time_point t_start;
   std::chrono::high_resolution_clock::time_point t_stop;
   std::chrono::microseconds elapsed;
-  t_start = std::chrono::high_resolution_clock::now();
+
+  if(perf){
+    t_start = std::chrono::high_resolution_clock::now();
+  }
   if (cs_glob_timer_kernels_flag > 0)
     t_start = std::chrono::high_resolution_clock::now();
   // use_gpu = false;
@@ -1377,41 +1381,25 @@ _slope_test_gradient_strided
   }
 
   ctx.wait();
-  t_stop = std::chrono::high_resolution_clock::now();
-  printf("%d: %s<%d>", cs_glob_rank_id, __func__, stride);
-
-  elapsed = std::chrono::duration_cast
-              <std::chrono::microseconds>(t_stop - t_start);
-  printf(", total_slope_after__slope_test_gradient_%d = %ld\n", stride, elapsed.count());
   // use_gpu = true;
 
   /* Handle parallelism and periodicity */
   if (m->halo != NULL){
-    cs_alloc_mode_t amode = ctx.alloc_mode(true);
-    const cs_lnum_t n_cells_ext = m->n_cells_with_ghosts;
-    using grdpa_t = cs_real_t[stride][3];
-    grdpa_t *grdpa_double;
-    CS_MALLOC_HD(grdpa_double, n_cells_ext, grdpa_t, amode);
-
-    std::copy(&grdpa[0][0][0], &grdpa[0][0][0] + n_cells_ext * stride * 3, &grdpa_double[0][0][0]);
-
-    t_start = std::chrono::high_resolution_clock::now();
     _sync_strided_gradient_halo<stride>(m,
                                         use_gpu,
                                         halo_type,
-                                        grdpa_double);
+                                        grdpa);
+  }
+  if(perf){
+
     t_stop = std::chrono::high_resolution_clock::now();
-
-    std::copy(&grdpa_double[0][0][0], &grdpa_double[0][0][0] + n_cells_ext * stride * 3, &grdpa[0][0][0]);
-    BFT_FREE(grdpa_double);
-
     printf("%d: %s<%d>", cs_glob_rank_id, __func__, stride);
 
     elapsed = std::chrono::duration_cast
                 <std::chrono::microseconds>(t_stop - t_start);
-    printf(", total_slope_after_copy_%d = %ld\n", stride, elapsed.count());
+    printf(", total_slope_after__slope_test_gradient_%d = %ld\n", stride, elapsed.count());
   }
-  
+
   if (cs_glob_timer_kernels_flag > 0) {
       t_stop = std::chrono::high_resolution_clock::now();
 
