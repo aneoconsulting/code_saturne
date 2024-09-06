@@ -1391,6 +1391,13 @@ _slope_test_gradient_strided
   // use_gpu = true;
 
   ctx.wait();
+  /* Handle parallelism and periodicity */
+  if (m->halo != NULL){
+    _sync_strided_gradient_halo<1>(m,
+                                        use_gpu,
+                                        halo_type,
+                                        grdpa);
+  }
   if(perf){
     t_stop = std::chrono::high_resolution_clock::now();
     printf("%d: %s<%d>", cs_glob_rank_id, __func__, stride);
@@ -5546,8 +5553,8 @@ _convection_diffusion_vector_steady(cs_field_t                 *f,
             bldfrp = cs_math_fmax(cs_math_fmin(df_limiter[ii], df_limiter[jj]),
                                   0.);
 
-          cs_i_cd_steady_slope_test_strided<3, cs_real_t>(&upwind_switch,
-          // cs_i_cd_steady_slope_test_strided<3, cs_float_m>(&upwind_switch,
+          // cs_i_cd_steady_slope_test_strided<3, cs_real_t>(&upwind_switch,
+          cs_i_cd_steady_slope_test_strided<3, cs_float_m>(&upwind_switch,
                                                iconvp,
                                                bldfrp,
                                                ischcp,
@@ -6330,8 +6337,8 @@ _convection_diffusion_tensor_steady(cs_field_t                  *f,
             bldfrp = cs_math_fmax(cs_math_fmin(df_limiter[ii], df_limiter[jj]),
                                   0.);
 
-          cs_i_cd_steady_slope_test_strided<6, cs_real_t>(&upwind_switch,
-          // cs_i_cd_steady_slope_test_strided<6, cs_float_m>(&upwind_switch,
+          // cs_i_cd_steady_slope_test_strided<6, cs_real_t>(&upwind_switch,
+          cs_i_cd_steady_slope_test_strided<6, cs_float_m>(&upwind_switch,
                                                iconvp,
                                                bldfrp,
                                                ischcp,
@@ -6554,6 +6561,8 @@ _convection_diffusion_unsteady_strided
    cs_real_t         (*restrict grad)[stride][3],
    cs_real_t         (*restrict rhs)[stride])
 {
+  bool accuracy = false, perf = false;
+  
   using grad_t = cs_real_t[stride][3];
   using grad_t_m = cs_float_m[stride][3];
   using var_t = cs_real_t[stride];
@@ -6709,13 +6718,13 @@ _convection_diffusion_unsteady_strided
      ======================================================================*/
 
   grad_t *grdpa = nullptr;
-  // grad_t_m *grdpa = nullptr;
+  grad_t_m *grdpa_f = nullptr;
 
   ctx.wait();
 
   if (iconvp > 0 && pure_upwind == false && isstpp == 0) {
     CS_MALLOC_HD(grdpa, n_cells_ext, grad_t, amode);
-    // CS_MALLOC_HD(grdpa, n_cells_ext, grad_t_m, amode);
+    CS_MALLOC_HD(grdpa_f, n_cells_ext, grad_t_m, amode);
 
     _slope_test_gradient_strided<stride, cs_real_t>(ctx,
                                          inc,
@@ -6725,6 +6734,34 @@ _convection_diffusion_unsteady_strided
                                          _pvar,
                                          bc_coeffs,
                                          i_massflux);
+
+
+    _slope_test_gradient_strided<stride, cs_float_m>(ctx,
+                                         inc,
+                                         halo_type,
+                                         (const grad_t *)grad,
+                                         grdpa_f,
+                                         _pvar,
+                                         bc_coeffs,
+                                         i_massflux);
+  }
+
+  if(accuracy){
+    // cs_copy_d2h(grdpa_gpu_on_cpu, grdpa, size);
+    cs_real_t cpu, gpu;
+    double err, seuil = 1e-7;
+    for (cs_lnum_t c_id = 0; c_id < n_cells; c_id++) {
+      for (cs_lnum_t i = 0; i < stride; i++) {
+        for (cs_lnum_t j = 0; j < 3; j++) {
+          cpu = grdpa[c_id][i][j];
+          gpu = static_cast<cs_real_t>(grdpa_f[c_id][i][j]);
+          err = (fabs(cpu - gpu) / fmax(fabs(cpu), seuil) );
+          if (err> seuil) {
+              printf("time_step = %d - slope_test DIFFERENCE @%d-%d-%d: CPU = %.17f\tGPU = %.17f\tdiff = %.17f\tdiff relative = %.17f\tulp = %a\n", cs_glob_time_step->nt_cur, c_id, i, j, cpu, gpu, fabs(cpu - gpu), err, cs_diff_ulp(cpu, gpu));
+          }
+        }
+      }
+    }
   }
 
   /* ======================================================================
