@@ -1393,10 +1393,10 @@ _slope_test_gradient_strided
   ctx.wait();
   /* Handle parallelism and periodicity */
   if (m->halo != NULL){
-    _sync_strided_gradient_halo<1>(m,
-                                        use_gpu,
-                                        halo_type,
-                                        grdpa);
+    // _sync_strided_gradient_halo<stride>(m,
+    //                                     use_gpu,
+    //                                     halo_type,
+    //                                     grdpa);
   }
   if(perf){
     t_stop = std::chrono::high_resolution_clock::now();
@@ -1410,7 +1410,7 @@ _slope_test_gradient_strided
 
   if(accuracy){
       #if defined(HAVE_ACCEL)
-        std::copy(&grdpa[0][0][0], &grdpa[0][0][0] + n_cells_ext * stride * 3, &grdpa_double[0][0][0]);
+        std::copy(&grdpa[0][0][0], &grdpa[0][0][0] + n_cells_ext * stride * 3, &grdpa_gpu_on_cpu[0][0][0]);
         // cs_copy_d2h(grdpa_gpu_on_cpu, grdpa, size);
         cs_real_t cpu, gpu;
         double err;
@@ -5523,8 +5523,8 @@ _convection_diffusion_vector_steady(cs_field_t                 *f,
             bldfrp = cs_math_fmax(cs_math_fmin(df_limiter[ii], df_limiter[jj]),
                                   0.);
 
-          // cs_i_cd_steady_slope_test_strided<3, cs_real_t>(&upwind_switch,
-          cs_i_cd_steady_slope_test_strided<3, cs_float_m>(&upwind_switch,
+          cs_i_cd_steady_slope_test_strided<3, cs_real_t>(&upwind_switch,
+          // cs_i_cd_steady_slope_test_strided<3, cs_float_m>(&upwind_switch,
                                                iconvp,
                                                bldfrp,
                                                ischcp,
@@ -6307,8 +6307,8 @@ _convection_diffusion_tensor_steady(cs_field_t                  *f,
             bldfrp = cs_math_fmax(cs_math_fmin(df_limiter[ii], df_limiter[jj]),
                                   0.);
 
-          // cs_i_cd_steady_slope_test_strided<6, cs_real_t>(&upwind_switch,
-          cs_i_cd_steady_slope_test_strided<6, cs_float_m>(&upwind_switch,
+          cs_i_cd_steady_slope_test_strided<6, cs_real_t>(&upwind_switch,
+          // cs_i_cd_steady_slope_test_strided<6, cs_float_m>(&upwind_switch,
                                                iconvp,
                                                bldfrp,
                                                ischcp,
@@ -6537,10 +6537,9 @@ _convection_diffusion_unsteady_strided
   using grad_t_m = cs_float_m[stride][3];
   using var_t = cs_real_t[stride];
   using b_t = cs_real_t[stride][stride];
-  bool perf = true;
 
   std::chrono::high_resolution_clock::time_point t_start;
-  if (perf > 0)
+  if (perf)
     t_start = std::chrono::high_resolution_clock::now();
 
   if (cs_glob_timer_kernels_flag > 0)
