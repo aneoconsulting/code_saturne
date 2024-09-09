@@ -6531,7 +6531,7 @@ _convection_diffusion_unsteady_strided
    cs_real_t         (*restrict grad)[stride][3],
    cs_real_t         (*restrict rhs)[stride])
 {
-  bool accuracy = false, perf = false;
+  bool accuracy = true, perf = false;
   
   using grad_t = cs_real_t[stride][3];
   using grad_t_m = cs_float_m[stride][3];
@@ -6732,6 +6732,7 @@ _convection_diffusion_unsteady_strided
       }
     }
   }
+  BFT_FREE(grdpa_f);
 
   /* ======================================================================
      Contribution from interior faces
