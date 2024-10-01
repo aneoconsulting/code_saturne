@@ -1351,13 +1351,13 @@ _slope_test_gradient_strided
   std::chrono::high_resolution_clock::time_point t_start;
   std::chrono::high_resolution_clock::time_point t_stop;
   std::chrono::microseconds elapsed;
+
   if(perf){
     t_start = std::chrono::high_resolution_clock::now();
   }
   if (cs_glob_timer_kernels_flag > 0)
     t_start = std::chrono::high_resolution_clock::now();
 
-  // use_gpu = false;
 #if defined(HAVE_ACCEL)
 
   if (use_gpu) {
@@ -1375,7 +1375,6 @@ _slope_test_gradient_strided
 
 #endif
 
-  // use_gpu = false;
   if (use_gpu == false) {
     cs_host_context &h_ctx = static_cast<cs_host_context&>(ctx);
 
@@ -1399,6 +1398,12 @@ _slope_test_gradient_strided
     //                                     grdpa);
   }
   if(perf){
+    _sync_strided_gradient_halo<stride>(m,
+                                        use_gpu,
+                                        halo_type,
+                                        grdpa);
+  }
+  if(perf){
     t_stop = std::chrono::high_resolution_clock::now();
     printf("%d: %s<%d>", cs_glob_rank_id, __func__, stride);
 
@@ -1406,7 +1411,6 @@ _slope_test_gradient_strided
                 <std::chrono::microseconds>(t_stop - t_start);
     printf(", time_step = %d - total_slope_after__slope_test_gradient_%d = %ld\n", cs_glob_time_step->nt_cur, stride, elapsed.count());
   }
-  // use_gpu = true;
 
   if(accuracy){
       #if defined(HAVE_ACCEL)
@@ -1428,6 +1432,7 @@ _slope_test_gradient_strided
         }
       #endif
   }
+  
   BFT_FREE(grdpa_cpu);
   BFT_FREE(grdpa_gpu_on_cpu);
   
