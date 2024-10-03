@@ -6530,7 +6530,7 @@ _convection_diffusion_unsteady_strided
    cs_real_t         (*restrict grad)[stride][3],
    cs_real_t         (*restrict rhs)[stride])
 {
-  bool accuracy = false, perf = true;
+  bool accuracy = false, perf = false;
   
   using grad_t = cs_real_t[stride][3];
   using grad_t_m = cs_float_m[stride][3];
