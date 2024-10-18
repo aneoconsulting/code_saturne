@@ -467,7 +467,7 @@ cs_slope_test(const cs_real_t   pi,
  */
 /*----------------------------------------------------------------------------*/
 
-template <cs_lnum_t stride>
+template <cs_lnum_t stride, typename T>
 CS_F_HOST_DEVICE inline static void
 cs_slope_test_strided(const cs_real_t   pi[stride],
                       const cs_real_t   pj[stride],
@@ -475,8 +475,8 @@ cs_slope_test_strided(const cs_real_t   pi[stride],
                       const cs_real_t   i_face_u_normal[3],
                       const cs_real_t   gradi[stride][3],
                       const cs_real_t   gradj[stride][3],
-                      const cs_real_t   gradsti[stride][3],
-                      const cs_real_t   gradstj[stride][3],
+                      const T           gradsti[stride][3],
+                      const T           gradstj[stride][3],
                       const cs_real_t   i_massflux,
                       cs_real_t        *testij,
                       cs_real_t        *tesqck)
@@ -2236,7 +2236,7 @@ cs_i_cd_steady_slope_test(bool              *upwind_switch,
  */
 /*----------------------------------------------------------------------------*/
 
-template <cs_lnum_t stride>
+template <cs_lnum_t stride, typename T>
 CS_F_HOST_DEVICE inline static void
 cs_i_cd_steady_slope_test_strided(bool             *upwind_switch,
                                   int               iconvp,
@@ -2256,8 +2256,8 @@ cs_i_cd_steady_slope_test_strided(bool             *upwind_switch,
                                   cs_real_t         i_massflux,
                                   const cs_real_t   gradi[stride][3],
                                   const cs_real_t   gradj[stride][3],
-                                  const cs_real_t   grdpai[stride][3],
-                                  const cs_real_t   grdpaj[stride][3],
+                                  const T   grdpai[stride][3],
+                                  const T   grdpaj[stride][3],
                                   const cs_real_t   pi[stride],
                                   const cs_real_t   pj[stride],
                                   const cs_real_t   pia[stride],
@@ -2302,7 +2302,7 @@ cs_i_cd_steady_slope_test_strided(bool             *upwind_switch,
 
   /* Convection slope test is needed only when iconv >0 */
   if (iconvp > 0) {
-    cs_slope_test_strided<stride>(pi,
+    cs_slope_test_strided<stride, T>(pi,
                                   pj,
                                   i_dist,
                                   i_face_u_normal,
