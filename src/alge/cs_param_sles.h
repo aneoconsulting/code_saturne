@@ -65,15 +65,15 @@ typedef struct {
 
   char   *name;        /*!< System name (equation name if this is automatic) */
   int     field_id;    /*!< Field id related to a SLES. By default, this is set
-                         to -1 */
+                            to -1 */
   int     verbosity;   /*!< SLES verbosity */
 
-  cs_param_solver_class_t    solver_class; /*!< class of SLES to consider  */
-  cs_param_precond_type_t    precond;      /*!< type of preconditioner */
-  cs_param_solver_type_t     solver;       /*!< type of solver */
-  bool                       flexible;     /*!< need a flexible variant ? */
-  int                        restart;      /*!< max. iter. before restarting */
-  cs_param_amg_type_t        amg_type;     /*!< type of AMG algorithm */
+  cs_param_solver_class_t    solver_class;  /*!< class of SLES to consider  */
+  cs_param_precond_type_t    precond;       /*!< type of preconditioner */
+  cs_param_solver_type_t     solver;        /*!< type of solver */
+  bool                       need_flexible; /*!< need a flexible variant ? */
+  int                        restart;       /*!< max. iter. before restarting */
+  cs_param_amg_type_t        amg_type;      /*!< type of AMG algorithm */
 
   /*! \var precond_block_type
    *  type of block preconditioner to use (only meaningful for vector-valued
@@ -93,6 +93,14 @@ typedef struct {
    */
 
   bool                       allow_no_op;
+
+  /*! \var mat_is_sym
+   *  allow one to know if the matric is symmetric (independent of the way the
+   *  storage is done).
+   * Default value is false
+   */
+
+  bool                       mat_is_sym;
 
   /*! \var cvg_param
    *  Structure storing the parameters to know if an iterative process has to
@@ -405,6 +413,120 @@ cs_param_sles_boomeramg_advanced(cs_param_sles_t                   *slesp,
 
 /*----------------------------------------------------------------------------*/
 /*!
+ * \brief Allocate and initialize a new context structure for the GAMG
+ *        settings in PETSc.
+ *
+ * \param[in, out] slesp  pointer to a cs_param_sles_t structure
+ */
+/*----------------------------------------------------------------------------*/
+
+void
+cs_param_sles_gamg_reset(cs_param_sles_t  *slesp);
+
+/*----------------------------------------------------------------------------*/
+/*!
+ * \brief Set the main members of a cs_param_amg_gamg_t structure. This
+ *        structure is allocated, initialized by default and then one sets the
+ *        main given parameters. Please refer to the PETSc user guide for more
+ *        details about the following options.
+ *
+ * \param[in, out] slesp           pointer to a cs_param_sles_t structure
+ * \param[in]      n_down_iter     number of smoothing steps for the down cycle
+ * \param[in]      down_smoother   type of smoother for the down cycle
+ * \param[in]      n_up_iter       number of smoothing steps for the up cycle
+ * \param[in]      up_smoother     type of smoother for the up cycle
+ * \param[in]      coarse_solver   solver at the coarsest level
+ */
+/*----------------------------------------------------------------------------*/
+
+void
+cs_param_sles_gamg(cs_param_sles_t                  *slesp,
+                   int                               n_down_iter,
+                   cs_param_amg_gamg_smoother_t      down_smoother,
+                   int                               n_up_iter,
+                   cs_param_amg_gamg_smoother_t      up_smoother,
+                   cs_param_amg_gamg_coarse_solver_t coarse_solver);
+
+/*----------------------------------------------------------------------------*/
+/*!
+ * \brief Set the members of a cs_param_amg_gamg_t structure used in
+ *        advanced settings. This structure is allocated if needed. Other
+ *        members are kept to their values. Please refer to the PETSc user
+ *        guide for more details about the following options.
+ *
+ * \param[in, out] slesp         pointer to a cs_param_sles_t structure
+ * \param[in]      threshold     value of the coarsening threshold
+ * \param[in]      n_agg_lv      aggressive coarsening (number of levels)
+ * \param[in]      use_sq_grph   use previous square graph for aggressive coa.
+ * \param[in]      n_smooth_agg  smooth aggregation (number of sweeps)
+ */
+/*----------------------------------------------------------------------------*/
+
+void
+cs_param_sles_gamg_advanced(cs_param_sles_t *slesp,
+                            double           threshold,
+                            int              n_agg_lv,
+                            bool             use_sq_grph,
+                            int              n_smooth_agg);
+
+/*----------------------------------------------------------------------------*/
+/*!
+ * \brief Allocate and initialize a new context structure for the HMG settings
+ *        in PETSc.
+ *
+ * \param[in, out] slesp  pointer to a cs_param_sles_t structure
+ */
+/*----------------------------------------------------------------------------*/
+
+void
+cs_param_sles_hmg_reset(cs_param_sles_t  *slesp);
+
+/*----------------------------------------------------------------------------*/
+/*!
+ * \brief Set the main members of a cs_param_amg_hmg_t structure. This
+ *        structure is allocated, initialized by default and then one sets the
+ *        main given parameters. Please refer to the PETSc user guide for more
+ *        details about the following options.
+ *
+ * \param[in, out] slesp           pointer to a cs_param_sles_t structure
+ * \param[in]      n_down_iter     number of smoothing steps for the down cycle
+ * \param[in]      down_smoother   type of smoother for the down cycle
+ * \param[in]      n_up_iter       number of smoothing steps for the up cycle
+ * \param[in]      up_smoother     type of smoother for the up cycle
+ * \param[in]      coarse_solver   solver at the coarsest level
+ */
+/*----------------------------------------------------------------------------*/
+
+void
+cs_param_sles_hmg(cs_param_sles_t                   *slesp,
+                  int                                n_down_iter,
+                  cs_param_amg_gamg_smoother_t       down_smoother,
+                  int                                n_up_iter,
+                  cs_param_amg_gamg_smoother_t       up_smoother,
+                  cs_param_amg_gamg_coarse_solver_t  coarse_solver);
+
+/*----------------------------------------------------------------------------*/
+/*!
+ * \brief Set the members of a cs_param_amg_gamg_t structure used in
+ *        advanced settings. This structure is allocated if needed. Other
+ *        members are kept to their values. Please refer to the PETSc user
+ *        guide for more details about the following options.
+ *
+ * \param[in, out] slesp                 pointer to a cs_param_sles_t structure
+ * \param[in]      use_boomer_coarsening coarsening done by HYPRE ?
+ * \param[in]      reuse_interpolation   reuse interpolation for new mat. values
+ * \param[in]      subspace_coarsening   use coarsening of submatrices
+ */
+/*----------------------------------------------------------------------------*/
+
+void
+cs_param_sles_hmg_advanced(cs_param_sles_t *slesp,
+                           bool             use_boomer_coarsening,
+                           bool             reuse_interpolation,
+                           bool             subspace_coarsening);
+
+/*----------------------------------------------------------------------------*/
+/*!
  * \brief Allocate and initialize a new context structure for the MUMPS
  *        settings.
  *
@@ -443,6 +565,7 @@ cs_param_sles_mumps(cs_param_sles_t             *slesp,
  * \param[in, out] slesp            pointer to a cs_param_sles_t structure
  * \param[in]      analysis_algo    algorithm used for the analysis step
  * \param[in]      block_analysis   > 1: fixed block size; otherwise do nothing
+ * \param[in]      keep_ordering    true: keep the initial ordering to save time
  * \param[in]      mem_coef         percentage increase in the memory workspace
  * \param[in]      blr_threshold    Accuracy in BLR compression (0: not used)
  * \param[in]      ir_steps         0: No, otherwise the number of iterations
@@ -455,6 +578,7 @@ void
 cs_param_sles_mumps_advanced(cs_param_sles_t                *slesp,
                              cs_param_mumps_analysis_algo_t  analysis_algo,
                              int                             block_analysis,
+                             bool                            keep_ordering,
                              double                          mem_coef,
                              double                          blr_threshold,
                              int                             ir_steps,

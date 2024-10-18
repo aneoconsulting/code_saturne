@@ -135,7 +135,8 @@ def main(argv, pkg):
     set_modules(pkg)
     source_rcfile(pkg)
 
-    images_path = os.path.join(pkg.get_dir('pkgdatadir'), 'images')
+    from code_saturne import get_cs_data_path
+    images_path = os.path.join(get_cs_data_path(), 'icons')
 
     # Test if EOS modules could be imported
     cfg = pkg.config
@@ -156,6 +157,19 @@ def main(argv, pkg):
         if eospath:
             if os.path.isdir(eospath) and not eospath in sys.path:
                 sys.path.insert(0, eospath)
+
+            elif not os.path.isdir(eospath):
+                # Hack to handle some systems which my name wrongly the package
+                try:
+                    eospath_bis = eospath.replace('python'+str(sysconfig.get_python_version()),
+                                                  'python.')
+                except Exception:
+                    eospath_bis = ''
+
+                if os.path.isdir(eospath_bis) and not eospath_bis in sys.path:
+                    sys.path.insert(0, eospath_bis)
+
+
 
     case, spl = process_cmd_line(argv)
 

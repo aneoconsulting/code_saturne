@@ -145,6 +145,40 @@ extern void cs_f_majgeo(const cs_lnum_t    *ncel,
  * Private function definitions
  *============================================================================*/
 
+/*----------------------------------------------------------------------------*/
+/*!
+ * \brief  Log performance-related information.
+ *
+ * \param  wt  associated wall-clock time
+ */
+/*----------------------------------------------------------------------------*/
+
+static void
+_preprocess_log_performance(double  wt)
+{
+  const cs_mesh_t *m = cs_glob_mesh;
+
+  cs_log_printf(CS_LOG_PERFORMANCE,
+                _("\n"
+                  "Total elapsed time for preprocessing:  %.3f s\n"),
+                wt);
+
+  cs_log_printf(CS_LOG_PERFORMANCE,
+                _("\n"
+                  "Mesh size:\n"
+                  "  Number of cells:                     %llu\n"
+                  "  Number of interior faces:            %llu\n"
+                  "  Number of boundary faces:            %llu\n"
+                  "  Number of vertices:                  %llu\n"),
+                (unsigned long long)m->n_g_cells,
+                (unsigned long long)m->n_i_faces,
+                (unsigned long long)m->n_b_faces,
+                (unsigned long long)m->n_vertices);
+
+  cs_log_printf(CS_LOG_PERFORMANCE, "\n");
+  cs_log_separator(CS_LOG_PERFORMANCE);
+}
+
 /*============================================================================
  * Fortran wrapper function definitions
  *============================================================================*/
@@ -207,7 +241,8 @@ cs_preprocess_mesh_define(void)
 void
 cs_preprocess_mesh(cs_halo_type_t   halo_type)
 {
-  double  t1, t2;
+  double t_start, t_end;
+  t_start = cs_timer_wtime();
 
   int t_stat_id = cs_timer_stats_id_by_name("mesh_processing");
 
@@ -298,9 +333,9 @@ cs_preprocess_mesh(cs_halo_type_t   halo_type)
 
       if (cwf_threshold >= 0.0) {
 
-        t1 = cs_timer_wtime();
+        double t1 = cs_timer_wtime();
         cs_mesh_warping_cut_faces(m, cwf_threshold, cwf_post);
-        t2 = cs_timer_wtime();
+        double t2 = cs_timer_wtime();
 
         bft_printf(_("\n Cutting warped boundary faces (%.3g s)\n"), t2-t1);
 
@@ -369,7 +404,7 @@ cs_preprocess_mesh(cs_halo_type_t   halo_type)
 
   bft_printf_flush();
 
-  t1 = cs_timer_wtime();
+  double t1 = cs_timer_wtime();
 
   /* If fluid_solid mode is activated: disable solid cells for the dynamics */
   cs_velocity_pressure_model_t *vp_model = cs_get_glob_velocity_pressure_model();
@@ -380,7 +415,7 @@ cs_preprocess_mesh(cs_halo_type_t   halo_type)
 
   cs_mesh_bad_cells_detect(m, mq);
   cs_user_mesh_bad_cells_tag(m, mq);
-  t2 = cs_timer_wtime();
+  double t2 = cs_timer_wtime();
 
   bft_printf(_("\n Computing geometric quantities (%.3g s)\n"), t2-t1);
 
@@ -419,6 +454,8 @@ cs_preprocess_mesh(cs_halo_type_t   halo_type)
   cs_mesh_dump(m);
   cs_mesh_quantities_dump(m, mq);
 #endif
+
+  _preprocess_log_performance(cs_timer_wtime() - t_start);
 
   /* Re-enable writers disabled when entering this stage */
 
@@ -560,11 +597,15 @@ cs_preprocess_mesh_update_device()
   const cs_lnum_t n_b_cells = m->n_b_cells;
   const cs_lnum_t n_i_faces = m->n_i_faces;
   const cs_lnum_t n_b_faces = m->n_b_faces;
+  const cs_lnum_t n_vertices = m->n_vertices;
 
   /* Mesh structures
      --------------- */
 
   {
+    CS_REALLOC_HD(m->vtx_coord, 3 * n_vertices, cs_real_t, alloc_mode);
+    cs_mem_advise_set_read_mostly(m->vtx_coord);
+
     CS_REALLOC_HD(m->i_face_cells, n_i_faces, cs_lnum_2_t, alloc_mode);
     cs_mem_advise_set_read_mostly(m->i_face_cells);
 
@@ -574,6 +615,32 @@ cs_preprocess_mesh_update_device()
     if (m->b_cells != NULL) {
       CS_REALLOC_HD(m->b_cells, n_b_cells, cs_lnum_t, alloc_mode);
       cs_mem_advise_set_read_mostly(m->b_cells);
+    }
+
+    if (m->i_face_vtx_idx != NULL) {
+      CS_REALLOC_HD(m->i_face_vtx_idx, n_i_faces + 1, cs_lnum_t, alloc_mode);
+      cs_mem_advise_set_read_mostly(m->i_face_vtx_idx);
+    }
+
+    if (m->i_face_vtx_lst != NULL) {
+      CS_REALLOC_HD(m->i_face_vtx_lst,
+                    m->i_face_vtx_connect_size,
+                    cs_lnum_t,
+                    alloc_mode);
+      cs_mem_advise_set_read_mostly(m->i_face_vtx_lst);
+    }
+
+    if (m->b_face_vtx_idx != NULL) {
+      CS_REALLOC_HD(m->b_face_vtx_idx, n_b_faces + 1, cs_lnum_t, alloc_mode);
+      cs_mem_advise_set_read_mostly(m->b_face_vtx_idx);
+    }
+
+    if (m->b_face_vtx_lst != NULL) {
+      CS_REALLOC_HD(m->b_face_vtx_lst,
+                    m->b_face_vtx_connect_size,
+                    cs_lnum_t,
+                    alloc_mode);
+      cs_mem_advise_set_read_mostly(m->b_face_vtx_lst);
     }
   }
 

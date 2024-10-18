@@ -74,6 +74,7 @@
 #include "bft_mem.h"
 #include "bft_printf.h"
 
+#include "cs_execution_context.h"
 #include "cs_file.h"
 #include "cs_fp_exception.h"
 #include "cs_log.h"
@@ -446,6 +447,25 @@ _cs_base_exit(int status)
 {
   if (status == EXIT_SUCCESS)
     cs_base_update_status(NULL);
+
+  if (status != 0) {
+    /* When running under cs_debug_wrapper with a filter
+       on MPI ranks, we do not want ranks other than the ones
+       run under the debugger to abort the computation, as this also
+       kills the processes being debugged. So we use a special
+       environment variable to tell these processes to exit
+       silently, with ne reported error (so as to avoid the MPI
+       launcher to kill remaining ranks also). */
+
+    const char exit_on_error[] = "CS_EXIT_ON_ERROR";
+    if (getenv(exit_on_error) != NULL) {
+      if (strcmp(exit_on_error, "ignore") == 0)
+        status = EXIT_SUCCESS;
+    }
+  }
+
+  /* Clean execution context */
+  cs_execution_context_glob_finalize();
 
 #if defined(HAVE_MPI)
   {
@@ -1341,6 +1361,9 @@ cs_base_mpi_init(int    *argc,
   }
 
 #endif
+
+  /* Initialize execution context */
+  cs_execution_context_glob_init();
 }
 
 /*----------------------------------------------------------------------------
