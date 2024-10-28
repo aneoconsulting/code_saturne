@@ -1161,6 +1161,7 @@ _slope_test_gradient_strided_d
    const cs_field_bc_coeffs_t  *bc_coeffs_v,
    const cs_real_t             *i_massflux)
 {
+  bool perf = true;
   using a_t = cs_real_t[stride];
   using b_t = cs_real_t[stride][stride];
 
@@ -1190,6 +1191,29 @@ _slope_test_gradient_strided_d
   const cs_real_3_t *restrict diipb
     = (const cs_real_3_t *)fvq->diipb;
 
+
+  const cs_lnum_t n_i_faces = m->n_i_faces;
+  const cs_lnum_t n_b_faces = m->n_b_faces;
+  cs_float_3_m *restrict i_face_u_normal_f;
+  cs_float_3_m *restrict diipb_f;
+
+
+  CS_MALLOC_HD(i_face_u_normal_f, n_i_faces, cs_float_3_m, CS_ALLOC_HOST_DEVICE_SHARED);
+  CS_MALLOC_HD(diipb_f, n_b_faces, cs_float_3_m, CS_ALLOC_HOST_DEVICE_SHARED);
+
+  for(cs_lnum_t i=0; i<n_i_faces; i++){
+    for(cs_lnum_t j=0; j<3; j++){
+      i_face_u_normal_f[i][j] = static_cast<T>(i_face_u_normal[i][j]);
+    }
+  }
+  for(cs_lnum_t i=0; i<n_b_faces; i++){
+    for(cs_lnum_t j=0; j<3; j++){
+      diipb_f[i][j] = static_cast<T>(diipb[i][j]);
+    }
+  }
+
+
+
   const cs_mesh_adjacencies_t *ma = cs_glob_mesh_adjacencies;
   cs_mesh_adjacencies_update_cell_i_faces();
   const cs_lnum_t *c2c = ma->cell_cells;
@@ -1203,6 +1227,14 @@ _slope_test_gradient_strided_d
      just by changing the "ctx" argument type. */
   cs_dispatch_context &p_ctx = static_cast<cs_dispatch_context&>(ctx);
   cs_dispatch_sum_type_t b_sum_type = p_ctx.get_parallel_for_b_faces_sum_type(m);
+
+  std::chrono::high_resolution_clock::time_point t_start;
+  std::chrono::high_resolution_clock::time_point t_stop;
+  std::chrono::microseconds elapsed;
+
+  if(perf){
+    t_start = std::chrono::high_resolution_clock::now();
+  }
 
   ctx.parallel_for(n_cells, [=] CS_F_HOST_DEVICE (cs_lnum_t cell_id) {
 
@@ -1243,7 +1275,7 @@ _slope_test_gradient_strided_d
         pfac *= i_f_face_surf[face_id] * f_sgn;
 
         for (cs_lnum_t jsou = 0; jsou < 3; jsou++)
-          grdpa_c[isou][jsou] += pfac*i_face_u_normal[face_id][jsou];
+          grdpa_c[isou][jsou] += static_cast<T>(pfac*i_face_u_normal_f[face_id][jsou]);
       }
     }
 
@@ -1252,7 +1284,7 @@ _slope_test_gradient_strided_d
     cs_real_t unsvol = 1./cell_vol[cell_id];
     for (cs_lnum_t isou = 0; isou < stride; isou++) {
       for (cs_lnum_t jsou = 0; jsou < 3; jsou++)
-        grdpa[cell_id][isou][jsou] = grdpa_c[isou][jsou]*unsvol;
+        grdpa[cell_id][isou][jsou] =static_cast<T>(grdpa_c[isou][jsou]*unsvol);
     }
 
   });
@@ -1270,7 +1302,7 @@ _slope_test_gradient_strided_d
 
     cs_real_t diipbv[3];
     for (cs_lnum_t jsou = 0; jsou < 3; jsou++)
-      diipbv[jsou] = diipb[face_id][jsou];
+      diipbv[jsou] = diipb_f[face_id][jsou];
 
     /* x-y-z components, p = u, v, w */
 
@@ -1289,12 +1321,21 @@ _slope_test_gradient_strided_d
                                             + grad[ii][jsou][2]*diipbv[2]);
       }
       for (cs_lnum_t jsou =  0; jsou < 3; jsou++)
-        vfac[jsou] = (T) pfac * _b_f_face_surf_o_v * b_face_u_normal[face_id][jsou];
+        vfac[jsou] = static_cast<T>(pfac * _b_f_face_surf_o_v * b_face_u_normal[face_id][jsou]);
 
       cs_dispatch_sum<3>(grdpa[ii][isou], vfac, b_sum_type);
     }
 
   });
+
+  if(perf){
+    t_stop = std::chrono::high_resolution_clock::now();
+    printf("%d: %s<%d>", cs_glob_rank_id, __func__, stride);
+
+    elapsed = std::chrono::duration_cast
+                <std::chrono::microseconds>(t_stop - t_start);
+    printf(", time_step = %d - _slope_test_gradient_strided_d%d = %ld\n", cs_glob_time_step->nt_cur, stride, elapsed.count());
+  }
 }
 
 #endif /* defined(HAVE_ACCEL) */
@@ -6740,6 +6781,8 @@ _convection_diffusion_unsteady_strided
     //               <std::chrono::microseconds>(t_stop - t_start);
     //   printf(", total_float_slope_%d = %ld\n", stride, elapsed.count());
     // }
+
+
   }
 
   if(accuracy){
