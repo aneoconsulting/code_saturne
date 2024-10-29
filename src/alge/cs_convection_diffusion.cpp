@@ -1161,7 +1161,7 @@ _slope_test_gradient_strided_d
    const cs_field_bc_coeffs_t  *bc_coeffs_v,
    const cs_real_t             *i_massflux)
 {
-  bool perf = true;
+  bool perf = false;
   using a_t = cs_real_t[stride];
   using b_t = cs_real_t[stride][stride];
 
@@ -6565,7 +6565,7 @@ _convection_diffusion_unsteady_strided
    cs_real_t         (*restrict grad)[stride][3],
    cs_real_t         (*restrict rhs)[stride])
 {
-  bool accuracy = false, perf = true;
+  bool accuracy = true, perf = false;
   
   using grad_t = cs_real_t[stride][3];
   using grad_t_m = cs_float_m[stride][3];
@@ -6761,42 +6761,42 @@ _convection_diffusion_unsteady_strided
     }
 
 
-    // if(perf){
-    //   t_start = std::chrono::high_resolution_clock::now();
-    // }
-    // _slope_test_gradient_strided<stride, cs_float_m>(ctx,
-    //                                      inc,
-    //                                      halo_type,
-    //                                      (const grad_t *)grad,
-    //                                      grdpa,
-    //                                      _pvar,
-    //                                      bc_coeffs,
-    //                                      i_massflux);
+    if(perf){
+      t_start = std::chrono::high_resolution_clock::now();
+    }
+    _slope_test_gradient_strided<stride, cs_float_m>(ctx,
+                                         inc,
+                                         halo_type,
+                                         (const grad_t *)grad,
+                                         grdpa_f,
+                                         _pvar,
+                                         bc_coeffs,
+                                         i_massflux);
 
-    // if(perf){
-    //   t_stop = std::chrono::high_resolution_clock::now();
-    //   printf("%d: %s<%d>", cs_glob_rank_id, __func__, stride);
+    if(perf){
+      t_stop = std::chrono::high_resolution_clock::now();
+      printf("%d: %s<%d>", cs_glob_rank_id, __func__, stride);
 
-    //   elapsed = std::chrono::duration_cast
-    //               <std::chrono::microseconds>(t_stop - t_start);
-    //   printf(", total_float_slope_%d = %ld\n", stride, elapsed.count());
-    // }
+      elapsed = std::chrono::duration_cast
+                  <std::chrono::microseconds>(t_stop - t_start);
+      printf(", total_float_slope_%d = %ld\n", stride, elapsed.count());
+    }
 
 
   }
 
   if(accuracy){
-    // cs_copy_d2h(grdpa_gpu_on_cpu, grdpa, size);
     cs_real_t cpu, gpu;
-    double err, seuil = 1e-5;
+    double err, seuil = 1e-2;
+    // cs_lnum_t i = 0, j = 0; // Just for debug
     for (cs_lnum_t c_id = 0; c_id < n_cells; c_id++) {
       for (cs_lnum_t i = 0; i < stride; i++) {
         for (cs_lnum_t j = 0; j < 3; j++) {
-          cpu = grdpa[c_id][i][j];
-          gpu = static_cast<cs_real_t>(grdpa_f[c_id][i][j]);
+          cpu = static_cast<cs_float_m>(grdpa[c_id][i][j]);
+          gpu = static_cast<cs_float_m>(grdpa_f[c_id][i][j]);
           err = (fabs(cpu - gpu) / fmax(fabs(cpu), seuil) );
           if (err> seuil) {
-              printf("time_step = %d - slope_test DIFFERENCE @%d-%d-%d: double = %.17f\tfloat = %.17f\tdiff = %.17f\tdiff relative = %.17f\tulp = %a\n", cs_glob_time_step->nt_cur, c_id, i, j, cpu, gpu, fabs(cpu - gpu), err);//, cs_diff_ulp(cpu, gpu));
+              printf("t_step = %d - slope DIFF @%d-%d-%d: double = %.17f\tfloat = %.17f\tdiff = %.17f\tdiff relative = %.17f\tulp = %a\n", cs_glob_time_step->nt_cur, c_id, i, j, cpu, gpu, fabs(cpu - gpu), err);//, cs_diff_ulp(cpu, gpu));
           }
         }
       }
