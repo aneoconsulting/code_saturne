@@ -77,7 +77,7 @@
 #include "cs_prototypes.h"
 #include "cs_timer.h"
 #include "cs_velocity_pressure.h"
-// #include "cs_debug.h"
+#include "cs_debug.h"
 
 /*----------------------------------------------------------------------------
  *  Header for the current file
@@ -1249,6 +1249,7 @@ _slope_test_gradient_strided_d
     const cs_lnum_t s_id_i = c2c_idx[cell_id];
     const cs_lnum_t e_id_i = c2c_idx[cell_id + 1];
 
+    T pfac_f;
     for (cs_lnum_t cidx = s_id_i; cidx < e_id_i; cidx++) {
       const cs_lnum_t face_id = cell_i_faces[cidx];
 
@@ -1263,7 +1264,6 @@ _slope_test_gradient_strided_d
         dufv[jsou] = i_face_cog[face_id][jsou] - cell_cen[u_cell_id][jsou];
 
       /* For each component */
-
       for (cs_lnum_t isou = 0; isou < stride; isou++) {
         cs_real_t pfac = pvar[u_cell_id][isou];
         for (cs_lnum_t jsou = 0; jsou < 3; jsou++) {
@@ -1273,18 +1273,18 @@ _slope_test_gradient_strided_d
         /* U gradient */
 
         pfac *= i_f_face_surf[face_id] * f_sgn;
-
+        pfac_f = pfac;
         for (cs_lnum_t jsou = 0; jsou < 3; jsou++)
-          grdpa_c[isou][jsou] += static_cast<T>(pfac*i_face_u_normal_f[face_id][jsou]);
+          grdpa_c[isou][jsou] += pfac_f*i_face_u_normal_f[face_id][jsou];
       }
     }
 
     /* Scale now to avoid second loop */
 
-    cs_real_t unsvol = 1./cell_vol[cell_id];
+    T unsvol = 1./cell_vol[cell_id];
     for (cs_lnum_t isou = 0; isou < stride; isou++) {
       for (cs_lnum_t jsou = 0; jsou < 3; jsou++)
-        grdpa[cell_id][isou][jsou] =static_cast<T>(grdpa_c[isou][jsou]*unsvol);
+        grdpa[cell_id][isou][jsou] = grdpa_c[isou][jsou]*unsvol;
     }
 
   });
@@ -1306,11 +1306,11 @@ _slope_test_gradient_strided_d
 
     /* x-y-z components, p = u, v, w */
 
-    const cs_real_t _b_f_face_surf_o_v
+    const T _b_f_face_surf_o_v
       = b_f_face_surf[face_id] / cell_vol[ii];
 
     for (cs_lnum_t isou = 0; isou < stride; isou++) {
-      cs_real_t pfac = inc*coefa[face_id][isou];
+      T pfac = inc*coefa[face_id][isou];
       T vfac[3];
 
       /*coefu is a matrix */
@@ -6796,7 +6796,7 @@ _convection_diffusion_unsteady_strided
           gpu = static_cast<cs_float_m>(grdpa_f[c_id][i][j]);
           err = (fabs(cpu - gpu) / fmax(fabs(cpu), seuil) );
           if (err> seuil) {
-              printf("t_step = %d - slope DIFF @%d-%d-%d: double = %.17f\tfloat = %.17f\tdiff = %.17f\tdiff relative = %.17f\tulp = %a\n", cs_glob_time_step->nt_cur, c_id, i, j, cpu, gpu, fabs(cpu - gpu), err);//, cs_diff_ulp(cpu, gpu));
+              printf("t_step = %d - slope DIFF @%d-%d-%d: double = %.17f\tfloat = %.17f\tdiff = %.17f\tdiff relative = %.17f\tulp = %a\n", cs_glob_time_step->nt_cur, c_id, i, j, cpu, gpu, fabs(cpu - gpu), err, cs_diff_ulp(cpu, gpu));
           }
         }
       }
