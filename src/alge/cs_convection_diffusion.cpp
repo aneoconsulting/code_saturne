@@ -40,6 +40,7 @@
 #include <string.h>
 #include <math.h>
 #include <float.h>
+#include <iostream>
 
 #if defined(HAVE_MPI)
 #include <mpi.h>
@@ -1372,7 +1373,9 @@ _slope_test_gradient_strided_d
   cs_dispatch_context &p_ctx = static_cast<cs_dispatch_context&>(ctx);
   cs_dispatch_sum_type_t b_sum_type = p_ctx.get_parallel_for_b_faces_sum_type(m);
 
+  // cs_lnum_t n = 0;
   ctx.parallel_for(n_cells, [=] CS_F_HOST_DEVICE (cs_lnum_t cell_id) {
+  // for (cs_lnum_t cell_id = 0; cell_id < n_cells; cell_id++) {
 
     T grdpa_c[stride][3];
 
@@ -1404,11 +1407,18 @@ _slope_test_gradient_strided_d
         cs_real_t pfac = pvar[u_cell_id][isou];
         for (cs_lnum_t jsou = 0; jsou < 3; jsou++) {
           pfac += grad[u_cell_id][isou][jsou]*dufv[jsou];
+
+          // if(n < 20)
+          //   std::cout << "Loup count " << n++ << "\tindice_1D: " << 3*(u_cell_id*stride + isou) +jsou << "\tc_id: " << u_cell_id << "\tisou: " << isou << "\tjsou: " << jsou << std::endl;
+        
         }
 
         /* U gradient */
 
         pfac *= i_f_face_surf[face_id] * f_sgn;
+        // if(isou == 1 && cell_id < 15)
+        //   // std::cout << "pfac : " << pfac << std::endl;
+        //     printf("pfac_ref : %g\t cell_id : %d \t isou : %d\n", pfac, cell_id, isou);
 
         for (cs_lnum_t jsou = 0; jsou < 3; jsou++)
           grdpa_c[isou][jsou] += pfac*i_face_u_normal[face_id][jsou];
@@ -1419,11 +1429,86 @@ _slope_test_gradient_strided_d
 
     cs_real_t unsvol = 1./cell_vol[cell_id];
     for (cs_lnum_t isou = 0; isou < stride; isou++) {
-      for (cs_lnum_t jsou = 0; jsou < 3; jsou++)
+      for (cs_lnum_t jsou = 0; jsou < 3; jsou++){
         grdpa[cell_id][isou][jsou] = grdpa_c[isou][jsou]*unsvol;
+        // if(n < 20 || (n_cells*(jsou*stride + isou) + cell_id) == 19)
+        //   std::cout << "Loup count " << n++ << "\tindice_1D: " << n_cells*(jsou*stride + isou) + cell_id << "\tgrdpa[cell_id][isou][jsou]: " << grdpa[cell_id][isou][jsou] << "\tc_id: " << cell_id << "\tjsou: " << isou << "\tisou: " << jsou << std::endl;
+        
+      }
     }
 
-  });
+  }
+  );
+
+
+
+  
+  ctx.parallel_for(n_cells, [=] CS_F_HOST_DEVICE (cs_lnum_t cell_id) {
+  // for (cs_lnum_t cell_id = 0; cell_id < n_cells; cell_id++) {
+
+    T grdpa_c[stride][3];
+
+    for (cs_lnum_t isou = 0; isou < stride; isou++) {
+      for (cs_lnum_t jsou = 0; jsou < 3; jsou++)
+        grdpa_c[isou][jsou] = 0.;
+    }
+
+    /* Loop on interior faces */
+    const cs_lnum_t s_id_i = c2c_idx[cell_id];
+    const cs_lnum_t e_id_i = c2c_idx[cell_id + 1];
+
+    for (cs_lnum_t cidx = s_id_i; cidx < e_id_i; cidx++) {
+      const cs_lnum_t face_id = cell_i_faces[cidx];
+
+      /* Which cell is upwind ? */
+      cs_lnum_t u_cell_id = cell_id;
+      short int f_sgn = c2f_sgn[cidx];
+      if (f_sgn*i_massflux[face_id] <= 0.)
+        u_cell_id = c2c[cidx];
+
+      cs_real_t dufv[3];
+      for (cs_lnum_t jsou = 0; jsou < 3; jsou++)
+        dufv[jsou] = i_face_cog[face_id][jsou] - cell_cen[u_cell_id][jsou];
+
+      /* For each component */
+
+      for (cs_lnum_t isou = 0; isou < stride; isou++) {
+        cs_real_t pfac = pvar[u_cell_id][isou];
+        for (cs_lnum_t jsou = 0; jsou < 3; jsou++) {
+          pfac += grad[u_cell_id][isou][jsou]*dufv[jsou];
+
+          // if(n < 20)
+          //   std::cout << "Loup count " << n++ << "\tindice_1D: " << 3*(u_cell_id*stride + isou) +jsou << "\tc_id: " << u_cell_id << "\tisou: " << isou << "\tjsou: " << jsou << std::endl;
+        
+        }
+
+        /* U gradient */
+
+        pfac *= i_f_face_surf[face_id] * f_sgn;
+        // if(isou == 1 && cell_id < 15)
+        //   // std::cout << "pfac : " << pfac << std::endl;
+        //     printf("pfac_ref : %g\t cell_id : %d \t isou : %d\n", pfac, cell_id, isou);
+
+        for (cs_lnum_t jsou = 0; jsou < 3; jsou++)
+          grdpa_c[isou][jsou] += pfac*i_face_u_normal[face_id][jsou];
+      }
+    }
+
+    /* Scale now to avoid second loop */
+
+    cs_real_t unsvol = 1./cell_vol[cell_id];
+    for (cs_lnum_t isou = 0; isou < stride; isou++) {
+      for (cs_lnum_t jsou = 0; jsou < 3; jsou++){
+        grdpa[cell_id][isou][jsou] = grdpa_c[isou][jsou]*unsvol;
+        // if(n < 20 || (n_cells*(jsou*stride + isou) + cell_id) == 19)
+        //   std::cout << "Loup count " << n++ << "\tindice_1D: " << n_cells*(jsou*stride + isou) + cell_id << "\tgrdpa[cell_id][isou][jsou]: " << grdpa[cell_id][isou][jsou] << "\tc_id: " << cell_id << "\tjsou: " << isou << "\tisou: " << jsou << std::endl;
+        
+      }
+    }
+
+  }
+  );
+  
 
   /* Contribution from boundary faces
 
@@ -1467,16 +1552,16 @@ _slope_test_gradient_strided_d
 #endif /* defined(HAVE_ACCEL) */
 
 
-// #if defined(HAVE_ACCEL)
+#if defined(HAVE_ACCEL)
 
 //Version switch total
-template <cs_lnum_t stride, typename T, typename grad_dd>
+template <cs_lnum_t stride, typename T>
 static void
 _slope_test_gradient_strided_d_switch
   (cs_device_context           &ctx,
    const int                    inc,
-   const grad_dd                      grad,
-   grad_dd                            grdpa,
+   T                            *grad,
+   T                            *grdpa,
    const cs_real_t              pvar[][stride],
    const cs_field_bc_coeffs_t  *bc_coeffs_v,
    const cs_real_t             *i_massflux)
@@ -1525,16 +1610,15 @@ _slope_test_gradient_strided_d_switch
   cs_dispatch_context &p_ctx = static_cast<cs_dispatch_context&>(ctx);
   cs_dispatch_sum_type_t b_sum_type = p_ctx.get_parallel_for_b_faces_sum_type(m);
 
-  grad_dd grdpa_c[stride][3];
-  for (cs_lnum_t isou = 0; isou < stride; isou++) {
-    for (cs_lnum_t jsou = 0; jsou < 3; jsou++){
-      
-      //Initialisation
-      for (cs_lnum_t cell_id = 0; cell_id < n_cells; cell_id++){
-        grdpa_c[isou][jsou][cell_id] = 0.;
-      }
 
-      for (cs_lnum_t cell_id = 0; cell_id < n_cells; cell_id++){
+  // cs_lnum_t n = 0;
+
+    for (cs_lnum_t isou = 0; isou < stride; isou++) {
+      // for (cs_lnum_t cell_id = 0; cell_id < n_cells; cell_id++) {
+      ctx.parallel_for(n_cells, [=] CS_F_HOST_DEVICE (cs_lnum_t cell_id) {
+
+        cs_real_t grdpa_c[3] = {0., 0., 0.};
+
         /* Loop on interior faces */
         const cs_lnum_t s_id_i = c2c_idx[cell_id];
         const cs_lnum_t e_id_i = c2c_idx[cell_id + 1];
@@ -1542,24 +1626,300 @@ _slope_test_gradient_strided_d_switch
         for (cs_lnum_t cidx = s_id_i; cidx < e_id_i; cidx++) {
           const cs_lnum_t face_id = cell_i_faces[cidx];
 
+          /* Which cell is upwind ? */
+          cs_lnum_t u_cell_id = cell_id;
+          short int f_sgn = c2f_sgn[cidx];
+          if (f_sgn * i_massflux[face_id] <= 0.)
+            u_cell_id = c2c[cidx];
+
+          cs_real_t dufv[3];
+          for (cs_lnum_t jsou = 0; jsou < 3; jsou++) {
+            dufv[jsou] = i_face_cog[face_id][jsou] - cell_cen[u_cell_id][jsou];
+          }
+
+          /* For each component */
+
+          cs_real_t pfac = pvar[u_cell_id][isou];
+          for (cs_lnum_t jsou = 0; jsou < 3; jsou++) {
+
+            // Calcul de l'indice pour grad
+            cs_lnum_t grad_index = jsou * (stride * n_cells) + isou * n_cells + u_cell_id;
+            pfac += grad[grad_index] * dufv[jsou];
+          }
+
+          /* U gradient */
+          pfac *= i_f_face_surf[face_id] * f_sgn;
+          // if(isou == 1 && cell_id < 15)
+          //   // std::cout << "pfac : " << pfac << std::endl;
+          //   printf("pfac_switch : %g\t cell_id : %d \t isou : %d\n", pfac, cell_id, isou);
+          for (cs_lnum_t jsou = 0; jsou < 3; jsou++)
+            grdpa_c[jsou] += pfac * i_face_u_normal[face_id][jsou];
+        }
+
+        /* Scale now to avoid second loop */
+        cs_real_t unsvol = 1. / cell_vol[cell_id];
+
+        // Calcul de l'indice pour grdpa
+        for (cs_lnum_t jsou = 0; jsou < 3; jsou++){
+          cs_lnum_t grdpa_index = jsou * (stride * n_cells) + isou * n_cells + cell_id;
+          grdpa[grdpa_index] = grdpa_c[jsou] * unsvol;
+        }
+        // if (n < 20 || grdpa_index == 19)
+        //   std::cout << "Loup count " << n++
+        //             << "\tindice_1D: " << grdpa_index
+        //             << "\tgrdpa[grdpa_index]: " << grdpa[grdpa_index]
+        //             << "\tc_id: " << cell_id << "\tjsou: " << jsou
+        //             << "\tisou: " << isou << std::endl;
+      }
+      );
+    }
+
+
+    
+    for (cs_lnum_t isou = 0; isou < stride; isou++) {
+      // for (cs_lnum_t cell_id = 0; cell_id < n_cells; cell_id++) {
+      ctx.parallel_for(n_cells, [=] CS_F_HOST_DEVICE (cs_lnum_t cell_id) {
+
+        cs_real_t grdpa_c[3] = {0., 0., 0.};
+
+        /* Loop on interior faces */
+        const cs_lnum_t s_id_i = c2c_idx[cell_id];
+        const cs_lnum_t e_id_i = c2c_idx[cell_id + 1];
+
+        for (cs_lnum_t cidx = s_id_i; cidx < e_id_i; cidx++) {
+          const cs_lnum_t face_id = cell_i_faces[cidx];
 
           /* Which cell is upwind ? */
           cs_lnum_t u_cell_id = cell_id;
           short int f_sgn = c2f_sgn[cidx];
-          if (f_sgn*i_massflux[face_id] <= 0.)
+          if (f_sgn * i_massflux[face_id] <= 0.)
             u_cell_id = c2c[cidx];
 
           cs_real_t dufv[3];
-          dufv[jsou] = i_face_cog[face_id][jsou] - cell_cen[u_cell_id][jsou];
+          for (cs_lnum_t jsou = 0; jsou < 3; jsou++) {
+            dufv[jsou] = i_face_cog[face_id][jsou] - cell_cen[u_cell_id][jsou];
+          }
 
+          /* For each component */
 
+          cs_real_t pfac = pvar[u_cell_id][isou];
+          for (cs_lnum_t jsou = 0; jsou < 3; jsou++) {
+
+            // Calcul de l'indice pour grad
+            cs_lnum_t grad_index = jsou * (stride * n_cells) + isou * n_cells + u_cell_id;
+            pfac += grad[grad_index] * dufv[jsou];
+          }
+
+          /* U gradient */
+          pfac *= i_f_face_surf[face_id] * f_sgn;
+          // if(isou == 1 && cell_id < 15)
+          //   // std::cout << "pfac : " << pfac << std::endl;
+          //   printf("pfac_switch : %g\t cell_id : %d \t isou : %d\n", pfac, cell_id, isou);
+          for (cs_lnum_t jsou = 0; jsou < 3; jsou++)
+            grdpa_c[jsou] += pfac * i_face_u_normal[face_id][jsou];
         }
+
+        /* Scale now to avoid second loop */
+        cs_real_t unsvol = 1. / cell_vol[cell_id];
+
+        // Calcul de l'indice pour grdpa
+        for (cs_lnum_t jsou = 0; jsou < 3; jsou++){
+          cs_lnum_t grdpa_index = jsou * (stride * n_cells) + isou * n_cells + cell_id;
+          grdpa[grdpa_index] = grdpa_c[jsou] * unsvol;
+        }
+        // if (n < 20 || grdpa_index == 19)
+        //   std::cout << "Loup count " << n++
+        //             << "\tindice_1D: " << grdpa_index
+        //             << "\tgrdpa[grdpa_index]: " << grdpa[grdpa_index]
+        //             << "\tc_id: " << cell_id << "\tjsou: " << jsou
+        //             << "\tisou: " << isou << std::endl;
       }
+      );
+    }
+
+
+  // //Initialisation
+  // for (cs_lnum_t cell_id = 0; cell_id < n_cells * stride * 3; cell_id++){
+  //   grdpa[cell_id] = 0.;
+  // }
+
+  // for (cs_lnum_t isou = 0; isou < 3; isou++) {
+  //   for (cs_lnum_t jsou = 0; jsou < stride; jsou++){
+  //     cs_lnum_t i = isou*(n_cells * stride);
+  //     cs_lnum_t j = jsou*n_cells;
+
+  //     for (cs_lnum_t cell_id = 0; cell_id < n_cells; cell_id++){
+  //       /* Loop on interior faces */
+  //       const cs_lnum_t s_id_i = c2c_idx[cell_id];
+  //       const cs_lnum_t e_id_i = c2c_idx[cell_id + 1];
+
+  //       for (cs_lnum_t cidx = s_id_i; cidx < e_id_i; cidx++) {
+  //         const cs_lnum_t face_id = cell_i_faces[cidx];
+  //         /* Which cell is upwind ? */
+  //         cs_lnum_t u_cell_id = cell_id;
+  //         short int f_sgn = c2f_sgn[cidx];
+  //         if (f_sgn*i_massflux[face_id] <= 0.)
+  //           u_cell_id = c2c[cidx];
+
+  //         cs_real_t dufv[3];
+  //         dufv[jsou] = i_face_cog[face_id][jsou] - cell_cen[u_cell_id][jsou];
+
+  //         cs_real_t pfac = 0;
+  //         pfac = pvar[u_cell_id][isou];
+          
+  //         pfac += grad[n_cells*(isou*stride + jsou) + u_cell_id]*dufv[jsou];
+  //         pfac *= i_f_face_surf[face_id] * f_sgn;
+
+  //         cs_real_t unsvol = 1./cell_vol[cell_id];
+  //         grdpa[3*(cell_id*stride + jsou) + isou] += pfac*i_face_u_normal[face_id][jsou] * unsvol;
+  //         if(n < 20 || n_cells*(isou*stride + jsou) + cell_id == 19){
+  //           std::cout << "Loup count switch " << n++ << "\tindice_1D: " << n_cells*(isou*stride + jsou) + cell_id << "\tgrdpa[indice1d]: " << grdpa[n_cells*(isou*stride + jsou) + cell_id] << "\tc_id: " << cell_id << "\tisou: " << isou << "\tjsou: " << jsou << std::endl;
+  //         }
+  //       }
+  //     }
+  //   }
+  // }
+
+  // for (cs_lnum_t cell_id = 0; cell_id < n_cells; cell_id++){
+
+  //   T grdpa_c[stride][3];
+
+  //   for (cs_lnum_t isou = 0; isou < stride; isou++) {
+  //     for (cs_lnum_t jsou = 0; jsou < 3; jsou++)
+  //       grdpa_c[isou][jsou] = 0.;
+  //   }
+
+  //   /* Loop on interior faces */
+  //   const cs_lnum_t s_id_i = c2c_idx[cell_id];
+  //   const cs_lnum_t e_id_i = c2c_idx[cell_id + 1];
+
+  //   for (cs_lnum_t cidx = s_id_i; cidx < e_id_i; cidx++) {
+  //     const cs_lnum_t face_id = cell_i_faces[cidx];
+
+  //     /* Which cell is upwind ? */
+  //     cs_lnum_t u_cell_id = cell_id;
+  //     short int f_sgn = c2f_sgn[cidx];
+  //     if (f_sgn*i_massflux[face_id] <= 0.)
+  //       u_cell_id = c2c[cidx];
+
+  //     T dufv[3];
+  //     for (cs_lnum_t jsou = 0; jsou < 3; jsou++)
+  //       dufv[jsou] = i_face_cog[face_id][jsou] - cell_cen[u_cell_id][jsou];
+
+  //     /* For each component */
+
+  //     for (cs_lnum_t isou = 0; isou < stride; isou++) {
+  //       T pfac = pvar[u_cell_id][isou];
+  //       for (cs_lnum_t jsou = 0; jsou < 3; jsou++) {
+  //         // pfac += grad[(u_cell_id*stride + isou) * 3 + jsou]*dufv[jsou];
+  //         pfac += grad[3*(u_cell_id*stride + isou) +jsou]*dufv[jsou];
+  //         // if(n < 20)
+  //         //   std::cout << "Loup count switch" << n++ << "\tindice_1D: " << 3*(u_cell_id*stride + isou) +jsou << "\tc_id: " << u_cell_id << "\tisou: " << isou << "\tjsou: " << jsou << std::endl;
+        
+  //         }
+
+  //       /* U gradient */
+
+  //       pfac *= i_f_face_surf[face_id] * f_sgn;
+
+  //       for (cs_lnum_t jsou = 0; jsou < 3; jsou++)
+  //         grdpa_c[isou][jsou] += pfac*i_face_u_normal[face_id][jsou];
+  //     }
+  //   }
+
+  //   /* Scale now to avoid second loop */
+
+  //   cs_real_t unsvol = 1./cell_vol[cell_id];
+  //   for (cs_lnum_t isou = 0; isou < stride; isou++) {
+  //     for (cs_lnum_t jsou = 0; jsou < 3; jsou++){
+  //       // grdpa[(cell_id*stride + isou) * 3 + jsou] = grdpa_c[isou][jsou]*unsvol;
+  //       grdpa[3*(cell_id*stride + isou) +jsou] = grdpa_c[isou][jsou]*unsvol;
+  //       if(n < 20)
+  //         std::cout << "Loup count switch " << n++ << "\tindice_1D: " << 3*(cell_id*stride + isou) +jsou << "\tgrdpa[indice1d]: " << grdpa[3*(cell_id*stride + isou) +jsou] << "\tc_id: " << cell_id << "\tisou: " << isou << "\tjsou: " << jsou << std::endl;
+  //     }
+  //   }
+  // }
+
+
+  /* Contribution from boundary faces
+
+     TODO! test folding this into previous kernel when BC coefficients
+     are handled using the new scheme. For now, we keep this loop
+     separate, as handling of BC coefficients is more costly so this
+     could add a lot of imbalance between cells in the main kernel */
+
+  // ctx.parallel_for_b_faces(m, [=] CS_F_HOST_DEVICE(cs_lnum_t face_id) {
+  //   cs_lnum_t ii = b_face_cells[face_id];
+
+  //   cs_real_t diipbv[3];
+  //   for (cs_lnum_t jsou = 0; jsou < 3; jsou++) {
+  //     diipbv[jsou] = diipb[face_id][jsou];
+  //   }
+
+  //   /* Composantes x-y-z */
+  //   const cs_real_t _b_f_face_surf_o_v = b_f_face_surf[face_id] / cell_vol[ii];
+
+  //   /* Nouvelle organisation des boucles */
+  //   for (cs_lnum_t jsou = 0; jsou < 3; jsou++) {
+  //     for (cs_lnum_t isou = 0; isou < stride; isou++) {
+  //       cs_real_t pfac = inc * coefa[face_id][isou];
+
+  //       /* Calcul de pfac avec `coefb` et `grad` */
+  //       for (cs_lnum_t jsou_inner = 0; jsou_inner < stride; jsou_inner++) {
+  //         cs_lnum_t grad_base_index = jsou_inner * (stride * n_cells) + isou * n_cells + ii;
+  //         pfac += coefb[face_id][jsou_inner][isou] *
+  //                 (pvar[ii][jsou_inner] +
+  //                 grad[grad_base_index + 0] * diipbv[0] +
+  //                 grad[grad_base_index + 1] * diipbv[1] +
+  //                 grad[grad_base_index + 2] * diipbv[2]);
+  //       }
+
+  //       /* Mise à jour de `grdpa` */
+  //       cs_lnum_t grdpa_index = jsou * (stride * n_cells) + isou * n_cells + ii;
+  //       T vfac = pfac * _b_f_face_surf_o_v * b_face_u_normal[face_id][jsou];
+  //       grdpa[grdpa_index] += vfac;
+  //     }
+  //   }
+  // });
+
+  
+  ctx.parallel_for_b_faces(m, [=] CS_F_HOST_DEVICE (cs_lnum_t  face_id) {
+
+    cs_lnum_t ii = b_face_cells[face_id];
+
+    cs_real_t diipbv[3];
+    for (cs_lnum_t jsou = 0; jsou < 3; jsou++)
+      diipbv[jsou] = diipb[face_id][jsou];
+
+    /* x-y-z components, p = u, v, w */
+
+    const cs_real_t _b_f_face_surf_o_v
+      = b_f_face_surf[face_id] / cell_vol[ii];
+
+    for (cs_lnum_t isou = 0; isou < stride; isou++) {
+      cs_real_t pfac = inc*coefa[face_id][isou];
+      T vfac[3];
+
+      /*coefu is a matrix */
+      for (cs_lnum_t jsou =  0; jsou < stride; jsou++) {
+        pfac += coefb[face_id][jsou][isou]*(  pvar[ii][jsou]
+                                            + grad[0 * (stride * n_cells) + jsou * n_cells + ii]*diipbv[0]
+                                            + grad[1 * (stride * n_cells) + jsou * n_cells + ii]*diipbv[1]
+                                            + grad[2 * (stride * n_cells) + jsou * n_cells + ii]*diipbv[2]);
+      }
+      for (cs_lnum_t jsou =  0; jsou < 3; jsou++)
+        vfac[jsou] = (T) pfac * _b_f_face_surf_o_v * b_face_u_normal[face_id][jsou];
+
+      cs_dispatch_sum<T>(&grdpa[0 * (stride * n_cells) + isou * n_cells + ii], vfac[0], b_sum_type);
+      cs_dispatch_sum<T>(&grdpa[1 * (stride * n_cells) + isou * n_cells + ii], vfac[1], b_sum_type);
+      cs_dispatch_sum<T>(&grdpa[2 * (stride * n_cells) + isou * n_cells + ii], vfac[2], b_sum_type);
 
     }
-  };
+
+  });
+
 }
-// #endif /* defined(HAVE_ACCEL) */
+#endif /* defined(HAVE_ACCEL) */
 
 /*----------------------------------------------------------------------------*/
 /*!
@@ -1597,36 +1957,43 @@ _slope_test_gradient_strided
 
   bool use_gpu = ctx.use_gpu();
   const cs_mesh_t  *m = cs_glob_mesh;
-  bool accuracy = false, perf = false;
+  bool accuracy = true, perf = false;
   const cs_lnum_t n_cells = m->n_cells;
   const cs_lnum_t n_cells_ext = m->n_cells_with_ghosts;
-  using grad_t_alloc = T[stride][3];
-  using grad_t = T(*)[stride][3];
-  using grad_dd = T *;
-  using grad_dd_s_3 = grad_dd[stride][3];
+  // using grad_t_alloc = T[stride][3];
+  // using grad_t = T(*)[stride][3];
+  // using grad_dd = T *;
+  // using grad_dd_s_3 = grad_dd[stride][3];
 
-  T *grdpa_switch[stride][3];
-  T *grad_switch[stride][3];
+  T *grdpa_switch;
+  T *grad_switch;
   size_t size = n_cells * sizeof(T) * stride *3;
   // CS_MALLOC_HD(grdpa_switch, n_cells_ext, grad_dd_s_3, CS_ALLOC_HOST_DEVICE_SHARED);
   // CS_MALLOC_HD(grad_switch, n_cells_ext, grad_dd_s_3, CS_ALLOC_HOST_DEVICE_SHARED);
 
   
-  for (cs_lnum_t i = 0; i < stride; i++) {    
-    for (cs_lnum_t j = 0; j < 3; j++) {
-      CS_MALLOC_HD(grdpa_switch[i][j], n_cells_ext, T, CS_ALLOC_HOST_DEVICE_SHARED);
-      CS_MALLOC_HD(grad_switch[i][j], n_cells_ext, T, CS_ALLOC_HOST_DEVICE_SHARED);
-    }
-  }
+  // for (cs_lnum_t i = 0; i < stride; i++) {    
+  //   for (cs_lnum_t j = 0; j < 3; j++) {
+  CS_MALLOC_HD(grdpa_switch, n_cells_ext * stride * 3, T, CS_ALLOC_HOST_DEVICE_SHARED);
+  CS_MALLOC_HD(grad_switch, n_cells_ext * stride * 3, T, CS_ALLOC_HOST_DEVICE_SHARED);
+  //   }
+  // }
 
-  for (cs_lnum_t c_id = 0; c_id < n_cells; c_id++) {
-    for (cs_lnum_t i = 0; i < stride; i++) {
-      for (cs_lnum_t j = 0; j < 3; j++) {
-        grad_switch[i][j][c_id] = grad[c_id][i][j];
-        grdpa_switch[i][j][c_id] = grdpa[c_id][i][j];
+  ctx.parallel_for(n_cells, [=] CS_F_HOST_DEVICE (cs_lnum_t c_id) {
+    for (cs_lnum_t isou = 0; isou < stride; isou++) {
+      for (cs_lnum_t jsou = 0; jsou < 3; jsou++) {
+        // cs_lnum_t i = isou*n_cells;
+        // cs_lnum_t j = jsou*(n_cells * stride);
+        // grad_switch[j + i + c_id] = grad[c_id][isou][jsou];
+        // grdpa_switch[j + i + c_id] = grdpa[c_id][isou][jsou];
+
+        // grad_switch[(c_id*stride + isou) * 3 + jsou] = grad[c_id][isou][jsou];
+        // grdpa_switch[(c_id*stride + isou) * 3 + jsou] = grdpa[c_id][isou][jsou];
+        grad_switch[n_cells*(jsou*stride + isou) + c_id] = grad[c_id][isou][jsou];
+        grdpa_switch[n_cells*(jsou*stride + isou) + c_id] = grdpa[c_id][isou][jsou];
       }
     }
-  }
+  });
 
   std::chrono::high_resolution_clock::time_point t_start;
   std::chrono::high_resolution_clock::time_point t_stop;
@@ -1639,6 +2006,7 @@ _slope_test_gradient_strided
 
   if (use_gpu) {
     cs_device_context &d_ctx = static_cast<cs_device_context&>(ctx);
+    d_ctx.wait();
 
     if(perf){
       t_start = std::chrono::high_resolution_clock::now();
@@ -1666,7 +2034,7 @@ _slope_test_gradient_strided
       t_start = std::chrono::high_resolution_clock::now();
     }
     //Kernel GPU switch total
-    _slope_test_gradient_strided_d_switch<stride, T, grad_dd_s_3>
+    _slope_test_gradient_strided_d_switch<stride, T>
       (d_ctx,
        inc,
        grad_switch,
@@ -1675,6 +2043,37 @@ _slope_test_gradient_strided
        bc_coeffs_v,
        i_massflux);
 
+
+    d_ctx.wait();
+
+    if(accuracy){
+        #if defined(HAVE_ACCEL)
+          // copy d2h pour pouvoir comparer
+          // std::copy(&grdpa[0][0][0], &grdpa[0][0][0] + n_cells_ext * stride * 3, &grdpa_gpu_on_cpu[0][0][0]);
+          cs_real_t v_ref, v_switch;
+          double err, seuil = 1e-8;
+          cs_lnum_t step = cs_glob_time_step->nt_cur;
+          if(step > 1){
+
+            for (cs_lnum_t c_id = 0; c_id < n_cells; c_id++) {
+              for (cs_lnum_t isou = 0; isou < stride; isou++) {
+                for (cs_lnum_t jsou = 0; jsou < 3; jsou++) {
+                  // cs_lnum_t cellule = 1, isou = cellule, jsou = cellule, c_id = cellule;
+                  v_ref = grdpa[c_id][isou][jsou];
+                  // v_ref = grdpa_switch[isou*(n_cells * 3) + jsou*n_cells + c_id];
+                  // v_switch = grdpa_switch[(c_id*stride + isou) * 3 + jsou];
+                  v_switch = grdpa_switch[n_cells*(jsou*stride + isou) + c_id];
+                  err = (fabs(v_ref - v_switch) / fmax(fabs(v_ref), seuil) );
+                  if (err> seuil) {
+                      printf("time_step = %d - slope_test DIFFERENCE @%d-%d-%d: v_ref = %.17f\tv_switch = %.17f\tdiff = %.17f\tdiff relative = %.17f\tulp = %a\n", step, c_id, isou, jsou, v_ref, v_switch, fabs(v_ref - v_switch), err,0);//, cs_diff_ulp(v_ref, v_switch));
+                  }
+
+                }
+              }
+            }
+          }
+        #endif
+    }
     if(perf){
       t_stop = std::chrono::high_resolution_clock::now();
       printf("%d: %s<%d>", cs_glob_rank_id, __func__, stride);
@@ -1740,7 +2139,7 @@ _slope_test_gradient_strided
 
   }
 
-  ctx.wait();
+  // ctx.wait();
   /* Handle parallelism and periodicity */
   if (m->halo != NULL){
     // _sync_strided_gradient_halo<stride>(m,
@@ -1749,26 +2148,34 @@ _slope_test_gradient_strided
     //                                     grdpa);
   }
 
-  if(accuracy){
-      #if defined(HAVE_ACCEL)
-        // copy d2h pour pouvoir comparer
-        // std::copy(&grdpa[0][0][0], &grdpa[0][0][0] + n_cells_ext * stride * 3, &grdpa_gpu_on_cpu[0][0][0]);
-        cs_real_t v_ref, v_switch;
-        double err;
-        for (cs_lnum_t c_id = 0; c_id < n_cells; c_id++) {
-            for (cs_lnum_t i = 0; i < stride; i++) {
-                for (cs_lnum_t j = 0; j < 3; j++) {
-                    v_ref = grdpa[c_id][i][j];
-                    v_switch = grdpa_switch[c_id][i][j];
-                    err = (fabs(v_ref - v_switch) / fmax(fabs(v_ref), 1e-6) );
-                    if (err> 1e-6) {
-                        printf("time_step = %d - slope_test DIFFERENCE @%d-%d-%d: v_ref = %.17f\tGPU = %.17f\tdiff = %.17f\tdiff relative = %.17f\tulp = %a\n", cs_glob_time_step->nt_cur, c_id, i, j, v_ref, v_switch, fabs(v_ref - v_switch), err,0);//, cs_diff_ulp(v_ref, v_switch));
-                    }
-                }
-            }
-        }
-      #endif
-  }
+  // if(accuracy){
+  //     #if defined(HAVE_ACCEL)
+  //       // copy d2h pour pouvoir comparer
+  //       // std::copy(&grdpa[0][0][0], &grdpa[0][0][0] + n_cells_ext * stride * 3, &grdpa_gpu_on_cpu[0][0][0]);
+  //       cs_real_t v_ref, v_switch;
+  //       double err, seuil = 1e-12;
+  //       cs_lnum_t step = cs_glob_time_step->nt_cur;
+  //       if(step > 1){
+
+  //         for (cs_lnum_t c_id = 0; c_id < n_cells; c_id++) {
+  //           for (cs_lnum_t i = 0; i < stride; i++) {
+  //             for (cs_lnum_t j = 0; j < 3; j++) {
+  //               // cs_lnum_t cellule = 1, i = cellule, j = cellule, c_id = cellule;
+  //               v_ref = grdpa[c_id][i][j];
+  //               // v_ref = grdpa_switch[i*(n_cells * 3) + j*n_cells + c_id];
+  //               // v_switch = grdpa_switch[(c_id*stride + i) * 3 + j];
+  //               v_switch = grdpa_switch[3*(c_id*stride + i) +j];
+  //               err = (fabs(v_ref - v_switch) / fmax(fabs(v_ref), seuil) );
+  //               if (err> seuil) {
+  //                   printf("time_step = %d - slope_test DIFFERENCE @%d-%d-%d: v_ref = %.17f\tv_switch = %.17f\tdiff = %.17f\tdiff relative = %.17f\tulp = %a\n", step, c_id, i, j, v_ref, v_switch, fabs(v_ref - v_switch), err,0);//, cs_diff_ulp(v_ref, v_switch));
+  //               }
+
+  //             }
+  //           }
+  //         }
+  //       }
+  //     #endif
+  // }
   
   BFT_FREE(grad_switch);
   BFT_FREE(grdpa_switch);
@@ -7042,7 +7449,7 @@ _convection_diffusion_unsteady_strided
 
   if (iconvp > 0 && pure_upwind == false && isstpp == 0) {
     //A changer pour lancer la suite des calculs en simple/double
-    CS_MALLOC_HD(grdpa, n_cells_ext, grad_t, amode);
+    CS_MALLOC_HD(grdpa, n_cells_ext, grad_t, CS_ALLOC_HOST_DEVICE_SHARED);
     // CS_MALLOC_HD(grdpa, n_cells_ext, grad_t_m, amode);
 
     CS_MALLOC_HD(grdpa_f, n_cells_ext, grad_t_m, amode);
