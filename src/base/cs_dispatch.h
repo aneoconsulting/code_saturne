@@ -597,8 +597,19 @@ public:
   //! Synchronize associated stream
   void
   wait(void) {
-    if (device_ > -1 && use_gpu_)
-      cudaStreamSynchronize(stream_);
+   if (device_ > -1 && use_gpu_)
+    {
+      cudaError_t _l_ret_code = cudaStreamSynchronize(stream_);
+      if (cudaSuccess != _l_ret_code) {
+        bft_error(__FILE__,
+                  __LINE__,
+                  0,
+                  "[CUDA error] %d: %s\n  running: %s",
+                  _l_ret_code,
+                  ::cudaGetErrorString(_l_ret_code),
+                  "cudaStreamSynchronize");
+      }
+    }
   }
 
   // Get interior faces sum type associated with this context
