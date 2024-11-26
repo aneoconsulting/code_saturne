@@ -60,6 +60,32 @@ typedef enum {
 
 } cs_alloc_mode_t;
 
+
+
+/*
+ * Structure defining an allocated memory block
+ */
+
+typedef struct
+{
+  void  *host_ptr;          //!< host pointer
+#if defined(HAVE_ACCEL)
+  void  *device_ptr;        //!< device pointer
+#endif
+
+  size_t           size;    //! allocation size
+#if defined(HAVE_ACCEL)
+  cs_alloc_mode_t  mode;    //!< allocation mode
+#endif
+
+#if defined(HAVE_ACCEL)
+  unsigned int ttl;    //!< allocation mode
+#endif
+
+
+} cs_mem_block_t;
+
+
 /*============================================================================
  * Public macros
  *============================================================================*/
@@ -234,6 +260,11 @@ cs_mem_end(void);
 
 int
 cs_mem_initialized(void);
+
+
+cs_mem_block_t
+get_block_info_try(const void  *p_get);
+
 
 /*----------------------------------------------------------------------------
  * Allocate memory for ni items of size bytes.
