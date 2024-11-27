@@ -6948,96 +6948,149 @@ _convection_diffusion_unsteady_strided
     case 0:
       [[fallthrough]];
     case 1:
-      ctx.parallel_for_i_faces(m, [=] CS_F_HOST_DEVICE (cs_lnum_t  face_id) {
+      ctx.parallel_for_i_faces(m, [=] CS_F_HOST_DEVICE(cs_lnum_t face_id) {
 
+        // Load cell indices adjacent to the face
         cs_lnum_t ii = i_face_cells[face_id][0];
         cs_lnum_t jj = i_face_cells[face_id][1];
 
-        cs_real_t fluxi[stride], fluxj[stride] ;
-        for (cs_lnum_t isou =  0; isou < stride; isou++) {
-          fluxi[isou] = 0;
-          fluxj[isou] = 0;
+        // Local variables for fluxes
+        cs_real_t fluxi[stride], fluxj[stride];
+        for (int isou = 0; isou < stride; isou++) {
+          fluxi[isou] = 0.0;
+          fluxj[isou] = 0.0;
         }
+
         cs_real_t pip[stride], pjp[stride];
         cs_real_t pif[stride], pjf[stride];
-        bool upwind_switch = false;
         cs_real_t _pi[stride], _pj[stride];
+        cs_real_t recoi[stride], recoj[stride];
+        cs_real_t i_massflux_f = i_massflux[face_id];
+        cs_real_t abs_massflux = cs_math_fabs(i_massflux[face_id]);
 
+        bool upwind_switch = false;
+
+        // Load variables for cells ii and jj
+        // Assuming _pvar is of type var_t*, where var_t is an array of cs_real_t of size 'stride'
         const var_t &pvar_i = _pvar[ii];
         const var_t &pvar_j = _pvar[jj];
 
+        // Load _pvar[ii] and _pvar[jj] into local arrays _pi and _pj
         for (int i = 0; i < stride; i++) {
-          _pi[i]  = _pvar[ii][i];
-          _pj[i]  = _pvar[jj][i];
+          _pi[i] = pvar_i[i];
+          _pj[i] = pvar_j[i];
         }
 
         /* Scaling due to mass balance in porous modelling */
         if (porous_vel) {
           const cs_nreal_t *n = i_face_u_normal[face_id];
-          cs_math_3_normal_scaling(n, i_f_face_factor[face_id][0], _pi);
-          cs_math_3_normal_scaling(n, i_f_face_factor[face_id][1], _pj);
+
+          cs_real_t i_f_face_factor_f[2] = {
+            i_f_face_factor[face_id][0],
+            i_f_face_factor[face_id][1]
+          };
+
+          cs_math_3_normal_scaling(n, i_f_face_factor_f[0], _pi);
+          cs_math_3_normal_scaling(n, i_f_face_factor_f[1], _pj);
         }
 
         if (ircflp == 1) {
-          cs_real_t bldfrp = 1.;
-          if (df_limiter != nullptr)  /* Local limiter */
-            bldfrp = cs_math_fmax(cs_math_fmin(df_limiter[ii], df_limiter[jj]),
-                                  0.);
+          cs_real_t bldfrp = 1.0;
+          if (df_limiter != nullptr) { /* Local limiter */
+            cs_real_t df_limiter_ii = df_limiter[ii];
+            cs_real_t df_limiter_jj = df_limiter[jj];
+            bldfrp = cs_math_fmax(cs_math_fmin(df_limiter_ii, df_limiter_jj), 0.0);
+          }
 
-          cs_real_t recoi[stride], recoj[stride];
+          // Load diipf and djjpf for face_id
+          cs_real_3_t diipf_f = {
+            diipf[face_id][0],
+            diipf[face_id][1],
+            diipf[face_id][2]
+          };
+          cs_real_3_t djjpf_f = {
+            djjpf[face_id][0],
+            djjpf[face_id][1],
+            djjpf[face_id][2]
+          };
+
+          // Load gradients for cells ii and jj
+          cs_real_t grad_ii[stride][3];
+          cs_real_t grad_jj[stride][3];
+          for (int isou = 0; isou < stride; isou++) {
+            grad_ii[isou][0] = grad[ii][isou][0];
+            grad_ii[isou][1] = grad[ii][isou][1];
+            grad_ii[isou][2] = grad[ii][isou][2];
+
+            grad_jj[isou][0] = grad[jj][isou][0];
+            grad_jj[isou][1] = grad[jj][isou][1];
+            grad_jj[isou][2] = grad[jj][isou][2];
+          }
+
+          // Compute reconstructed values
           cs_i_compute_quantities_strided<stride>(bldfrp,
-                                                  diipf[face_id], djjpf[face_id],
-                                                  grad[ii], grad[jj],
+                                                  diipf_f, djjpf_f,
+                                                  grad_ii, grad_jj,
                                                   _pi, _pj,
                                                   recoi, recoj,
                                                   pip, pjp);
         }
         else {
-          for (cs_lnum_t isou = 0; isou < stride; isou++) {
+          for (int isou = 0; isou < stride; isou++) {
             pip[isou] = _pi[isou];
             pjp[isou] = _pj[isou];
           }
         }
 
+        // Load cell centers
         const cs_real_t *cell_ceni = cell_cen[ii];
         const cs_real_t *cell_cenj = cell_cen[jj];
-        const cs_real_t w_f = weight[face_id];
 
-        /* Slope test is needed with convection */
+        // Load weight for face
+        cs_real_t w_f = weight[face_id];
+
+        // Slope test is needed with convection
         if (iconvp > 0) {
           cs_real_t testij, tesqck;
 
+          // Load gradients for cells ii and jj
           const grad_t &gradi = grad[ii];
           const grad_t &gradj = grad[jj];
 
+          // Load additional parameters
+          cs_real_t i_dist_f = i_dist[face_id];
+
+          cs_real_t i_face_u_normal_f[3] = {
+            i_face_u_normal[face_id][0],
+            i_face_u_normal[face_id][1],
+            i_face_u_normal[face_id][2]
+          };
+
           cs_slope_test_strided<stride>(_pi, _pj,
-                                        i_dist[face_id],
-                                        i_face_u_normal[face_id],
+                                        i_dist_f,
+                                        i_face_u_normal_f,
                                         gradi, gradj,
                                         grdpa[ii], grdpa[jj],
-                                        i_massflux[face_id],
+                                        i_massflux_f,
                                         &testij, &tesqck);
 
-          for (cs_lnum_t isou = 0; isou < stride; isou++) {
+          for (int isou = 0; isou < stride; isou++) {
 
             if (ischcp == 1) {
 
               /* Centered
-                 --------*/
-
+                --------*/
               cs_centered_f_val(w_f,
                                 pip[isou], pjp[isou],
                                 &pif[isou]);
               cs_centered_f_val(w_f,
                                 pip[isou], pjp[isou],
                                 &pjf[isou]);
-
             }
             else {
 
               /* Second order
-                 ------------*/
-
+                ------------*/
               cs_solu_f_val(cell_ceni,
                             i_face_cog[face_id],
                             gradi[isou],
@@ -7049,15 +7102,13 @@ _convection_diffusion_unsteady_strided
                             _pj[isou],
                             &pjf[isou]);
             }
-
           }
 
           /* Slope test activated: percentage of upwind */
-          if (tesqck <= 0. || testij <= 0.) {
+          if (tesqck <= 0.0 || testij <= 0.0) {
 
             /* Upwind
-               ------ */
-
+              ------ */
             cs_blend_f_val_strided<stride>(blend_st, _pi, pif);
             cs_blend_f_val_strided<stride>(blend_st, _pj, pjf);
 
@@ -7065,80 +7116,89 @@ _convection_diffusion_unsteady_strided
           }
 
           /* Blending
-             -------- */
-
+            -------- */
           cs_blend_f_val_strided<stride>(blencp, _pi, pif);
           cs_blend_f_val_strided<stride>(blencp, _pj, pjf);
 
         }
         else { /* If iconv=0 p*fr* are useless */
 
-          for (cs_lnum_t isou = 0; isou < stride; isou++) {
+          for (int isou = 0; isou < stride; isou++) {
             pif[isou] = _pi[isou];
             pjf[isou] = _pj[isou];
           }
-
         } /* End for slope test */
-
+        
+        
         // Convective flux
-
         if (iconvp) {
-          cs_real_t _i_massflux = i_massflux[face_id];
-          cs_real_t flui = 0.5*(_i_massflux + cs_math_fabs(_i_massflux));
-          cs_real_t fluj = 0.5*(_i_massflux - cs_math_fabs(_i_massflux));
 
-          for (cs_lnum_t isou = 0; isou < stride; isou++) {
-            fluxi[isou] +=   thetap*(flui*pif[isou] + fluj*pjf[isou])
-                           - imasac*_i_massflux*pvar_i[isou];
-            fluxj[isou] +=   thetap*(flui*pif[isou] + fluj*pjf[isou])
-                           - imasac*_i_massflux*pvar_j[isou];
+          cs_real_t flui = 0.5 * (i_massflux_f + abs_massflux);
+          cs_real_t fluj = 0.5 * (i_massflux_f - abs_massflux);
+
+          for (int isou = 0; isou < stride; isou++) {
+            fluxi[isou] +=   thetap * (flui * pif[isou] + fluj * pjf[isou])
+                          - imasac * i_massflux_f * pvar_i[isou];
+            fluxj[isou] +=   thetap * (flui * pif[isou] + fluj * pjf[isou])
+                          - imasac * i_massflux_f * pvar_j[isou];
           }
         }
 
         // Diffusive flux
-
         cs_real_t t_i_visc = idiffp * i_visc[face_id] * thetap;
-        for (cs_lnum_t isou = 0; isou < stride; isou++) {
-          fluxi[isou] += t_i_visc*(pip[isou] -pjp[isou]);
-          fluxj[isou] += t_i_visc*(pip[isou] -pjp[isou]);
+        for (int isou = 0; isou < stride; isou++) {
+          cs_real_t diff_flux = t_i_visc * (pip[isou] - pjp[isou]);
+          fluxi[isou] += diff_flux;
+          fluxj[isou] += diff_flux;
         }
 
         if (upwind_switch) {
-          /* in parallel, face will be counted by one and only one rank */
+          /* In parallel, face will be counted by one and only one rank */
           if (i_upwind != nullptr && ii < n_cells) {
             i_upwind[face_id] = 1;
           }
 
           if (v_slope_test != nullptr) {
+
+            cs_real_t cell_vol_ii = cell_vol[ii];
+            cs_real_t cell_vol_jj = cell_vol[jj];
+
             cs_dispatch_sum(&v_slope_test[ii],
-                            std::abs(i_massflux[face_id]) / cell_vol[ii],
+                            abs_massflux / cell_vol_ii,
                             i_sum_type);
             cs_dispatch_sum(&v_slope_test[jj],
-                            std::abs(i_massflux[face_id]) / cell_vol[jj],
+                            abs_massflux / cell_vol_jj,
                             i_sum_type);
           }
         }
 
         /* Save values at internal faces, if needed */
         if (i_pvar != nullptr) {
-          if (i_massflux[face_id] >= 0.) {
-            for (cs_lnum_t i = 0; i < stride; i++)
+          if (i_massflux_f >= 0.0) {
+            for (int i = 0; i < stride; i++) {
               i_pvar[face_id][i] += thetap * pif[i];
+            }
           }
           else {
-            for (cs_lnum_t i = 0; i < stride; i++)
+            for (int i = 0; i < stride; i++) {
               i_pvar[face_id][i] += thetap * pjf[i];
+            }
           }
         }
 
-        for (cs_lnum_t isou = 0; isou < stride; isou++)
-          fluxi[isou] *= -1;  /* For substraction in dispatch sum */
+        for (int isou = 0; isou < stride; isou++) {
+          fluxi[isou] *= -1.0;  /* For subtraction in dispatch sum */
+        }
 
-        if (ii < n_cells)
+        if (ii < n_cells) {
           cs_dispatch_sum<stride>(rhs[ii], fluxi, i_sum_type);
-        if (jj < n_cells)
+        }
+        if (jj < n_cells) {
           cs_dispatch_sum<stride>(rhs[jj], fluxj, i_sum_type);
-      });
+        }
+
+      }); /* End of parallel_for_i_faces */
+
       break;
 
     default:

@@ -221,6 +221,17 @@ public:
     return true;
   }
 
+ //! Iterate using a plain omp parallel for
+  template <class F, class... Args>
+  bool
+  parallel_for_2d(cs_lnum_t n, F&& f, Args&&... args) {
+#   pragma omp parallel for  if (n >= n_min_for_threads)
+    for (cs_lnum_t i = 0; i < n; ++i) {
+      f(i, args...);
+    }
+    return true;
+  }
+
   //! Loop over the interior faces of a mesh using a specific numbering
   //! that avoids conflicts between threads.
   template <class M, class F, class... Args>
@@ -312,6 +323,26 @@ __global__ void cs_cuda_kernel_parallel_for(cs_lnum_t n, F f, Args... args) {
     f(id, args...);
   }
 }
+
+template <class F, class... Args>
+__device__ void cs_sub_parallel_for(cs_lnum_t s, cs_lnum_t e, F f, Args... args) {
+    for (cs_lnum_t sid = threadIdx.x + s; sid < e; sid += blockDim.x)
+    {
+      f(sid, args...);
+    }
+}
+
+
+template <class F, class... Args>
+__global__ void cs_cuda_kernel_parallel_for_2d(cs_lnum_t n, F f, Args... args) {
+  // grid_size-stride loop
+  for (cs_lnum_t id = blockIdx.x; id < n;
+       id += gridDim.x) {
+         
+       f(id, args...);
+  }
+}
+
 
 /* Default kernel that loops over an integer range and calls a device functor.
    This kernel uses a grid_size-stride loop and thus guarantees that all
@@ -512,6 +543,23 @@ public:
   }
 
   //! Try to launch on the GPU and return false if not available
+  template <class F, class... Args>
+  bool
+  parallel_for_2d(cs_lnum_t n, F&& f, Args&&... args) {
+    if (device_ < 0 || use_gpu_ == false) {
+      return false;
+    }
+
+    long l_grid_size = n;
+
+    if (n > 0)
+      cs_cuda_kernel_parallel_for_2d<<<l_grid_size, block_size_, 0, stream_>>>
+        (n, static_cast<F&&>(f), static_cast<Args&&>(args)...);
+
+    return true;
+  }
+
+  //! Try to launch on the GPU and return false if not available
   template <class M, class F, class... Args>
   bool
   parallel_for_i_faces(const M* m, F&& f, Args&&... args) {
@@ -527,6 +575,25 @@ public:
 
     if (n > 0)
       cs_cuda_kernel_parallel_for<<<l_grid_size, block_size_, 0, stream_>>>
+        (n, static_cast<F&&>(f), static_cast<Args&&>(args)...);
+
+    return true;
+  }
+
+  
+  //! Try to launch on the GPU and return false if not available
+  template <class M, class F, class... Args>
+  bool
+  parallel_for_i_faces_2d(const M* m, F&& f, Args&&... args) {
+    const cs_lnum_t n = m->n_i_faces;
+    if (device_ < 0 || use_gpu_ == false) {
+      return false;
+    }
+
+    long l_grid_size = n;
+
+    if (n > 0)
+      cs_cuda_kernel_parallel_for_2d<<<l_grid_size, block_size_, 0, stream_>>>
         (n, static_cast<F&&>(f), static_cast<Args&&>(args)...);
 
     return true;
@@ -597,7 +664,7 @@ public:
   //! Synchronize associated stream
   void
   wait(void) {
-   if (device_ > -1 && use_gpu_)
+    if (device_ > -1 && use_gpu_)
     {
       cudaError_t _l_ret_code = cudaStreamSynchronize(stream_);
       if (cudaSuccess != _l_ret_code) {
@@ -1010,6 +1077,15 @@ public:
 
   // Abort execution if no execution method is available.
   template <class F, class... Args>
+  bool parallel_for_2d([[maybe_unused]] cs_lnum_t  n,
+                      [[maybe_unused]] F&&        f,
+                      [[maybe_unused]] Args&&...  args) {
+    cs_assert(0);
+    return false;
+  }
+
+  // Abort execution if no execution method is available.
+  template <class F, class... Args>
   bool parallel_for_reduce_sum([[maybe_unused]] cs_lnum_t  n,
                                [[maybe_unused]] double&    sum,
                                [[maybe_unused]] F&&        f,
@@ -1065,6 +1141,16 @@ public:
     [[maybe_unused]] decltype(nullptr) try_execute[] = {
       (   launched = launched
        || Contexts::parallel_for(n, f, args...), nullptr)...
+    };
+  }
+
+  
+  template <class F, class... Args>
+  auto parallel_for_2d(cs_lnum_t n, F&& f, Args&&... args) {
+    bool launched = false;
+    [[maybe_unused]] decltype(nullptr) try_execute[] = {
+      (   launched = launched
+       || Contexts::parallel_for_2d(n, f, args...), nullptr)...
     };
   }
 
@@ -1192,7 +1278,7 @@ cs_dispatch_sum(T                       *dest,
                 cs_dispatch_sum_type_t   sum_type)
 {
   if (sum_type == CS_DISPATCH_SUM_ATOMIC) {
-#if 1
+#if 0
     using sum_v = assembled_value<T>;
     sum_v v;
 
