@@ -602,6 +602,7 @@ cs_parall_thread_range(cs_lnum_t    n,
   *s_id = cs_align(*s_id, cl_m);
   *e_id = cs_align(*e_id, cl_m);
   if (*e_id > n) *e_id = n;
+  if (*s_id > n) *s_id = n;
 #else
   CS_UNUSED(type_size);         /* avoid compiler warning */
   *s_id = 0;
