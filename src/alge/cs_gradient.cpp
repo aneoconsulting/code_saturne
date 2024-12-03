@@ -3826,6 +3826,7 @@ _lsq_scalar_gradient_hyd_p_gather(const cs_mesh_t            *m,
     /* Compute Right-Hand Side */
     /*-------------------------*/
 
+
 #if defined(HAVE_ACCEL)
   cs_alloc_mode_t alloc_mode = CS_ALLOC_DEVICE;
   cs_real_4_t *restrict rhsv;
@@ -3840,6 +3841,55 @@ _lsq_scalar_gradient_hyd_p_gather(const cs_mesh_t            *m,
     i_poro_duq_0 = _f_ext_d;
     i_poro_duq_1 = _f_ext_d;
     b_poro_duq   = _f_ext_d;
+  }
+
+  /* Prefetch data to device to avoid page faults in the kernel */
+  // Check if we are using the device
+  if (ctx.use_gpu()) {
+
+    // Prefetch pvar
+    cs_prefetch_h2d((void *)pvar, n_cells_ext * sizeof(cs_real_t));
+
+    // Prefetch c_weight_s if not nullptr
+    if (c_weight_s != nullptr) {
+      cs_prefetch_h2d((void *)c_weight_s, n_cells_ext * sizeof(cs_real_t));
+    }
+
+    // Prefetch weight
+    cs_prefetch_h2d((void *)weight, m->n_i_faces * sizeof(cs_real_t));
+
+    // Prefetch cell_f_cen
+    cs_prefetch_h2d((void *)cell_f_cen, n_cells_ext * sizeof(cs_real_3_t));
+
+    // Prefetch i_f_face_cog
+    cs_prefetch_h2d((void *)i_f_face_cog, m->n_i_faces * sizeof(cs_real_3_t));
+
+    // Prefetch f_ext
+    cs_prefetch_h2d((void *)f_ext, n_cells_ext * sizeof(cs_real_3_t));
+
+    // Prefetch porosity terms if porous
+    if (is_porous != 0) {
+      cs_prefetch_h2d((void *)i_poro_duq_0, m->n_i_faces * sizeof(cs_real_t));
+      cs_prefetch_h2d((void *)i_poro_duq_1, m->n_i_faces * sizeof(cs_real_t));
+    }
+
+    // Prefetch mesh adjacencies
+    const cs_mesh_adjacencies_t *ma = cs_glob_mesh_adjacencies;
+
+    // Prefetch cell_cells_idx
+    cs_prefetch_h2d((void *)ma->cell_cells_idx, (n_cells + 1) * sizeof(cs_lnum_t));
+
+    // Get total number of cell connections
+    cs_lnum_t total_cell_connections = ma->cell_cells_idx[n_cells];
+
+    // Prefetch cell_cells
+    cs_prefetch_h2d((void *)ma->cell_cells, total_cell_connections * sizeof(cs_lnum_t));
+
+    // Prefetch cell_i_faces
+    cs_prefetch_h2d((void *)ma->cell_i_faces, total_cell_connections * sizeof(cs_lnum_t));
+
+    // Prefetch cell_i_faces_sgn
+    cs_prefetch_h2d((void *)ma->cell_i_faces_sgn, total_cell_connections * sizeof(short int));
   }
 
 #else
@@ -3917,7 +3967,6 @@ _lsq_scalar_gradient_hyd_p_gather(const cs_mesh_t            *m,
       });
     }
     else {
-      ctx.set_cuda_grid(0, 256);
       ctx.parallel_for(n_cells, [=] CS_F_HOST_DEVICE(cs_lnum_t ii) {
         const cs_lnum_t s_id = c2c_idx[ii];
         const cs_lnum_t e_id = c2c_idx[ii + 1];
@@ -3986,7 +4035,6 @@ _lsq_scalar_gradient_hyd_p_gather(const cs_mesh_t            *m,
   } /* End for extended neighborhood */
 
   /* Contribution from boundary faces */
-  ctx.set_cuda_grid(0, 256);
   ctx.parallel_for_b_faces(m, [=] CS_F_HOST_DEVICE(cs_lnum_t f_id) {
     cs_lnum_t ii = b_face_cells[f_id];
 

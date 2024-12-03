@@ -65,7 +65,7 @@ MemoryPool::allocate(size_t          ni,
 
   size_t adjusted_size = ni * size;
 
-  const int TTL_MAX = 300;
+  const int TTL_MAX = 500;
 
   auto &free_blocks = free_blocks_[mode];
 
