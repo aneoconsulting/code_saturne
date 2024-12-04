@@ -352,7 +352,7 @@ fvm_group_class_get_group_names(const fvm_group_class_t  *this_group_class)
   const char **retval = nullptr;
 
   if (this_group_class != nullptr) {
-    retval = (const char **)(this_group_class->group_name);
+    retval = (const char **const)(this_group_class->group_name);
   }
 
   return retval;
@@ -435,7 +435,7 @@ fvm_group_class_set_add(fvm_group_class_set_t   *this_group_class_set,
  *   this_class_set <-- pointer to structure which should be destroyed
  *
  * returns:
- *   nullptr pointer
+ *   null pointer
  *----------------------------------------------------------------------------*/
 
 fvm_group_class_set_t *

@@ -485,6 +485,10 @@ typedef struct {
   /*! 1D solar profile */
   int solar_1D_profile;
 
+  cs_real_t aod_o3_tot;
+
+  cs_real_t aod_h2o_tot;
+
 } cs_atmo_option_t;
 
 /*----------------------------------------------------------------------------
@@ -544,7 +548,9 @@ typedef struct {
   int *chempoint;
   /*! kinetics constants */
   cs_real_t *reacnum;
-
+  /*! Initial gaseous and particulate concentrations
+    and aerosol number read in file */
+  cs_real_t *dlconc0;
   /*! Name of the file used to initialize the aerosol shared library */
   char *aero_file_name;
   /*! Name of the file used to initialize and to apply boundary
@@ -553,6 +559,27 @@ typedef struct {
   /*! Name of the file used to initialize and to apply boundary
    *  conditions on aerosol species */
   char *aero_conc_file_name;
+
+  // option for chemestry profiles file
+
+  /*! number of time steps for the concentration profiles file */
+  int nt_step_profiles;
+  /*! number of altitudes for the concentration profiles file */
+  int n_z_profiles;
+  /*! number of initialized chemical species
+      in the concentration profiles file */
+  int n_species_profiles;
+
+  /*! concentration profiles */
+  cs_real_t *conc_profiles;
+  /*! altitudes of the concentration profiles*/
+  cs_real_t *z_conc_profiles;
+  /*! time steps of the concentration profiles */
+  cs_real_t *t_conc_profiles;
+  /*! X coordinates of concentration profiles */
+  cs_real_t *x_conc_profiles;
+  /*! Y coordinates of concentration profiles */
+  cs_real_t *y_conc_profiles;
 
 } cs_atmo_chemistry_t;
 
@@ -618,6 +645,17 @@ void
 cs_atmo_source_term(int              f_id,
                     cs_real_t        exp_st[],
                     cs_real_t        imp_st[]);
+
+/*----------------------------------------------------------------------------
+ * initialize fields, stage 0
+ *----------------------------------------------------------------------------*/
+
+void
+cs_atmo_fields_init0(void);
+
+/*----------------------------------------------------------------------------
+ * Automatic boundary condition for cooling towers
+ *----------------------------------------------------------------------------*/
 
 void
 cs_atmo_bcond(void);
@@ -772,7 +810,7 @@ cs_mo_psih(cs_real_t              z,
  * \param[in]  z0
  * \param[in]  du            velocity difference
  * \param[in]  dt            thermal difference
- * \param[in]  tm
+ * \param[in]  beta          thermal expansion
  * \param[in]  gredu
  * \param[out] dlmo          Inverse Monin Obukhov length
  * \param[out] ustar         friction velocity
@@ -784,7 +822,7 @@ cs_mo_compute_from_thermal_diff(cs_real_t   z,
                                 cs_real_t   z0,
                                 cs_real_t   du,
                                 cs_real_t   dt,
-                                cs_real_t   tm,
+                                cs_real_t   beta,
                                 cs_real_t   gredu,
                                 cs_real_t   *dlmo,
                                 cs_real_t   *ustar);
@@ -798,7 +836,7 @@ cs_mo_compute_from_thermal_diff(cs_real_t   z,
  * \param[in]  z0
  * \param[in]  du            velocity difference
  * \param[in]  flux          thermal flux
- * \param[in]  tm
+ * \param[in]  beta          thermal expansion
  * \param[in]  gredu
  * \param[out] dlmo          Inverse Monin Obukhov length
  * \param[out] ustar         friction velocity
@@ -810,7 +848,7 @@ cs_mo_compute_from_thermal_flux(cs_real_t   z,
                                 cs_real_t   z0,
                                 cs_real_t   du,
                                 cs_real_t   flux,
-                                cs_real_t   tm,
+                                cs_real_t   beta,
                                 cs_real_t   gredu,
                                 cs_real_t   *dlmo,
                                 cs_real_t   *ustar);

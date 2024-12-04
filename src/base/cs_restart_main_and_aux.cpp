@@ -47,6 +47,8 @@
  * Local headers
  *----------------------------------------------------------------------------*/
 
+#include "bft_mem.h"
+
 #include "cs_ale.h"
 #include "cs_array.h"
 #include "cs_atmo.h"
@@ -146,7 +148,7 @@ _write_main_checkpoint(void)
   _WRITE_REAL_VAL("instant_precedent");
 
   /* Turbulence model */
-  dummy_int = cs_glob_turb_model->iturb;
+  dummy_int = cs_glob_turb_model->model;
   _WRITE_INT_VAL("turbulence_model");
 
   /* ALE */

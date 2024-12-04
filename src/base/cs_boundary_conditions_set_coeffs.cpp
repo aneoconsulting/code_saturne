@@ -47,6 +47,7 @@
  * Local headers
  *----------------------------------------------------------------------------*/
 
+#include "bft_mem.h"
 #include "bft_printf.h"
 
 #include "cs_1d_wall_thermal.h"
@@ -128,8 +129,7 @@ cs_f_ppprcl(void);
 void
 cs_f_pptycl(bool        init,
             int        *itypfb,
-            const int  *izfppp,
-            cs_real_t   dt[]);
+            const int  *izfppp);
 
 void
 cs_f_user_boundary_conditions_wrapper(int              itypfb[],
@@ -164,13 +164,12 @@ _boundary_condition_mobile_mesh_rotor_stator_type(void)
   const cs_lnum_t n_b_faces = mesh->n_b_faces;
   const cs_lnum_t *b_face_cells = mesh->b_face_cells;
   const cs_real_t *b_dist = fvq->b_dist;
-  const cs_real_3_t *b_face_u_normal
-    = (const cs_real_3_t *)fvq->b_face_u_normal;
+  const cs_nreal_3_t *b_face_u_normal = fvq->b_face_u_normal;
   const cs_real_3_t *b_face_cog = (const cs_real_3_t *)fvq->b_face_cog;
 
   const int *bc_type = cs_glob_bc_type;
   const int *irotce  = cs_turbomachinery_get_cell_rotor_num();
-  const int itytur = cs_glob_turb_model->itytur;
+  const int order = cs_glob_turb_model->order;
 
   /* Initialization
      -------------- */
@@ -231,7 +230,7 @@ _boundary_condition_mobile_mesh_rotor_stator_type(void)
               rcodcl1_vel[n_b_faces * k + f_id] = 0.;
           }
 
-          const cs_real_t *rnxyz = b_face_u_normal[f_id];
+          const cs_nreal_t *rnxyz = b_face_u_normal[f_id];
           const cs_real_t rcodcl1[3] = {rcodcl1_vel[n_b_faces*0 + f_id],
                                         rcodcl1_vel[n_b_faces*1 + f_id],
                                         rcodcl1_vel[n_b_faces*2 + f_id]};
@@ -280,7 +279,7 @@ _boundary_condition_mobile_mesh_rotor_stator_type(void)
         /* Geometric quantities */
         const cs_real_t distbf = b_dist[f_id];
 
-        const cs_real_t hint = (itytur == 3) ?  visclc / distbf :
+        const cs_real_t hint = (order == CS_TURB_SECOND_ORDER) ?  visclc / distbf :
                                                (visclc + visctc) / distbf;
 
         /* Coefficients associated to laminar wall Dirichlet BC */
@@ -388,9 +387,23 @@ _boundary_condition_ale_type(const cs_mesh_t            *m,
   }
 
   if (cs_glob_ale == CS_ALE_CDO) {
-    const int size_uma = (CS_F_(mesh_u)->dim + 1) * n_b_faces;
+    const int size_uma = CS_F_(mesh_u)->dim * n_b_faces;
     BFT_MALLOC(_rcodcl1_mesh_u, size_uma, cs_real_t);
     rcodcl1_mesh_u = _rcodcl1_mesh_u;
+
+    cs_real_3_t *b_fluid_vel = nullptr;
+    BFT_MALLOC(b_fluid_vel, n_b_faces, cs_real_3_t);
+
+    cs_array_real_fill_zero(3 * n_b_faces, (cs_real_t *)b_fluid_vel);
+
+    cs_ale_update_bcs(ale_bc_type, b_fluid_vel);
+
+    for (cs_lnum_t face_id = 0; face_id < n_b_faces; face_id++) {
+      for (cs_lnum_t ii = 0; ii < 3; ii++)
+        rcodcl1_mesh_u[n_b_faces * ii + face_id] = b_fluid_vel[face_id][ii];
+    }
+
+    BFT_FREE(b_fluid_vel);
   }
 
   assert(rcodcl1_mesh_u != nullptr);
@@ -406,22 +419,7 @@ _boundary_condition_ale_type(const cs_mesh_t            *m,
    * --------------------------------- */
 
   /* When using CDO solver, no need for checks. */
-  if (cs_glob_ale == CS_ALE_CDO) {
-    cs_real_3_t *b_fluid_vel = nullptr;
-    BFT_MALLOC(b_fluid_vel, n_b_faces, cs_real_3_t);
-
-    cs_array_real_fill_zero(3 * n_b_faces, (cs_real_t *)b_fluid_vel);
-
-    cs_ale_update_bcs(ale_bc_type, b_fluid_vel);
-
-    for (cs_lnum_t face_id = 0; face_id < n_b_faces; face_id++) {
-      for (cs_lnum_t ii = 0; ii < 3; ii++)
-        rcodcl1_mesh_u[n_b_faces * ii + face_id] = b_fluid_vel[face_id][ii];
-    }
-
-    BFT_FREE(b_fluid_vel);
-  }
-  else { /* cs_glob_ale != CS_ALE_CDO */
+  if (!(cs_glob_ale == CS_ALE_CDO)) {
 
     int ierror = 0;
 
@@ -878,10 +876,10 @@ cs_boundary_conditions_set_coeffs(int        nvar,
   const cs_lnum_t *restrict b_face_cells
     = (const cs_lnum_t *)mesh->b_face_cells;
   const cs_real_3_t *b_face_normal  = (const cs_real_3_t *)fvq->b_face_normal;
-  const cs_real_3_t *b_face_u_normal = (const cs_real_3_t *)fvq->b_face_u_normal;
+  const cs_nreal_3_t *b_face_u_normal = fvq->b_face_u_normal;
   const cs_real_3_t *cell_cen = (const cs_real_3_t *)fvq->cell_cen;
   const cs_real_3_t *b_face_cog = (const cs_real_3_t *)fvq->b_face_cog;
-  const cs_real_3_t *restrict diipb = (const cs_real_3_t *)fvq->diipb;
+  const cs_rreal_3_t *restrict diipb = fvq->diipb;
   const cs_real_t   *b_face_surf    = fvq->b_face_surf;
   const cs_real_t   *b_dist         = fvq->b_dist;
   int               *isympa         = fvq->b_sym_flag;
@@ -1060,9 +1058,11 @@ cs_boundary_conditions_set_coeffs(int        nvar,
   cs_real_3_t *velipb = nullptr;
   BFT_MALLOC(velipb, n_b_faces, cs_real_3_t);
 
-  cs_turb_model_type_t iturb
-    = static_cast<cs_turb_model_type_t>(cs_glob_turb_model->iturb);
+  cs_turb_model_type_t model
+    = static_cast<cs_turb_model_type_t>(cs_glob_turb_model->model);
   int itytur = cs_glob_turb_model->itytur;
+  const int order = cs_glob_turb_model->order;
+  const int type = cs_glob_turb_model->type;
 
   /* coefa and coefb are required to compute the cell gradients for the wall
      turbulent boundary conditions.
@@ -1135,8 +1135,7 @@ cs_boundary_conditions_set_coeffs(int        nvar,
         && cs_glob_physical_model_flag[CS_ELECTRIC_ARCS]       == -1) {
       cs_f_pptycl(false,
                   bc_type,
-                  izfppp,
-                  dt);
+                  izfppp);
     }
 
     if (cs_glob_ale != CS_ALE_NONE)
@@ -1257,7 +1256,8 @@ cs_boundary_conditions_set_coeffs(int        nvar,
 
       if (f_scal->dim == 1) {
 
-        if (cs_glob_space_disc->itbrrb == 1 && eqp_scal->ircflu == 1) {
+        if (   cs_glob_space_disc->itbrrb == 1
+            && eqp_scal->ircflu == 1 && eqp_scal->b_diff_flux_rc > 0) {
           cs_real_t *var_iprime = theipb;
           if (f_scal_b != nullptr)
             var_iprime = bvar_s;
@@ -1268,7 +1268,7 @@ cs_boundary_conditions_set_coeffs(int        nvar,
                                                    nullptr,
                                                    var_iprime);
         }
-        else { /* itbrrb, ircflu */
+        else { /* itbrrb, ircflu, b_diff_flux_rc */
           const cs_real_t *cvara_s = f_scal->val_pre;
 
           if (f_scal_b != nullptr) {
@@ -1335,7 +1335,8 @@ cs_boundary_conditions_set_coeffs(int        nvar,
         }
         else if (f_scal->dim == 6) {
 
-          if (cs_glob_space_disc->itbrrb == 1 && eqp_scal->ircflu == 1) {
+          if (   cs_glob_space_disc->itbrrb == 1
+              && eqp_scal->ircflu == 1 && eqp_scal->b_diff_flux_rc > 0) {
             const cs_real_6_t *cvar_t
               = (const cs_real_6_t *)f_scal->val;
 
@@ -1434,7 +1435,8 @@ cs_boundary_conditions_set_coeffs(int        nvar,
   /* Compute rij in i' for boundary cells */
 
   cs_real_6_t *rijipb = nullptr;
-  if ((iclsym != 0 || ipatur != 0 || ipatrg != 0) && itytur == 3) {
+  if ((iclsym != 0 || ipatur != 0 || ipatrg != 0)
+      && order == CS_TURB_SECOND_ORDER) {
 
     /* Allocate a work array to store rij values at boundary faces */
     BFT_MALLOC(rijipb, n_b_faces, cs_real_6_t);
@@ -1476,7 +1478,7 @@ cs_boundary_conditions_set_coeffs(int        nvar,
    * we use visvdr to restore the correct value.
    *--------------------------------------------------------------------------*/
 
-  if (itytur == 4 && cs_glob_turb_les_model->idries == 1) {
+  if (type == CS_TURB_LES && cs_glob_turb_les_model->idries == 1) {
     for (cs_lnum_t c_id = 0; c_id < n_cells; c_id++)
       visvdr[c_id] = -999.0;
   }
@@ -1527,7 +1529,7 @@ cs_boundary_conditions_set_coeffs(int        nvar,
       /* geometric quantities */
       const cs_real_t distbf = b_dist[f_id];
 
-      if (itytur == 3)
+      if (order == CS_TURB_SECOND_ORDER)
         hint = visclc / distbf;
       else
         hint = (visclc + visctc) / distbf;
@@ -1911,7 +1913,7 @@ cs_boundary_conditions_set_coeffs(int        nvar,
 
   { /* k-epsilon and k-omega */
 
-    if (itytur == 2 || iturb == CS_TURB_K_OMEGA) {
+    if (itytur == 2 || model == CS_TURB_K_OMEGA) {
 
       cs_field_t *turb = nullptr;
       cs_real_t sigma = 0.0;
@@ -1925,7 +1927,7 @@ cs_boundary_conditions_set_coeffs(int        nvar,
           turb  = CS_F_(k);
           if (itytur == 2)
             sigma = cs_field_get_key_double(turb, ksigmas);
-          else if (iturb == CS_TURB_K_OMEGA) {
+          else if (model == CS_TURB_K_OMEGA) {
             sigma = cs_turb_ckwsk2; /* FIXME: not consistent with the model */
           }
         }
@@ -2016,7 +2018,7 @@ cs_boundary_conditions_set_coeffs(int        nvar,
 
     /* Rij-epsilon */
 
-    else if (itytur == 3) {
+    else if (order == CS_TURB_SECOND_ORDER) {
 
       cs_field_t *rij = CS_F_(rij);
 
@@ -2342,7 +2344,7 @@ cs_boundary_conditions_set_coeffs(int        nvar,
 
       /* Alpha for the EBRSM */
 
-      if (iturb == CS_TURB_RIJ_EPSILON_EBRSM) {
+      if (model == CS_TURB_RIJ_EPSILON_EBRSM) {
 
         cs_field_t *alpha = CS_F_(alp_bl);
 
@@ -2510,7 +2512,7 @@ cs_boundary_conditions_set_coeffs(int        nvar,
         }
       }
 
-      if (iturb == CS_TURB_V2F_PHI) {
+      if (model == CS_TURB_V2F_PHI) {
 
         /* FB */
 
@@ -2586,7 +2588,7 @@ cs_boundary_conditions_set_coeffs(int        nvar,
         }
       }
 
-      else if (iturb == CS_TURB_V2F_BL_V2K) {
+      else if (model == CS_TURB_V2F_BL_V2K) {
 
         /* alpha */
 
@@ -2664,7 +2666,7 @@ cs_boundary_conditions_set_coeffs(int        nvar,
 
     /* Spalart Allmaras */
 
-    else if (iturb == CS_TURB_SPALART_ALLMARAS) {
+    else if (model == CS_TURB_SPALART_ALLMARAS) {
 
       cs_field_t *nusa = CS_F_(nusa);
 
@@ -2830,7 +2832,7 @@ cs_boundary_conditions_set_coeffs(int        nvar,
       if ((eqp_scal->idften & CS_ANISOTROPIC_DIFFUSION)
           || turb_flux_model_type == 3) {
 
-        if (iturb != CS_TURB_RIJ_EPSILON_EBRSM || turb_flux_model_type == 3) {
+        if (model != CS_TURB_RIJ_EPSILON_EBRSM || turb_flux_model_type == 3) {
           f_a_t_visc = cs_field_by_name("anisotropic_turbulent_viscosity");
           visten = (cs_real_6_t *)f_a_t_visc->val;
         }
@@ -3825,8 +3827,7 @@ cs_boundary_conditions_set_coeffs_init(void)
 
     cs_f_pptycl(true,
                 bc_type,
-                izfppp,
-                dt);
+                izfppp);
   }
 
   int *isostd;
@@ -3907,7 +3908,7 @@ cs_boundary_conditions_set_generalized_sym_vector_aniso
    const cs_real_t        pimpv[3],
    const cs_real_t        qimpv[3],
    const cs_real_t        hint[6],
-   const cs_real_t        normal[3])
+   const cs_nreal_t       normal[3])
 {
   cs_real_3_t  *a = (cs_real_3_t *)bc_coeffs->a;
   cs_real_33_t *b = (cs_real_33_t *)bc_coeffs->b;
@@ -3990,7 +3991,7 @@ cs_boundary_conditions_set_generalized_dirichlet_vector_aniso
    const cs_real_t        pimpv[3],
    const cs_real_t        qimpv[3],
    const cs_real_t        hint[6],
-   const cs_real_t        normal[3])
+   const cs_nreal_t       normal[3])
 {
   cs_real_3_t  *a = (cs_real_3_t *)bc_coeffs->a;
   cs_real_33_t *b = (cs_real_33_t *)bc_coeffs->b;

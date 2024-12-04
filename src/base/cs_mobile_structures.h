@@ -53,7 +53,7 @@ BEGIN_C_DECLS
  *============================================================================*/
 
 /*! Maximum number of implicitation iterations of the structure displacement */
-extern int cs_glob_mobile_structures_i_max;
+extern int cs_glob_mobile_structures_n_iter_max;
 
 /*! Relative precision of implicitation of the structure displacement */
 extern double cs_glob_mobile_structures_i_eps;
@@ -107,7 +107,18 @@ cs_mobile_structures_log_setup(void);
 /*----------------------------------------------------------------------------*/
 
 int
-cs_mobile_structures_get_n_structures(void);
+cs_mobile_structures_get_n_int_structures(void);
+
+/*----------------------------------------------------------------------------*/
+/*!
+ * \brief  Query number of external mobile structures defined.
+ *
+ * \return  number of external mobile structures
+ */
+/*----------------------------------------------------------------------------*/
+
+int
+cs_mobile_structures_get_n_ext_structures(void);
 
 /*----------------------------------------------------------------------------*/
 /*!

@@ -90,8 +90,7 @@ _boundary_conditions_set_coeffs_symmetry_scalar(cs_field_t  *f_sc)
   const cs_lnum_t n_b_faces = mesh->n_b_faces;
   const cs_lnum_t *b_face_cells = mesh->b_face_cells;
   const cs_real_t *b_dist = fvq->b_dist;
-  const cs_real_3_t *b_face_u_normal
-    = (const cs_real_3_t *)fvq->b_face_u_normal;
+  const cs_nreal_3_t *b_face_u_normal = fvq->b_face_u_normal;
 
   const cs_fluid_properties_t *fluid_props = cs_glob_fluid_properties;
   const cs_real_t cp0 = fluid_props->cp0;
@@ -157,7 +156,7 @@ _boundary_conditions_set_coeffs_symmetry_scalar(cs_field_t  *f_sc)
 
       /* Geometric quantities */
       const cs_lnum_t c_id = b_face_cells[f_id];
-      const cs_real_t *nn = b_face_u_normal[f_id];
+      const cs_nreal_t *nn = b_face_u_normal[f_id];
       const cs_real_t distbf = b_dist[f_id];
 
       /* Physical Properties */
@@ -288,14 +287,13 @@ _boundary_conditions_set_coeffs_symmetry_vector(cs_field_t  *f_v)
 {
   const cs_mesh_t *mesh = cs_glob_mesh;
   const cs_mesh_quantities_t *fvq = cs_glob_mesh_quantities;
-  const cs_turb_model_type_t iturb
+  const cs_turb_model_type_t model
     = (cs_turb_model_type_t)cs_glob_turb_model->model;
 
   const cs_lnum_t n_b_faces = mesh->n_b_faces;
   const cs_lnum_t *b_face_cells = mesh->b_face_cells;
   const cs_real_t *b_dist = fvq->b_dist;
-  const cs_real_3_t *b_face_u_normal
-    = (const cs_real_3_t *)fvq->b_face_u_normal;
+  const cs_nreal_3_t *b_face_u_normal = fvq->b_face_u_normal;
 
   const int kivisl  = cs_field_key_id("diffusivity_id");
   const int ksigmas = cs_field_key_id("turbulent_schmidt");
@@ -309,7 +307,7 @@ _boundary_conditions_set_coeffs_symmetry_vector(cs_field_t  *f_v)
 
   cs_real_6_t *visten = nullptr;
   if (eqp_v->idften & CS_ANISOTROPIC_DIFFUSION) {
-    if (iturb != CS_TURB_RIJ_EPSILON_EBRSM) {
+    if (model != CS_TURB_RIJ_EPSILON_EBRSM) {
       cs_field_t *f_a_t_visc = cs_field_by_name("anisotropic_turbulent_viscosity");
       visten = (cs_real_6_t *)f_a_t_visc->val;
     }
@@ -344,7 +342,7 @@ _boundary_conditions_set_coeffs_symmetry_vector(cs_field_t  *f_v)
 
       /* Geometric quantities */
       const cs_lnum_t c_id = b_face_cells[f_id];
-      const cs_real_t *nn = b_face_u_normal[f_id];
+      const cs_nreal_t *nn = b_face_u_normal[f_id];
       const cs_real_t distbf = b_dist[f_id];
 
       const cs_real_t rkl = (ifcvsl < 0) ? visls_0 : viscls[c_id];
@@ -473,7 +471,7 @@ cs_boundary_conditions_set_coeffs_symmetry(cs_real_t  velipb[][3],
   const cs_lnum_t n_b_faces = mesh->n_b_faces;
   const cs_lnum_t *restrict b_face_cells
     = (const cs_lnum_t *)mesh->b_face_cells;
-  const cs_real_3_t *b_face_u_normal = (const cs_real_3_t *)fvq->b_face_u_normal;
+  const cs_nreal_3_t *b_face_u_normal = fvq->b_face_u_normal;
   const cs_real_3_t *b_face_cog = (const cs_real_3_t *)fvq->b_face_cog;
   const cs_real_3_t *cell_cen = (const cs_real_3_t *)fvq->cell_cen;
   const cs_real_t   *b_dist = fvq->b_dist;
@@ -520,7 +518,7 @@ cs_boundary_conditions_set_coeffs_symmetry(cs_real_t  velipb[][3],
     isympa[f_id] = 0;
 
     /* Geometric quantities */
-    const cs_real_t *nn = b_face_u_normal[f_id];
+    const cs_nreal_t *nn = b_face_u_normal[f_id];
 
     /* Local reference frame
        --------------------- */
@@ -531,14 +529,12 @@ cs_boundary_conditions_set_coeffs_symmetry(cs_real_t  velipb[][3],
        not important for symmetry). */
 
     cs_real_t rcodcn = 0.0;
-    if (cs_glob_ale > CS_ALE_NONE) {
-
+    if (cs_glob_ale == CS_ALE_LEGACY || cs_glob_ale == CS_ALE_CDO) {
       const cs_real_t rcodclxyz[3] = {rcodcl1_vel[n_b_faces*0 + f_id],
                                       rcodcl1_vel[n_b_faces*1 + f_id],
                                       rcodcl1_vel[n_b_faces*2 + f_id]};
 
       rcodcn = cs_math_3_dot_product(rcodclxyz, nn);
-
     }
 
     const cs_real_t upxyz[3] = {velipb[f_id][0],
@@ -855,7 +851,7 @@ cs_boundary_conditions_set_coeffs_symmetry(cs_real_t  velipb[][3],
 
       /* Geometrical quantities */
       const cs_real_t distbf = b_dist[f_id];
-      const cs_real_t *nn = b_face_u_normal[f_id];
+      const cs_nreal_t *nn = b_face_u_normal[f_id];
 
       /* Physical properties */
       cs_real_6_t hintv = {0., 0., 0., 0., 0., 0.};

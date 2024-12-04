@@ -325,13 +325,7 @@ typedef enum {
 /* Global integer index or number */
 
 #if defined(HAVE_LONG_GNUM)
-  #if (SIZEOF_LONG == 8)
-    typedef unsigned long       cs_gnum_t;
-  #elif (SIZEOF_LONG_LONG == 8)
-    typedef unsigned long long  cs_gnum_t;
-  #else
-    #error
-  #endif
+  typedef uint64_t  cs_gnum_t;
 #else
   typedef unsigned  cs_gnum_t;
 #endif
@@ -339,14 +333,14 @@ typedef enum {
 /* Local integer index or number */
 
 #if defined(HAVE_LONG_LNUM)
-  typedef long  cs_lnum_t;
+  typedef int64_t  cs_lnum_t;
 #else
-  typedef int   cs_lnum_t;
+  typedef int  cs_lnum_t;
 #endif
 
 /* Other types */
 
-typedef double            cs_coord_t;  /* Real number (coordinate value) */
+typedef double             cs_coord_t;   /* Real number (coordinate value) */
 
 typedef float               cs_float_m;  /* Float by Mohammed*/
 typedef cs_float_m          cs_float_33_m[3][3]; /* Float by Mohammed*/
@@ -356,6 +350,8 @@ typedef char                cs_byte_t;   /* Byte (untyped memory unit) */
 typedef unsigned short int  cs_flag_t;   /* Flag storing metadata */
 
 typedef double              cs_nreal_t;  /* Real number (normalized value) */
+typedef double              cs_dreal_t;  /* Local distance */
+typedef double              cs_rreal_t;  /* Reconstruction distance */
 
 /* Vector or array block types */
 
@@ -394,6 +390,8 @@ typedef cs_real_66_t  cs_real_662_t[2];     /* vector of 2 6x6 matrices
 
 typedef cs_nreal_t  cs_nreal_3_t[3];        /* Vector of normalized real values
                                                (i.e. unit vector) */
+typedef cs_dreal_t  cs_dreal_3_t[3];        /* Vector joining 2 local coordinates */
+typedef cs_rreal_t  cs_rreal_3_t[3];        /* Reconstruction distance Vector */
 
 typedef struct {
 
@@ -586,20 +584,11 @@ typedef enum {
 #define CS_PROCF(x, y) x
 #endif
 
-/*
- * Macro used to handle automatic "Fortran string length" arguments
- * (not used by code_saturne calls, but set by many compilers).
- * Some compilers may not
- * support the variable length lists in mixed C/Fortran calls.
- */
-
-#define CS_ARGF_SUPP_CHAINE , ...
-
 /*=============================================================================
  * Global variables
  *============================================================================*/
 
-/* Empty but non-NULL string */
+/* Empty but non-null string */
 
 extern const char     cs_empty_string[];
 
@@ -643,7 +632,7 @@ extern MPI_Comm       cs_glob_mpi_comm;      /* Main MPI intra-communicator */
  *
  * \param[in, out]  s  pointer to a structure cast on-the-fly
  *
- * \return a NULL pointer
+ * \return a null pointer
  */
 /*----------------------------------------------------------------------------*/
 
@@ -723,7 +712,7 @@ cs_datatype_from_type()
 }
 
 /*----------------------------------------------------------------------------*/
-/* Specialized versions of the templated function */
+/* Specialized versions of the templated function                             */
 /*----------------------------------------------------------------------------*/
 
 template <>

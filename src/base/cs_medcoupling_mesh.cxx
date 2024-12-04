@@ -75,6 +75,7 @@
 // Medloader
 #if defined(HAVE_MEDCOUPLING_LOADER)
 #include <MEDFileMesh.hxx>
+#include <MEDLoader.hxx>
 #endif
 
 using namespace MEDCoupling;
@@ -633,7 +634,7 @@ _assign_empty_mesh(cs_medcoupling_mesh_t *pmmesh)
  * \param[in] selection_criteria  selection criteria (entire mesh or part of it)
  * \param[in] elt_dim             dimension of elements. 2: faces, 3: cells
  *
- * \return pointer to found mesh instance, nullptr if none found.
+ * \return pointer to found mesh instance, null if none found.
  */
 /*----------------------------------------------------------------------------*/
 
@@ -665,7 +666,7 @@ _get_mesh_from_criteria(const char  *selection_criteria,
  * \param[in]  name     name
  * \param[in]  elt_dim  dimension of elements. 2: faces, 3: cells
  *
- * \return pointer to found mesh instance, nullptr if none found.
+ * \return pointer to found mesh instance, null if none found.
  */
 /*----------------------------------------------------------------------------*/
 
@@ -840,8 +841,7 @@ _copy_mesh_from_base(cs_mesh_t              *csmesh,
         pmmesh->med_mesh->getBoundingBox(pmmesh->bbox);
       }
     }
-      else if (pmmesh->elt_dim == 2) {
-
+    else if (pmmesh->elt_dim == 2) {
       /* Creation of a new nodal mesh from selected border faces */
 
       if (pmmesh->sel_criteria != nullptr) {
@@ -857,7 +857,6 @@ _copy_mesh_from_base(cs_mesh_t              *csmesh,
       BFT_MALLOC(pmmesh->new_to_old, pmmesh->n_elts, cs_lnum_t);
 
       _assign_face_mesh(csmesh, pmmesh);
-
     }
   } /* if n_etls == 0 */
 #endif
@@ -1016,7 +1015,6 @@ cs_medcoupling_mesh_destroy(cs_medcoupling_mesh_t  *mesh)
 void
 cs_medcoupling_mesh_destroy_all(void)
 {
-
   for (int i = 0; i < _n_sub_meshes; i++) {
     cs_medcoupling_mesh_destroy(_sub_meshes[i]);
     _sub_meshes[i] = nullptr;
@@ -1026,8 +1024,8 @@ cs_medcoupling_mesh_destroy_all(void)
 
   _sub_meshes   = nullptr;
   _n_sub_meshes = 0;
-
 }
+
 /*----------------------------------------------------------------------------*/
 /*!
  * \brief Return a cs_medcoupling_mesh_t structure's spatial dimension
@@ -1115,8 +1113,8 @@ cs_medcoupling_mesh_get_n_vertices(cs_medcoupling_mesh_t  *m)
  *
  * \param[in] mesh  cs_medcoupling_mesh_t pointer
  *
- * \return ids of associated vertices, or nullptr if all or no local vertices
- *         o parent mesh are present.
+ * \return ids of associated vertices, or null if all or no local vertices
+ *         of parent mesh are present.
  */
 /*----------------------------------------------------------------------------*/
 
@@ -1150,6 +1148,33 @@ cs_medcoupling_mesh_get_connectivity(cs_medcoupling_mesh_t  *m)
     retval = m->new_to_old;
 
   return retval;
+}
+
+/*----------------------------------------------------------------------------*/
+/*!
+ * \brief Export a medcoupling_mesh
+ *
+ * \param[in] mesh  cs_medcoupling_mesh_t pointer
+ * \param[in] name  name of the file
+ */
+/*----------------------------------------------------------------------------*/
+
+void
+cs_medcoupling_mesh_export(cs_medcoupling_mesh_t  *m,
+                           const std::string       name)
+{
+#if defined(HAVE_MEDCOUPLING_LOADER)
+  WriteUMesh(name, m->med_mesh, true);
+#else
+  CS_UNUSED(m);
+  CS_UNUSED(name);
+
+  bft_error(__FILE__,
+            __LINE__,
+            0,
+            _("Error: this funnction cannot be called without "
+              "MEDCoupling loader support\n"));
+#endif
 }
 
 /*----------------------------------------------------------------------------*/

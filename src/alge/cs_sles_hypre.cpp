@@ -112,7 +112,7 @@ BEGIN_C_DECLS
   When first called, the solver argument is nullptr, and must be created
   using HYPRE functions.
 
-  Note: if the context pointer is non-nullptr, it must point to valid data
+  Note: if the context pointer is non-null, it must point to valid data
   when the selection function is called so that value or structure should
   not be temporary (i.e. local);
 
@@ -610,9 +610,13 @@ cs_sles_hypre_setup(void               *context,
 
   sd->coeffs = cs_matrix_hypre_get_coeffs(a);
 
+#if defined(HAVE_MPI)
   MPI_Comm comm = cs_glob_mpi_comm;
   if (comm == MPI_COMM_NULL)
     comm = MPI_COMM_WORLD;
+#else
+    MPI_Comm comm = 0;
+#endif
 
   bool have_set_pc = true;
   HYPRE_PtrToParSolverFcn solve_ftn[2] = {nullptr, nullptr};

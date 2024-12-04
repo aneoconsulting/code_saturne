@@ -52,6 +52,7 @@
 #include "cs_1d_wall_thermal.h"
 #include "cs_1d_wall_thermal_check.h"
 #include "cs_ale.h"
+#include "cs_array.h"
 #include "cs_at_data_assim.h"
 #include "cs_atmo.h"
 #include "cs_boundary_conditions.h"
@@ -65,7 +66,6 @@
 #include "cs_field_pointer.h"
 #include "cs_gas_mix.h"
 #include "cs_gui.h"
-#include "cs_turbulence_htles.h"
 #include "cs_ibm.h"
 #include "cs_initialize_fields.h"
 #include "cs_lagr.h"
@@ -92,17 +92,18 @@
 #include "cs_restart_default.h"
 #include "cs_restart_main_and_aux.h"
 #include "cs_restart_map.h"
+#include "cs_runaway_check.h"
 #include "cs_sat_coupling.h"
 #include "cs_solve_all.h"
-#include "cs_runaway_check.h"
 #include "cs_time_moment.h"
 #include "cs_time_step.h"
 #include "cs_timer_stats.h"
 #include "cs_turbomachinery.h"
 #include "cs_turbulence_bc.h"
+#include "cs_turbulence_htles.h"
 #include "cs_turbulence_model.h"
-#include "cs_volume_mass_injection.h"
 #include "cs_vof.h"
+#include "cs_volume_mass_injection.h"
 #include "cs_wall_condensation.h"
 #include "cs_wall_condensation_1d_thermal.h"
 
@@ -129,13 +130,7 @@ void
 cs_f_init_chemistry_reacnum(void);
 
 void
-cs_f_atmo_models_boundary_conditions_map(void);
-
-void
 cs_f_combustion_models_boundary_conditions_map(void);
-
-void
-cs_f_initialization_variables(void);
 
 void
 cs_f_atmsol(void);
@@ -199,7 +194,7 @@ cs_time_stepping(void)
   cs_time_step_t *ts = cs_get_glob_time_step();
   const cs_turb_model_t *turb_model = cs_get_glob_turb_model();
 
-  int idtvar = cs_glob_time_step_options->idtvar;
+  cs_time_step_type_t       idtvar = cs_glob_time_step_options->idtvar;
   cs_turbomachinery_model_t iturbo = cs_turbomachinery_get_model();
 
   /* Initialization
@@ -408,7 +403,8 @@ cs_time_stepping(void)
 
   cs_control_check_file();
 
-  if (idtvar == 1 && ntmsav > ts->nt_max && ts->nt_max == ts->nt_cur) {
+  if (   idtvar == CS_TIME_STEP_ADAPTIVE
+      && ntmsav > ts->nt_max && ts->nt_max == ts->nt_cur) {
     if (cs_coupling_is_sync_active())
       ts->nt_max++;
   }
@@ -480,10 +476,7 @@ cs_time_stepping(void)
       || cs_glob_physical_model_flag[CS_COMBUSTION_LW] >= 0)
     cs_f_combustion_models_boundary_conditions_map();
 
-  if (cs_glob_physical_model_flag[CS_ATMOSPHERIC] >= 0)
-    cs_f_atmo_models_boundary_conditions_map();
-
-  cs_f_initialization_variables();
+  cs_initialize_fields_stage_1();
 
   if (cs_glob_param_cdo_mode >= CS_PARAM_CDO_MODE_OFF) {  // CDO mode
     assert(cs_glob_domain != nullptr);
@@ -553,7 +546,7 @@ cs_time_stepping(void)
 
   /* ALE mobile structures */
 
-  if (cs_glob_ale > CS_ALE_NONE)
+  if (cs_glob_ale != CS_ALE_NONE)
     cs_mobile_structures_initialize();
 
   /* Lagrangian initialization */
@@ -619,16 +612,16 @@ cs_time_stepping(void)
   /* In case of code coupling, sync status with other codes. */
 
   if (itrale > 0) {
-
-    /* Synchronization in dttvar if idtvar = 1
+    /* Synchronization in cs_time_step_compute if idtvar = CS_TIME_STEP_ADAPTIVE
        (i.e. keep coupled codes waiting until time step is computed
        only when needed).
        In case the coupling modifies the reference time step, make sure
        the matching field is updated. Do not do this after initialization.
-       except for the adaptive time step (idtvar = 1), handled in dttvar.
+       except for the adaptive time step (idtvar = CS_TIME_STEP_ADAPTIVE),
+       handled in cs_time_step_compute.
     */
 
-    if (idtvar != 1) {
+    if (idtvar != CS_TIME_STEP_ADAPTIVE) {
       cs_real_t *dt = CS_F_(dt)->val;
 
       cs_coupling_sync_apps(0,      /* flags */
@@ -636,8 +629,7 @@ cs_time_stepping(void)
                             &(ts->nt_max),
                             &(ts->dt_ref));
 
-      for (cs_lnum_t c_id = 0; c_id < n_cells_ext; c_id++)
-        dt[c_id] = ts->dt_ref;
+      cs_arrays_set_value<cs_real_t, 1>(n_cells_ext, ts->dt_ref, dt);
     }
 
     if (ts->nt_max == ts->nt_cur && ts->nt_max > ts->nt_prev)
@@ -671,10 +663,9 @@ cs_time_stepping(void)
 
     if (itrale > 0 && ts->nt_max > ts->nt_prev) {
       cs_timer_stats_increment_time_step();
-      /* Time step computed in dttvar if idtvar = 1. */
-      if (idtvar != 1)
+      if (idtvar != CS_TIME_STEP_ADAPTIVE)
         cs_time_step_increment(ts->dt_ref);
-      else
+      else  // time step computed in cs_time_step_compute
         cs_time_step_increment(ts->dt[0]);
     }
 
@@ -684,7 +675,8 @@ cs_time_stepping(void)
     /* Test presence of control_file to modify nt_max if required */
     cs_control_check_file();
 
-    if ((idtvar == 0 || idtvar == 1) && (ts->t_max > 0)) {
+    if (   (idtvar == CS_TIME_STEP_CONSTANT || idtvar == CS_TIME_STEP_ADAPTIVE)
+        && (ts->t_max > 0)) {
       if (ts->t_cur >= ts->t_max)
         ts->nt_max = ts->nt_cur;
       else if (ts->nt_max < 0)   /* Changed by control_file */
@@ -697,7 +689,8 @@ cs_time_stepping(void)
     /* Set default logging */
     cs_log_iteration_set_active();
 
-    if (idtvar != 1 && ts->nt_max > ts->nt_prev && itrale > 0) {
+    if (   idtvar != CS_TIME_STEP_ADAPTIVE && ts->nt_max > ts->nt_prev
+        && itrale > 0) {
       if (cs_log_default_is_active())
         cs_log_printf
           (CS_LOG_DEFAULT,
@@ -757,11 +750,9 @@ cs_time_stepping(void)
     /* Update mesh (ALE)
        ----------------- */
 
-    if (cs_glob_ale > CS_ALE_NONE && ts->nt_max > ts->nt_prev) {
-
+    if (cs_glob_ale != CS_ALE_NONE && ts->nt_max > ts->nt_prev) {
       if (itrale == 0 || itrale > cs_glob_ale_n_ini_f)
         cs_ale_update_mesh(itrale);
-
     }
 
     /* Optional processing by user
@@ -796,14 +787,14 @@ cs_time_stepping(void)
 
     /* Stop test for couplings */
 
-    if (idtvar != 1) {  /* synchronization in dttvar if idtvar = 1 */
+    if (idtvar != CS_TIME_STEP_ADAPTIVE) {
+      /* synchronization in cs_time_step_compute for adaptive time step */
       dt_cpl = ts->dt_ref;
 
-      cs_coupling_sync_apps(0,      /* flags */
+      cs_coupling_sync_apps(0, /* flags */
                             ts->nt_cur,
                             &(ts->nt_max),
                             &dt_cpl);
-
     }
 
     /* Possible output of checkpoint files
@@ -958,7 +949,7 @@ cs_time_stepping(void)
   if (cs_glob_physical_model_flag[CS_GAS_MIX] >= 0)
     cs_gas_mix_finalize();
 
-  if (cs_glob_ale >= 1)
+  if (cs_glob_ale != CS_ALE_NONE)
     cs_mobile_structures_finalize();
 
   if (   cs_glob_1d_wall_thermal->nfpt1d > 0

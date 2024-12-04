@@ -66,6 +66,7 @@ use paramx
 use entsor
 use atincl
 use atsoil
+use cs_c_bindings, only: csexit
 
 use, intrinsic :: iso_c_binding
 
@@ -87,8 +88,6 @@ interface
 
 end interface
 
-procedure() :: csexit
-
 ! Arguments
 
 integer(c_int), value :: iappel
@@ -98,7 +97,7 @@ integer(c_int), value :: iappel
 integer ierreu
 integer eau,foret,divers,minral,diffus,mixte,dense,bati
 integer n
-integer error, n_elts
+integer n_elts
 integer, dimension(:), pointer :: elt_ids
 double precision codinv
 integer inityp

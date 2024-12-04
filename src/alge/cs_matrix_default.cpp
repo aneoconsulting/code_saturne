@@ -27,7 +27,7 @@
 #include "cs_defs.h"
 
 /*----------------------------------------------------------------------------
- * Standard C library headers
+ * Standard library headers
  *----------------------------------------------------------------------------*/
 
 #include <stdarg.h>
@@ -93,11 +93,11 @@ BEGIN_C_DECLS
 /*! \cond DOXYGEN_SHOULD_SKIP_THIS */
 
 /*=============================================================================
- * Local Macro Definitions
+ * Local macro definitions
  *============================================================================*/
 
 /*=============================================================================
- * Local Type Definitions
+ * Local type definitions
  *============================================================================*/
 
 /*============================================================================
@@ -415,19 +415,19 @@ _create_assembler(int  coupling_id)
  *----------------------------------------------------------------------------*/
 
 void
-cs_matrix_vector_native_multiply(bool                symmetric,
-                                 cs_lnum_t           db_size,
-                                 cs_lnum_t           eb_size,
-                                 int                 f_id,
-                                 const cs_real_t    *dam,
-                                 const cs_real_t    *xam,
-                                 cs_real_t          *vx,
-                                 cs_real_t          *vy)
+cs_matrix_vector_native_multiply(bool              symmetric,
+                                 cs_lnum_t         db_size,
+                                 cs_lnum_t         eb_size,
+                                 int               f_id,
+                                 const cs_real_t  *dam,
+                                 const cs_real_t  *xam,
+                                 cs_real_t        *vx,
+                                 cs_real_t        *vy)
 {
   const cs_mesh_t *m = cs_glob_mesh;
   cs_matrix_t *a;
 
-  a = cs_matrix_native(symmetric, db_size, eb_size);
+  a = cs_matrix_native();
 
   cs_matrix_set_coefficients(a,
                              symmetric,
@@ -588,9 +588,6 @@ cs_matrix_default(bool       symmetric,
 
   /* Modify in case unsupported */
 
-  if (mft == CS_MATRIX_BLOCK)
-    t = CS_MATRIX_NATIVE;
-
   m = _get_matrix(t);
 
   return m;
@@ -599,52 +596,26 @@ cs_matrix_default(bool       symmetric,
 /*----------------------------------------------------------------------------
  * Return MSR matrix for a given fill type
  *
- * parameters:
- *   symmetric              <-- Indicates if matrix coefficients are symmetric
- *   diag_block_size        <-- Block sizes for diagonal
- *   extra_diag_block_size  <-- Block sizes for extra diagonal
- *
  * returns:
- *   pointer to MSR matrix adapted to fill type
+ *   pointer to MSR matrix
  *----------------------------------------------------------------------------*/
 
 cs_matrix_t  *
-cs_matrix_msr(bool       symmetric,
-              cs_lnum_t  diag_block_size,
-              cs_lnum_t  extra_diag_block_size)
+cs_matrix_msr(void)
 {
-  cs_matrix_type_t t = CS_MATRIX_MSR;
-  cs_matrix_fill_type_t mft = cs_matrix_get_fill_type(symmetric,
-                                                      diag_block_size,
-                                                      extra_diag_block_size);
-
-  if (mft == CS_MATRIX_BLOCK)
-    t = CS_MATRIX_NATIVE;
-
-  return _get_matrix(t);
+  return _get_matrix(CS_MATRIX_MSR);
 }
 
 /*----------------------------------------------------------------------------
  * Return native matrix for a given fill type
  *
- * parameters:
- *   symmetric              <-- Indicates if matrix coefficients are symmetric
- *   diag_block_size        <-- Block sizes for diagonal
- *   extra_diag_block_size  <-- Block sizes for extra diagonal
- *
  * returns:
- *   pointer to native matrix adapted to fill type
+ *   pointer to native matrix
  *----------------------------------------------------------------------------*/
 
 cs_matrix_t  *
-cs_matrix_native(bool       symmetric,
-                 cs_lnum_t  diag_block_size,
-                 cs_lnum_t  extra_diag_block_size)
+cs_matrix_native(void)
 {
-  CS_UNUSED(symmetric);
-  CS_UNUSED(diag_block_size);
-  CS_UNUSED(extra_diag_block_size);
-
   return _get_matrix(CS_MATRIX_NATIVE);
 }
 
@@ -683,12 +654,10 @@ cs_matrix_external(const char  *type_name,
   if (strncmp(type_name, "HYPRE_ParCSR", 12) == 0) {
     cs_matrix_t *m_r = nullptr;
 
-    if (_matrix_struct[CS_MATRIX_MSR] != nullptr) {
-      m_r = cs_matrix_msr(symmetric, diag_block_size, extra_diag_block_size);
-    }
-    else {
-      m_r = cs_matrix_native(symmetric, diag_block_size, extra_diag_block_size);
-    }
+    if (_matrix_struct[CS_MATRIX_MSR] != nullptr)
+      m_r = cs_matrix_msr();
+    else
+      m_r = cs_matrix_native();
 
     cs_matrix_t *m = cs_matrix_copy_to_external(m_r,
                                                 symmetric,
@@ -710,10 +679,10 @@ cs_matrix_external(const char  *type_name,
     cs_matrix_t *m_r = nullptr;
 
     if (_matrix_struct[CS_MATRIX_MSR] != nullptr) {
-      m_r = cs_matrix_msr(symmetric, diag_block_size, extra_diag_block_size);
+      m_r = cs_matrix_msr();
     }
     else {
-      m_r = cs_matrix_native(symmetric, diag_block_size, extra_diag_block_size);
+      m_r = cs_matrix_native();
     }
 
     cs_matrix_t *m = cs_matrix_copy_to_external(m_r,
@@ -889,8 +858,11 @@ cs_matrix_default_set_type(cs_matrix_fill_type_t  fill_type,
  * \brief Return a (0-based) global block row numbering for a given matrix.
  *
  * The numbering is built or updated if not previously used, or if the
- * previous call considered a differeent matrix, and is simply returned
- * otherwise. In other words, this works as a matrix global numbering cache.
+ * previous call considered a different matrix or halo, and is simply
+ * returned otherwise.
+ * In other words, this works as a matrix global numbering cache.
+ *
+ * The matrix's halo is used for the update.
  *
  * \param[in]  m  associated matrix
  *
@@ -901,8 +873,33 @@ cs_matrix_default_set_type(cs_matrix_fill_type_t  fill_type,
 const cs_gnum_t *
 cs_matrix_get_block_row_g_id(const cs_matrix_t  *m)
 {
+  return cs_matrix_get_block_row_g_id(m, m->halo);
+}
+
+END_C_DECLS
+#ifdef __cplusplus
+
+/*----------------------------------------------------------------------------*/
+/*!
+ * \brief Return a (0-based) global block row numbering for a given matrix.
+ *
+ * The numbering is built or updated if not previously used, or if the
+ * previous call considered a different matrix or halo, and is simply
+ * returned otherwise.
+ * In other words, this works as a matrix global numbering cache.
+ *
+ * \param[in]  m     associated matrix
+ * \param[in]  halo  associated halo
+ *
+ * \return  pointer to requested global numbering
+ */
+/*----------------------------------------------------------------------------*/
+
+const cs_gnum_t *
+cs_matrix_get_block_row_g_id(const cs_matrix_t  *m,
+                             const cs_halo_t    *halo)
+{
   const cs_lnum_t  n_rows = m->n_rows;
-  const cs_halo_t  *halo = m->halo;
   const cs_gnum_t *l_range = nullptr;
 
   if (m->assembler != nullptr)
@@ -917,6 +914,49 @@ cs_matrix_get_block_row_g_id(const cs_matrix_t  *m)
   }
 
   return g_row_num;
+}
+
+#endif /* cplusplus */
+BEGIN_C_DECLS
+
+/*----------------------------------------------------------------------------*/
+/*!
+ * \brief Return matrix associated wiht a matrix assembler.
+ *
+ * Coefficients are not assigned at this stage.
+ *
+ * \param[in]  f                      pointer to associated field
+ * \param[in]  type                   matrix type
+ *
+ * \return  pointer to associated matrix structure
+ */
+/*----------------------------------------------------------------------------*/
+
+cs_matrix_t *
+cs_matrix_by_assembler(const cs_field_t  *f,
+                       cs_matrix_type_t   type)
+{
+  int coupling_id = cs_field_get_key_int(f,
+                                         cs_field_key_id("coupling_entity"));
+
+  /* Build matrix assembler on demand */
+
+  cs_matrix_assembler_t  *ma = (coupling_id < 0) ?
+    _matrix_assembler : _matrix_assembler_coupled[coupling_id];
+
+  if (ma == nullptr) {
+    ma = _create_assembler(coupling_id);
+    if (coupling_id < 0)
+      _matrix_assembler = ma;
+    else
+      _matrix_assembler_coupled[coupling_id] = ma;
+  }
+
+  /* Now build matrix */
+
+  cs_matrix_t *m = cs_matrix_create_from_assembler(type, ma);
+
+  return m;
 }
 
 /*----------------------------------------------------------------------------*/

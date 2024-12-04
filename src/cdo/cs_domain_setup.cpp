@@ -413,7 +413,7 @@ cs_domain_def_time_step_by_function(cs_domain_t        *domain,
   domain->time_step->dt[0] = domain->time_step->t_max;
   domain->time_step->dt[1] = domain->time_step->t_max;
   domain->time_step->dt[2] = domain->time_step->t_max;
-  domain->time_step->dt_ref = domain->time_step->t_max;
+  domain->time_step->dt_ref = -1; // Updated at initialization
   domain->time_options.dtmin = domain->time_step->t_max;
   domain->time_options.dtmax = 0.;
 
@@ -455,8 +455,7 @@ cs_domain_def_time_step_by_value(cs_domain_t   *domain,
   cs_property_t  *dt_pty = cs_property_by_name("time_step");
   assert(dt_pty != nullptr);
 
-  cs_property_def_constant_value(dt_pty, dt);
-  cs_property_set_reference_value(dt_pty, dt);
+  cs_property_def_constant_value(dt_pty, dt); // ref. value set inside
 }
 
 /*----------------------------------------------------------------------------*/
@@ -545,7 +544,7 @@ cs_domain_initialize_setup(cs_domain_t    *domain)
 
       cs_turb_model_t  *turb = cs_get_glob_turb_model();
 
-      turb->iturb = CS_TURB_NONE;          /* laminar flow */
+      turb->model = CS_TURB_NONE;          /* laminar flow */
       turb->itytur = 0;                    /* deprecated */
       turb->hybrid_turb = CS_HYBRID_NONE;
       turb->type = CS_TURB_NONE;

@@ -47,6 +47,7 @@
  * Local headers
  *----------------------------------------------------------------------------*/
 
+#include "bft_mem.h"
 #include "bft_printf.h"
 
 #include "cs_array.h"
@@ -319,9 +320,8 @@ cs_cf_energy(int f_sc_id)
   const cs_real_3_t *cell_cen = (const cs_real_3_t *)fvq->cell_cen;
   const cs_real_3_t *i_face_cog = (const cs_real_3_t *)fvq->i_face_cog;
   const cs_real_t *cell_f_vol = fvq->cell_f_vol;
-  const cs_real_3_t *restrict diipb
-    = (const cs_real_3_t *restrict)fvq->diipb;
-  const cs_real_3_t *dijpf = (const cs_real_3_t *)fvq->dijpf;
+  const cs_rreal_3_t *restrict diipb = fvq->diipb;
+  const cs_real_3_t *restrict dijpf = fvq->dijpf;
 
   const int kivisl  = cs_field_key_id("diffusivity_id");
   const int ksigmas = cs_field_key_id("turbulent_schmidt");

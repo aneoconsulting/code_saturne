@@ -319,7 +319,7 @@ _evap_rain(cs_air_fluid_props_t *air_prop,
  * \param[in]      n_elts        number of elements to consider
  * \param[in]      elt_ids       list of elements ids
  * \param[in]      dense_output  perform an indirection in retval or not
- * \param[in]      input         nullptr or pointer to a structure cast on-the-fly
+ * \param[in]      input         null or pointer to a structure cast on-the-fly
  * \param[in, out] retval        resulting value(s). Must be allocated.
  */
 /*----------------------------------------------------------------------------*/
@@ -331,8 +331,6 @@ cs_ctwr_volume_mass_injection_packing_dof_func(cs_lnum_t         n_elts,
                                        void             *input,
                                        cs_real_t        *retval)
 {
-  const cs_mesh_t *m = cs_glob_mesh;
-
   cs_fluid_properties_t *fp = cs_get_glob_fluid_properties();
   cs_air_fluid_props_t *air_prop = cs_glob_air_props;
 
@@ -357,6 +355,7 @@ cs_ctwr_volume_mass_injection_packing_dof_func(cs_lnum_t         n_elts,
   }
   else {
     rho = CS_F_(rho)->val; /* Humid air density */
+    rho_h = CS_F_(rho)->val; /* Humid air density */
     vel_h = (cs_real_3_t *)CS_F_(vel)->val_pre; /* Humid air velocity*/
   }
 
@@ -473,7 +472,7 @@ cs_ctwr_volume_mass_injection_packing_dof_func(cs_lnum_t         n_elts,
  * \param[in]      n_elts        number of elements to consider
  * \param[in]      elt_ids       list of elements ids
  * \param[in]      dense_output  perform an indirection in retval or not
- * \param[in]      input         nullptr or pointer to a structure cast on-the-fly
+ * \param[in]      input         null or pointer to a structure cast on-the-fly
  * \param[in, out] retval        resulting value(s). Must be allocated.
  */
 /*----------------------------------------------------------------------------*/
@@ -511,6 +510,7 @@ cs_ctwr_volume_mass_injection_evap_rain_dof_func(cs_lnum_t         n_elts,
   }
   else {
     rho = CS_F_(rho)->val; /* Humid air density */
+    rho_h = CS_F_(rho)->val; /* Humid air density */
     vel_h = (cs_real_3_t *)CS_F_(vel)->val_pre; /* Humid air velocity*/
   }
 
@@ -547,56 +547,58 @@ cs_ctwr_volume_mass_injection_evap_rain_dof_func(cs_lnum_t         n_elts,
 
   int evap_model = ct_opt->evap_model;
 
-  if (evap_model != CS_CTWR_NONE) {
+  if (ct_opt->rain_evap) {
+    if (evap_model != CS_CTWR_NONE) {
 
-    /* ========================================
-     *  PHASE CHANGE : RAIN ZONES (whole domain)
-     *  Between the rain drops and the humid air
-     * ========================================= */
+      /* ========================================
+       *  PHASE CHANGE : RAIN ZONES (whole domain)
+       *  Between the rain drops and the humid air
+       * ========================================= */
 
-    if (cfld_yp != nullptr) {
-      cs_real_t *y_rain = (cs_real_t *)cfld_yp->val;
-      cs_real_t *t_l_r = (cs_real_t *)cs_field_by_name("temp_l_r")->val;
+      if (cfld_yp != nullptr) {
+        cs_real_t *y_rain = (cs_real_t *)cfld_yp->val;
+        cs_real_t *t_l_r = (cs_real_t *)cs_field_by_name("temp_l_r")->val;
 
-      for (cs_lnum_t cell_id = 0; cell_id < m->n_cells; cell_id++) {
+        for (cs_lnum_t cell_id = 0; cell_id < m->n_cells; cell_id++) {
 
-        if (y_rain[cell_id] > 0.) {
+          if (y_rain[cell_id] > 0.) {
 
-          cs_real_t beta_x_ai = 0.;
-          cs_real_t mass_source = 0.;
-          cs_real_t mass_source_oy = 0.;
+            cs_real_t beta_x_ai = 0.;
+            cs_real_t mass_source = 0.;
+            cs_real_t mass_source_oy = 0.;
 
-          /* Compute cell reference pressure */
-          cs_real_t pphy = cs_ctwr_compute_reference_pressure(cell_id,
-              p0,
-              meteo_pressure);
+            /* Compute cell reference pressure */
+            cs_real_t pphy = cs_ctwr_compute_reference_pressure(cell_id,
+                p0,
+                meteo_pressure);
 
-          _evap_rain(air_prop,
-                     fp->viscl0,
-                     pphy,
-                     t_h[cell_id],
-                     t_l_r[cell_id],
-                     drift_vel_rain[cell_id],
-                     x[cell_id],
-                     x_s[cell_id],
-                     rho_h[cell_id],
-                     y_rain[cell_id],
-                     rho[cell_id],
-                     air_prop->rho_l,
-                     &(beta_x_ai),
-                     &(mass_source),
-                     &(mass_source_oy));
+            _evap_rain(air_prop,
+                fp->viscl0,
+                pphy,
+                t_h[cell_id],
+                t_l_r[cell_id],
+                drift_vel_rain[cell_id],
+                x[cell_id],
+                x_s[cell_id],
+                rho_h[cell_id],
+                y_rain[cell_id],
+                rho[cell_id],
+                air_prop->rho_l,
+                &(beta_x_ai),
+                &(mass_source),
+                &(mass_source_oy));
 
-          mass_source = CS_MAX(mass_source, 0.);
+            mass_source = CS_MAX(mass_source, 0.);
 
-          retval[cell_id] = mass_source;
-          /* Saving evaporation rate for post-processing */
-          evap_rate_rain[cell_id] = mass_source;
+            retval[cell_id] = mass_source;
+            /* Saving evaporation rate for post-processing */
+            evap_rate_rain[cell_id] = mass_source;
 
-        } /* End if (y_rain > 0) */
-      } /* End loop over all the cells of the domain */
-    } /* End yp field exists */
-  } /* End evaporation model active */
+          } /* End if (y_rain > 0) */
+        } /* End loop over all the cells of the domain */
+      } /* End yp field exists */
+    } /* End evaporation model active */
+  } /* End rain evaporation active */
 }
 
 /*----------------------------------------------------------------------------*/
@@ -608,7 +610,7 @@ cs_ctwr_volume_mass_injection_evap_rain_dof_func(cs_lnum_t         n_elts,
  * \param[in]      n_elts        number of elements to consider
  * \param[in]      elt_ids       list of elements ids
  * \param[in]      dense_output  perform an indirection in retval or not
- * \param[in]      input         nullptr or pointer to a structure cast on-the-fly
+ * \param[in]      input         null or pointer to a structure cast on-the-fly
  * \param[in, out] retval        resulting value(s). Must be allocated.
  */
 /*----------------------------------------------------------------------------*/
@@ -710,7 +712,7 @@ cs_ctwr_volume_mass_injection_rain_dof_func(cs_lnum_t         n_elts,
  * \param[in]      n_elts        number of elements to consider
  * \param[in]      elt_ids       list of elements ids
  * \param[in]      dense_output  perform an indirection in retval or not
- * \param[in]      input         nullptr or pointer to a structure cast on-the-fly
+ * \param[in]      input         null or pointer to a structure cast on-the-fly
  * \param[in, out] retval        resulting value(s). Must be allocated.
  */
 /*----------------------------------------------------------------------------*/
@@ -1043,11 +1045,11 @@ cs_ctwr_source_term(int              f_id,
           /* If humid atmosphere model, temperature is liquid potential
            * temperature theta_l */
           if (cs_glob_physical_model_flag[CS_ATMOSPHERIC] == CS_ATMO_HUMID) {
-            l_exp_st -= l_imp_st * coef * (hv0 / cp_d) * yw_liq->val[cell_id];
+           // l_exp_st -= l_imp_st * coef * (hv0 / cp_d) * yw_liq->val[cell_id];
           }
+
           imp_st[cell_id] += CS_MAX(l_imp_st, 0.);
           exp_st[cell_id] += l_exp_st;
-
         }
 
         /* Injected liquid enthalpy equation (solve in drift model form)
@@ -1103,7 +1105,7 @@ cs_ctwr_source_term(int              f_id,
      *  Between the rain drops and the humid air
      * ========================================= */
 
-    if (cfld_yp != nullptr) {
+    if (cfld_yp != nullptr && ct_opt->rain_evap) {
       cs_real_t *y_rain = (cs_real_t *)cfld_yp->val;
       cs_real_t *t_l_r = (cs_real_t *)cs_field_by_name("temp_l_r")->val;
 
@@ -1192,7 +1194,7 @@ cs_ctwr_source_term(int              f_id,
               l_imp_st += vol_beta_x_ai * (le_f * cp_h
                                            + (x_s_tl - x[cell_id]) * cp_v
                                              / (1. + x[cell_id]));
-              l_exp_st = l_imp_st * (coef * (t_l_p[cell_id] + t_shift)
+              l_exp_st = l_imp_st * (coef * (t_l_r[cell_id] + t_shift)
                                      - f_var[cell_id]);
             }
             else {
@@ -1200,9 +1202,9 @@ cs_ctwr_source_term(int              f_id,
               l_imp_st += vol_beta_x_ai * (le_f * cp_h + (x_s_tl - x_s_th) * cp_l
                   / (1. + x[cell_id]));
               l_exp_st =   vol_beta_x_ai
-                         * (  le_f * cp_h * coef * (t_l_p[cell_id] + t_shift)
-                            + (  x_s_tl - x_s_th)
-                               * (cp_v * coef * (t_l_p[cell_id] + t_shift ))
+                         * (  le_f * cp_h * coef * (t_l_r[cell_id] + t_shift)
+                            + (x_s_tl - x_s_th)
+                               * (cp_v * coef * (t_l_r[cell_id] + t_shift ))
                                / (1. + x[cell_id]))
                          - l_imp_st * f_var[cell_id];
             }
@@ -1531,7 +1533,7 @@ cs_ctwr_source_term(int              f_id,
       for (cs_lnum_t cell_id = 0; cell_id < m->n_cells; cell_id++) {
 
         /* Air / droplets interfacial area density calculation */
-        cs_real_t ai_o_yp = 6.0 * rho[cell_id] / rho_l
+        cs_real_t ai_o_yp = 6.0 * rho_h[cell_id] / rho_l
                                 * (1.0 - vol_f_r[cell_id])
                                 / droplet_diam;
 
@@ -1544,7 +1546,7 @@ cs_ctwr_source_term(int              f_id,
         for (cs_lnum_t i = 0; i < 3; i++) {
           /* Explicit source term */
           /* Gravity term */
-          _exp_st[cell_id][i] +=   rho[cell_id] * gravity[i]
+          _exp_st[cell_id][i] +=   rho_h[cell_id] * gravity[i]
                                  * cell_f_vol[cell_id];
 
           /* Drag term*/

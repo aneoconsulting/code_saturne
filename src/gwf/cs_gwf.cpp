@@ -128,32 +128,32 @@ static const cs_cdo_connect_t  *cs_cdo_connect;
  * \brief Retrieve the advection field related to the Darcy flux in the liquid
  *        phase
  *
- * \param[in]  gw     pointer to the main (high-level) GWF structure
+ * \param[in] gw  pointer to the main (high-level) GWF structure
  *
  * \return a pointer to a cs_adv_field_t structure or nullptr
  */
 /*----------------------------------------------------------------------------*/
 
 static cs_adv_field_t *
-_get_l_adv_field(const cs_gwf_t   *gw)
+_get_l_adv_field(const cs_gwf_t *gw)
 {
   switch (gw->model) {
 
   case CS_GWF_MODEL_SATURATED_SINGLE_PHASE: {
-    cs_gwf_sspf_t *mc = (cs_gwf_sspf_t *)gw->model_context;
+    cs_gwf_sspf_t *mc = static_cast<cs_gwf_sspf_t *>(gw->model_context);
 
     return mc->darcy->adv_field;
   } break;
 
   case CS_GWF_MODEL_UNSATURATED_SINGLE_PHASE: {
-    cs_gwf_uspf_t *mc = (cs_gwf_uspf_t *)gw->model_context;
+    cs_gwf_uspf_t *mc = static_cast<cs_gwf_uspf_t *>(gw->model_context);
 
     return mc->darcy->adv_field;
   } break;
 
   case CS_GWF_MODEL_MISCIBLE_TWO_PHASE:
   case CS_GWF_MODEL_IMMISCIBLE_TWO_PHASE: {
-    cs_gwf_tpf_t *mc = (cs_gwf_tpf_t *)gw->model_context;
+    cs_gwf_tpf_t *mc = static_cast<cs_gwf_tpf_t *>(gw->model_context);
 
     if (mc->l_darcy != nullptr)
       return mc->l_darcy->adv_field;
@@ -227,20 +227,20 @@ cs_gwf_is_activated(void)
 /*!
  * \brief Initialize the module dedicated to groundwater flows
  *
- * \param[in] model           type of physical modelling
- * \param[in] option_flag     optional flag to specify this module
- * \param[in] post_flag       optional automatic postprocessing
+ * \param[in] model        type of physical modelling
+ * \param[in] option_flag  optional flag to specify this module
+ * \param[in] post_flag    optional automatic postprocessing
  *
  * \return a pointer to a new allocated groundwater flow structure
  */
 /*----------------------------------------------------------------------------*/
 
 cs_gwf_t *
-cs_gwf_activate(cs_gwf_model_type_t      model,
-                cs_flag_t                option_flag,
-                cs_flag_t                post_flag)
+cs_gwf_activate(cs_gwf_model_type_t model,
+                cs_flag_t           option_flag,
+                cs_flag_t           post_flag)
 {
-  cs_gwf_t  *gw = _gwf_create();
+  cs_gwf_t *gw = _gwf_create();
 
   /* Set the physical model type */
 
@@ -295,7 +295,7 @@ cs_gwf_activate(cs_gwf_model_type_t      model,
 /*!
  * \brief  Free all structures related to groundwater flows
  *
- * \return a nullptr pointer
+ * \return a null pointer
  */
 /*----------------------------------------------------------------------------*/
 
@@ -310,20 +310,20 @@ cs_gwf_destroy_all(void)
   switch (gw->model) {
 
   case CS_GWF_MODEL_SATURATED_SINGLE_PHASE: {
-    cs_gwf_sspf_t *mc = (cs_gwf_sspf_t *)gw->model_context;
+    cs_gwf_sspf_t *mc = static_cast<cs_gwf_sspf_t *>(gw->model_context);
 
     cs_gwf_sspf_free(&(mc));
   } break;
 
   case CS_GWF_MODEL_UNSATURATED_SINGLE_PHASE: {
-    cs_gwf_uspf_t *mc = (cs_gwf_uspf_t *)gw->model_context;
+    cs_gwf_uspf_t *mc = static_cast<cs_gwf_uspf_t *>(gw->model_context);
 
     cs_gwf_uspf_free(&(mc));
   } break;
 
   case CS_GWF_MODEL_MISCIBLE_TWO_PHASE:
   case CS_GWF_MODEL_IMMISCIBLE_TWO_PHASE: {
-    cs_gwf_tpf_t *mc = (cs_gwf_tpf_t *)gw->model_context;
+    cs_gwf_tpf_t *mc = static_cast<cs_gwf_tpf_t *>(gw->model_context);
 
     cs_gwf_tpf_free(&(mc));
   } break;
@@ -377,10 +377,12 @@ cs_gwf_log_setup(void)
     cs_log_printf(CS_LOG_SETUP,
                   "  * GWF | Enforce the divergence-free constraint"
                   " for the Darcy flux\n");
+
   if (gw->flag & CS_GWF_FORCE_RICHARDS_ITERATIONS)
     cs_log_printf(CS_LOG_SETUP,
                   "  * GWF | Force to solve Richards equation"
                   " at each time step\n");
+
   if (gw->flag & CS_GWF_RESCALE_HEAD_TO_ZERO_MEAN_VALUE)
     cs_log_printf(CS_LOG_SETUP,
                   "  * GWF | Rescale head w.r.t zero mean value\n");
@@ -393,8 +395,8 @@ cs_gwf_log_setup(void)
     (gw->post_flag & CS_GWF_POST_LIQUID_SATURATION) ? true : false;
   bool  post_permeability =
     (gw->post_flag & CS_GWF_POST_PERMEABILITY) ? true : false;
-  bool  post_gas_density =
-    (gw->post_flag & CS_GWF_POST_GAS_MASS_DENSITY) ? true : false;
+  bool  post_component_mass_density =
+    (gw->post_flag & CS_GWF_POST_COMPONENT_MASS_DENSITY) ? true : false;
   bool  post_soil_state =
     (gw->post_flag & CS_GWF_POST_SOIL_STATE) ? true : false;
 
@@ -406,9 +408,9 @@ cs_gwf_log_setup(void)
 
   if (gw->model == CS_GWF_MODEL_IMMISCIBLE_TWO_PHASE ||
       gw->model == CS_GWF_MODEL_MISCIBLE_TWO_PHASE)
-    cs_log_printf(CS_LOG_SETUP, "  * GWF | Post: Gas mass density %s"
+    cs_log_printf(CS_LOG_SETUP, "  * GWF | Post: Component mass density %s"
                   " Soil state %s\n",
-                  cs_base_strtf(post_gas_density),
+                  cs_base_strtf(post_component_mass_density),
                   cs_base_strtf(post_soil_state));
 
   bool  do_balance =
@@ -433,16 +435,16 @@ cs_gwf_log_setup(void)
   switch(gw->model) {
 
   case CS_GWF_MODEL_SATURATED_SINGLE_PHASE:
-    cs_gwf_sspf_log_setup((cs_gwf_sspf_t *)gw->model_context);
+    cs_gwf_sspf_log_setup(static_cast<cs_gwf_sspf_t *>(gw->model_context));
     break;
 
   case CS_GWF_MODEL_UNSATURATED_SINGLE_PHASE:
-    cs_gwf_uspf_log_setup((cs_gwf_uspf_t *)gw->model_context);
+    cs_gwf_uspf_log_setup(static_cast<cs_gwf_uspf_t *>(gw->model_context));
     break;
 
   case CS_GWF_MODEL_IMMISCIBLE_TWO_PHASE:
   case CS_GWF_MODEL_MISCIBLE_TWO_PHASE:
-    cs_gwf_tpf_log_setup((cs_gwf_tpf_t *)gw->model_context);
+    cs_gwf_tpf_log_setup(static_cast<cs_gwf_tpf_t *>(gw->model_context));
     break;
 
   default:
@@ -481,7 +483,7 @@ cs_gwf_get_two_phase_model(void)
               "%s: Invalid model. One expects a two-phase flow model.\n",
               __func__);
 
-  cs_gwf_tpf_t *mc = (cs_gwf_tpf_t *)gw->model_context;
+  cs_gwf_tpf_t *mc = static_cast<cs_gwf_tpf_t *>(gw->model_context);
 
   assert(mc != nullptr);
   return mc;
@@ -491,77 +493,33 @@ cs_gwf_get_two_phase_model(void)
 /*!
  * \brief Set the numerical options related to the two phase flow models
  *
- * \param[in] approx                          type of coefficient approximation
- * \param[in] solver                          type of solver
- * \param[in] use_incremental_solver          true/false
- * \param[in] use_diffusion_view_for_darcy    true/false
+ * \param[in] approx  type of coefficient approximation
+ * \param[in] solver  type of solver
+ * \param[in] pg_pos  activate an enforcement of gas pressure >= 0
  */
 /*----------------------------------------------------------------------------*/
 
 void
-cs_gwf_set_two_phase_numerical_options(cs_gwf_tpf_approx_type_t   approx,
-                                       cs_gwf_tpf_solver_type_t   solver,
-                                       bool       use_incremental_solver,
-                                       bool       use_diffusion_view_for_darcy)
+cs_gwf_set_two_phase_numerical_options(cs_gwf_tpf_approx_type_t approx,
+                                       cs_gwf_tpf_solver_type_t solver,
+                                       bool                     pg_pos)
 {
   cs_gwf_t  *gw = cs_gwf_main_structure;
 
   if (gw == nullptr)
     bft_error(__FILE__, __LINE__, 0, _(_err_empty_gw));
 
-  cs_gwf_tpf_t *mc = (cs_gwf_tpf_t *)gw->model_context;
+  cs_gwf_tpf_t *mc = static_cast<cs_gwf_tpf_t *>(gw->model_context);
   assert(mc != nullptr);
 
   mc->approx_type = approx;
+  mc->enforce_pg_positivity = pg_pos;
   mc->solver_type = solver;
 
-  switch (solver) {
+  // No other choice up to now
 
-  case CS_GWF_TPF_SOLVER_PCPG_COUPLED:
-    mc->use_coupled_solver = true;
-    mc->use_diffusion_view_for_darcy = use_diffusion_view_for_darcy;
-    mc->use_incremental_solver = use_incremental_solver;
-    break;
-
-  case CS_GWF_TPF_SOLVER_PLPC_COUPLED:
-    mc->use_coupled_solver = true;
-    mc->use_diffusion_view_for_darcy = true; /* No other choice */
-    mc->use_incremental_solver = use_incremental_solver;
-
-    if (!use_diffusion_view_for_darcy) {
-      cs_base_warn(__FILE__, __LINE__);
-      cs_log_printf(CS_LOG_WARNINGS,
-                    "%s: Change an invalid user setting:\n"
-                    "    Use a diffusion viewpoint for the Darcy term.\n",
-                    __func__);
-    }
-    break;
-
-  case CS_GWF_TPF_SOLVER_PLPG_SEGREGATED:
-    mc->use_coupled_solver = false;
-    mc->use_diffusion_view_for_darcy = true; /* No other choice */
-    mc->use_incremental_solver = true;       /* No other choice */
-
-    if (!use_diffusion_view_for_darcy) {
-      cs_base_warn(__FILE__, __LINE__);
-      cs_log_printf(CS_LOG_WARNINGS,
-                    "%s: Change an invalid user setting:\n"
-                    "    Use a diffusion viewpoint for the Darcy term.\n",
-                    __func__);
-    }
-
-    if (!use_incremental_solver) {
-      cs_base_warn(__FILE__, __LINE__);
-      cs_log_printf(CS_LOG_WARNINGS,
-                    "%s: Change an invalid user setting:\n"
-                    "    Force an incremental resolution.\n", __func__);
-    }
-    break;
-
-  default:
-    bft_error(__FILE__, __LINE__, 0, "%s: Invalid setting", __func__);
-
-  }
+  if (solver == CS_GWF_TPF_SOLVER_PLPC_COUPLED_INCR)
+    mc->approx_type =   CS_GWF_TPF_APPROX_VERTEX_SUBCELL;
 }
 
 /*----------------------------------------------------------------------------*/
@@ -581,13 +539,13 @@ cs_gwf_set_two_phase_numerical_options(cs_gwf_tpf_approx_type_t   approx,
 /*----------------------------------------------------------------------------*/
 
 void
-cs_gwf_set_miscible_two_phase_model(cs_real_t       l_mass_density,
-                                    cs_real_t       l_viscosity,
-                                    cs_real_t       g_viscosity,
-                                    cs_real_t       l_diffusivity_h,
-                                    cs_real_t       h_molar_mass,
-                                    cs_real_t       ref_temperature,
-                                    cs_real_t       henry_constant)
+cs_gwf_set_miscible_two_phase_model(cs_real_t l_mass_density,
+                                    cs_real_t l_viscosity,
+                                    cs_real_t g_viscosity,
+                                    cs_real_t l_diffusivity_h,
+                                    cs_real_t h_molar_mass,
+                                    cs_real_t ref_temperature,
+                                    cs_real_t henry_constant)
 {
   cs_gwf_t  *gw = cs_gwf_main_structure;
 
@@ -599,7 +557,7 @@ cs_gwf_set_miscible_two_phase_model(cs_real_t       l_mass_density,
               "%s: One expects a miscible two-phase flow model.\n",
               __func__, __func__);
 
-  cs_gwf_tpf_t *mc = (cs_gwf_tpf_t *)gw->model_context;
+  cs_gwf_tpf_t *mc = static_cast<cs_gwf_tpf_t *>(gw->model_context);
 
   assert(mc != nullptr);
   if (mc->is_miscible == false)
@@ -638,11 +596,11 @@ cs_gwf_set_miscible_two_phase_model(cs_real_t       l_mass_density,
 /*----------------------------------------------------------------------------*/
 
 void
-cs_gwf_set_immiscible_two_phase_model(cs_real_t       l_mass_density,
-                                      cs_real_t       l_viscosity,
-                                      cs_real_t       g_viscosity,
-                                      cs_real_t       h_molar_mass,
-                                      cs_real_t       ref_temperature)
+cs_gwf_set_immiscible_two_phase_model(cs_real_t l_mass_density,
+                                      cs_real_t l_viscosity,
+                                      cs_real_t g_viscosity,
+                                      cs_real_t h_molar_mass,
+                                      cs_real_t ref_temperature)
 {
   cs_gwf_t  *gw = cs_gwf_main_structure;
 
@@ -654,7 +612,7 @@ cs_gwf_set_immiscible_two_phase_model(cs_real_t       l_mass_density,
               "%s: One expects an immiscible two-phase flow model.\n",
               __func__, __func__);
 
-  cs_gwf_tpf_t *mc = (cs_gwf_tpf_t *)gw->model_context;
+  cs_gwf_tpf_t *mc = static_cast<cs_gwf_tpf_t *>(gw->model_context);
 
   if (mc->is_miscible == true)
     bft_error(__FILE__, __LINE__, 0,
@@ -683,14 +641,14 @@ cs_gwf_set_immiscible_two_phase_model(cs_real_t       l_mass_density,
 /*!
  * \brief Set the flag dedicated to the post-processing of the GWF module
  *
- * \param[in] post_flag             flag to set
- * \param[in] reset                 reset post flag before
+ * \param[in] post_flag  flag to set
+ * \param[in] reset      reset post flag before
  */
 /*----------------------------------------------------------------------------*/
 
 void
-cs_gwf_set_post_options(cs_flag_t       post_flag,
-                        bool            reset)
+cs_gwf_set_post_options(cs_flag_t post_flag,
+                        bool      reset)
 {
   cs_gwf_t  *gw = cs_gwf_main_structure;
   if (gw == nullptr)
@@ -710,13 +668,14 @@ cs_gwf_set_post_options(cs_flag_t       post_flag,
     if (gw->model == CS_GWF_MODEL_MISCIBLE_TWO_PHASE ||
         gw->model == CS_GWF_MODEL_IMMISCIBLE_TWO_PHASE) {
 
-      cs_gwf_tpf_t  *mc = (cs_gwf_tpf_t *)gw->model_context;
+      cs_gwf_tpf_t *mc = static_cast<cs_gwf_tpf_t *>(gw->model_context);
 
       if (mc->g_darcy != nullptr) {
         adv = mc->g_darcy->adv_field;
         if (adv != nullptr)
           adv->status |= CS_ADVECTION_FIELD_DEFINE_AT_BOUNDARY_FACES;
       }
+
     }
 
   } /* Darcy flux at boundary */
@@ -1202,17 +1161,18 @@ cs_gwf_init_model_context(void)
   switch (gw->model) {
 
   case CS_GWF_MODEL_SATURATED_SINGLE_PHASE:
-    cs_gwf_sspf_init(
-      (cs_gwf_sspf_t *)gw->model_context, gw->abs_permeability, gw->flag);
+    cs_gwf_sspf_init(static_cast<cs_gwf_sspf_t *>(gw->model_context),
+                     gw->abs_permeability, gw->flag);
     break;
 
   case CS_GWF_MODEL_UNSATURATED_SINGLE_PHASE:
-    cs_gwf_uspf_init((cs_gwf_uspf_t *)gw->model_context, perm_type);
+    cs_gwf_uspf_init(static_cast<cs_gwf_uspf_t *>(gw->model_context),
+                     perm_type);
     break;
 
   case CS_GWF_MODEL_MISCIBLE_TWO_PHASE:
   case CS_GWF_MODEL_IMMISCIBLE_TWO_PHASE:
-    cs_gwf_tpf_init((cs_gwf_tpf_t *)gw->model_context, perm_type);
+    cs_gwf_tpf_init(static_cast<cs_gwf_tpf_t *>(gw->model_context), perm_type);
     break;
 
   default:
@@ -1249,19 +1209,21 @@ cs_gwf_init_setup(void)
   switch (gw->model) {
 
   case CS_GWF_MODEL_SATURATED_SINGLE_PHASE:
-    cs_gwf_sspf_init_setup(gw->flag, (cs_gwf_sspf_t *)gw->model_context);
+    cs_gwf_sspf_init_setup(gw->flag,
+                           static_cast<cs_gwf_sspf_t *>(gw->model_context));
     break;
 
   case CS_GWF_MODEL_UNSATURATED_SINGLE_PHASE:
     cs_gwf_uspf_init_setup(gw->flag,
                            gw->post_flag,
                            permeability_dim,
-                           (cs_gwf_uspf_t *)gw->model_context);
+                           static_cast<cs_gwf_uspf_t *>(gw->model_context));
     break;
 
   case CS_GWF_MODEL_MISCIBLE_TWO_PHASE:
   case CS_GWF_MODEL_IMMISCIBLE_TWO_PHASE:
-    cs_gwf_tpf_init_setup(gw->post_flag, (cs_gwf_tpf_t *)gw->model_context);
+    cs_gwf_tpf_init_setup(gw->post_flag,
+                          static_cast<cs_gwf_tpf_t *>(gw->model_context));
     break;
 
   default:
@@ -1306,19 +1268,19 @@ cs_gwf_finalize_setup(const cs_cdo_connect_t     *connect,
   switch (gw->model) {
 
   case CS_GWF_MODEL_SATURATED_SINGLE_PHASE:
-    cs_gwf_sspf_finalize_setup(
-      connect, quant, (cs_gwf_sspf_t *)gw->model_context);
+    cs_gwf_sspf_finalize_setup(connect, quant,
+                               static_cast<cs_gwf_sspf_t *>(gw->model_context));
     break;
 
   case CS_GWF_MODEL_UNSATURATED_SINGLE_PHASE:
-    cs_gwf_uspf_finalize_setup(
-      connect, quant, gw->flag, (cs_gwf_uspf_t *)gw->model_context);
+    cs_gwf_uspf_finalize_setup(connect, quant, gw->flag,
+                               static_cast<cs_gwf_uspf_t *>(gw->model_context));
     break;
 
   case CS_GWF_MODEL_MISCIBLE_TWO_PHASE:
   case CS_GWF_MODEL_IMMISCIBLE_TWO_PHASE:
-    cs_gwf_tpf_finalize_setup(
-      connect, quant, gw->flag, (cs_gwf_tpf_t *)gw->model_context);
+    cs_gwf_tpf_finalize_setup(connect, quant, gw->flag,
+                              static_cast<cs_gwf_tpf_t *>(gw->model_context));
     break;
 
   default:
@@ -1368,34 +1330,24 @@ cs_gwf_hydraulic_update(const cs_mesh_t             *mesh,
   switch (gw->model) {
 
   case CS_GWF_MODEL_SATURATED_SINGLE_PHASE:
-    cs_gwf_sspf_update(mesh,
-                       connect,
-                       quant,
-                       ts,
+    cs_gwf_sspf_update(mesh, connect, quant, ts,
                        update_flag,
                        gw->flag,
-                       (cs_gwf_sspf_t *)gw->model_context);
+                       static_cast<cs_gwf_sspf_t *>(gw->model_context));
     break;
 
   case CS_GWF_MODEL_UNSATURATED_SINGLE_PHASE:
-    cs_gwf_uspf_update(mesh,
-                       connect,
-                       quant,
-                       ts,
+    cs_gwf_uspf_update(mesh, connect, quant, ts,
                        update_flag,
                        gw->flag,
-                       (cs_gwf_uspf_t *)gw->model_context);
+                       static_cast<cs_gwf_uspf_t *>(gw->model_context));
     break;
 
   case CS_GWF_MODEL_MISCIBLE_TWO_PHASE:
   case CS_GWF_MODEL_IMMISCIBLE_TWO_PHASE:
-    cs_gwf_tpf_update(mesh,
-                      connect,
-                      quant,
-                      ts,
-                      update_flag,
+    cs_gwf_tpf_update(mesh, connect, quant, ts->t_cur,
                       gw->flag,
-                      (cs_gwf_tpf_t *)gw->model_context);
+                      static_cast<cs_gwf_tpf_t *>(gw->model_context));
     break;
 
   default:
@@ -1445,7 +1397,8 @@ cs_gwf_init_values(const cs_mesh_t             *mesh,
 
   case CS_GWF_MODEL_MISCIBLE_TWO_PHASE:
   case CS_GWF_MODEL_IMMISCIBLE_TWO_PHASE:
-    cs_gwf_tpf_init_values(connect, quant, (cs_gwf_tpf_t *)gw->model_context);
+    cs_gwf_tpf_init_values(connect, quant,
+                           static_cast<cs_gwf_tpf_t *>(gw->model_context));
     break;
 
   default:
@@ -1481,12 +1434,13 @@ cs_gwf_compute_steady_state(const cs_mesh_t              *mesh,
   switch (gw->model) {
 
   case CS_GWF_MODEL_SATURATED_SINGLE_PHASE:
-    cs_gwf_sspf_compute_steady_state(mesh,
-                                     connect,
-                                     cdoq,
-                                     time_step,
-                                     gw->flag,
-                                     (cs_gwf_sspf_t *)gw->model_context);
+    cs_gwf_sspf_compute_steady_state
+      (mesh,
+       connect,
+       cdoq,
+       time_step,
+       gw->flag,
+       static_cast<cs_gwf_sspf_t *>(gw->model_context));
     break;
 
   case CS_GWF_MODEL_MISCIBLE_TWO_PHASE:
@@ -1553,7 +1507,7 @@ cs_gwf_compute(const cs_mesh_t              *mesh,
                         cdoq,
                         time_step,
                         gw->flag,
-                        (cs_gwf_sspf_t *)gw->model_context);
+                        static_cast<cs_gwf_sspf_t *>(gw->model_context));
     break;
 
   case CS_GWF_MODEL_UNSATURATED_SINGLE_PHASE:
@@ -1562,7 +1516,7 @@ cs_gwf_compute(const cs_mesh_t              *mesh,
                         cdoq,
                         time_step,
                         gw->flag,
-                        (cs_gwf_uspf_t *)gw->model_context);
+                        static_cast<cs_gwf_uspf_t *>(gw->model_context));
     break;
 
   case CS_GWF_MODEL_MISCIBLE_TWO_PHASE:
@@ -1572,7 +1526,7 @@ cs_gwf_compute(const cs_mesh_t              *mesh,
                        cdoq,
                        time_step,
                        gw->flag,
-                       (cs_gwf_tpf_t *)gw->model_context);
+                       static_cast<cs_gwf_tpf_t *>(gw->model_context));
     break;
 
   default:
@@ -1626,19 +1580,19 @@ cs_gwf_extra_op(const cs_cdo_connect_t      *connect,
   switch (gw->model) {
 
   case CS_GWF_MODEL_SATURATED_SINGLE_PHASE:
-    cs_gwf_sspf_extra_op(
-      connect, cdoq, gw->post_flag, (cs_gwf_sspf_t *)gw->model_context);
+    cs_gwf_sspf_extra_op(connect, cdoq, gw->post_flag,
+                         static_cast<cs_gwf_sspf_t *>(gw->model_context));
     break;
 
   case CS_GWF_MODEL_UNSATURATED_SINGLE_PHASE:
-    cs_gwf_uspf_extra_op(
-      connect, cdoq, gw->post_flag, (cs_gwf_uspf_t *)gw->model_context);
+    cs_gwf_uspf_extra_op(connect, cdoq, gw->post_flag,
+                         static_cast<cs_gwf_uspf_t *>(gw->model_context));
     break;
 
   case CS_GWF_MODEL_MISCIBLE_TWO_PHASE:
   case CS_GWF_MODEL_IMMISCIBLE_TWO_PHASE:
-    cs_gwf_tpf_extra_op(
-      connect, cdoq, ts, gw->post_flag, (cs_gwf_tpf_t *)gw->model_context);
+    cs_gwf_tpf_extra_op(connect, cdoq, ts, gw->post_flag,
+                        static_cast<cs_gwf_tpf_t *>(gw->model_context));
     break;
 
   default:
@@ -1734,22 +1688,24 @@ cs_gwf_extra_post(void                   *input,
   switch (gw->model) {
 
   case CS_GWF_MODEL_SATURATED_SINGLE_PHASE:
-    cs_gwf_sspf_extra_post(mesh_id,
-                           n_cells,
-                           cell_ids,
-                           gw->post_flag,
-                           gw->abs_permeability,
-                           (const cs_gwf_sspf_t *)gw->model_context,
-                           time_step);
+    cs_gwf_sspf_extra_post
+      (mesh_id,
+       n_cells,
+       cell_ids,
+       gw->post_flag,
+       gw->abs_permeability,
+       static_cast<const cs_gwf_sspf_t *>(gw->model_context),
+       time_step);
     break;
 
   case CS_GWF_MODEL_UNSATURATED_SINGLE_PHASE:
-    cs_gwf_uspf_extra_post(mesh_id,
-                           n_cells,
-                           cell_ids,
-                           gw->post_flag,
-                           (const cs_gwf_uspf_t *)gw->model_context,
-                           time_step);
+    cs_gwf_uspf_extra_post
+      (mesh_id,
+       n_cells,
+       cell_ids,
+       gw->post_flag,
+       static_cast<const cs_gwf_uspf_t *>(gw->model_context),
+       time_step);
     break;
 
   case CS_GWF_MODEL_MISCIBLE_TWO_PHASE:
@@ -1759,7 +1715,7 @@ cs_gwf_extra_post(void                   *input,
                           cell_ids,
                           gw->post_flag,
                           gw->abs_permeability,
-                          (const cs_gwf_tpf_t *)gw->model_context,
+                          static_cast<const cs_gwf_tpf_t *>(gw->model_context),
                           cs_cdo_connect,
                           cs_cdo_quant,
                           time_step);

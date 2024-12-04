@@ -401,11 +401,10 @@ cs_equation_system_log_setup(void)
 
     cs_log_printf(CS_LOG_SETUP,
                   "  * %s | Number of equations: %d\n",
-                  sysname,
-                  eqsys->n_equations);
+                  sysname, eqsys->n_equations);
 
-    cs_log_printf(
-      CS_LOG_SETUP, "  * %s | Equations (diagonal blocks):\n", sysname);
+    cs_log_printf(CS_LOG_SETUP,
+                  "  * %s | Equations (diagonal blocks):\n", sysname);
 
     for (int i = 0; i < n_eqs; i++) {
 
@@ -434,8 +433,8 @@ cs_equation_system_log_setup(void)
         if (i != j) {
 
           cs_equation_core_t *block = eqsys->block_factories[i * n_eqs + j];
-
           cs_equation_param_log(block->param);
+
         }
       }
     }
@@ -469,8 +468,7 @@ cs_equation_system_log_monitoring(void)
 
     cs_log_printf(CS_LOG_PERFORMANCE,
                   " <CDO system/%20s> Runtime  %9.3f seconds\n",
-                  sysp->name,
-                  eqsys->timer.nsec * 1e-9);
+                  sysp->name, eqsys->timer.nsec * 1e-9);
 
   } /* Loop on equations */
 }
@@ -523,24 +521,16 @@ cs_equation_system_init_sharing(const cs_mesh_t           *mesh,
       if (sysp->block_var_dim == 1)
         cs_cdovb_scalsys_init_sharing(mesh, connect, quant, time_step);
       else
-        bft_error(__FILE__,
-                  __LINE__,
-                  0,
+        bft_error(__FILE__, __LINE__, 0,
                   "%s: Invalid block_var_dim (=%d) for system \"%s\".\n"
                   "%s: Only scalar-valued (=1) blocks are handled.\n",
-                  __func__,
-                  sysp->block_var_dim,
-                  sysp->name,
-                  __func__);
+                  __func__, sysp->block_var_dim, sysp->name, __func__);
       break;
 
     default:
-      bft_error(__FILE__,
-                __LINE__,
-                0,
+      bft_error(__FILE__, __LINE__, 0,
                 "%s: Invalid space scheme (%s) for system \"%s\"\n",
-                __func__,
-                cs_param_get_space_scheme_name(sysp->space_scheme),
+                __func__, cs_param_get_space_scheme_name(sysp->space_scheme),
                 sysp->name);
       break;
 
@@ -592,27 +582,22 @@ cs_equation_system_set_functions(void)
         eqsys->free   = cs_cdovb_scalsys_free;
 
         eqsys->solve_steady_state_system = nullptr; /* Not used up to now */
-        eqsys->solve_system              = cs_cdovb_scalsys_solve_implicit;
+        if (sysp->incremental_solve)
+          eqsys->solve_system = cs_cdovb_scalsys_solve_implicit_incr;
+        else
+          eqsys->solve_system = cs_cdovb_scalsys_solve_implicit;
       }
       else
-        bft_error(__FILE__,
-                  __LINE__,
-                  0,
+        bft_error(__FILE__, __LINE__, 0,
                   "%s: Invalid block_var_dim (=%d) for system \"%s\".\n"
                   "%s: Only scalar-valued (=1) blocks are handled.\n",
-                  __func__,
-                  sysp->block_var_dim,
-                  sysp->name,
-                  __func__);
+                  __func__, sysp->block_var_dim, sysp->name, __func__);
       break;
 
     default:
-      bft_error(__FILE__,
-                __LINE__,
-                0,
+      bft_error(__FILE__, __LINE__, 0,
                 "%s: Invalid space scheme (%s) for system \"%s\"\n",
-                __func__,
-                cs_param_get_space_scheme_name(sysp->space_scheme),
+                __func__, cs_param_get_space_scheme_name(sysp->space_scheme),
                 sysp->name);
       break;
 
@@ -649,8 +634,9 @@ cs_equation_system_set_sles(void)
     if (eqsys->timer_id > -1)
       cs_timer_stats_start(eqsys->timer_id);
 
-    cs_equation_system_sles_init(
-      eqsys->n_equations, sysp, eqsys->block_factories);
+    cs_equation_system_sles_init(eqsys->n_equations,
+                                 sysp,
+                                 eqsys->block_factories);
 
     cs_timer_t t2 = cs_timer_time();
     cs_timer_counter_add_diff(&(eqsys->timer), &t1, &t2);
@@ -662,11 +648,11 @@ cs_equation_system_set_sles(void)
 
 /*----------------------------------------------------------------------------*/
 /*!
- * \brief  Define the builder and scheme context structures associated to all
- *         the systems of equations which have been added.
- *         For the diagonal blocks, one relies on the builder and context of
- *         the related equations. For extra-diagonal blocks, one defines new
- *         builder and context structures.
+ * \brief Define the builder and scheme context structures associated to all
+ *        the systems of equations which have been added.
+ *        For the diagonal blocks, one relies on the builder and context of
+ *        the related equations. For extra-diagonal blocks, one defines new
+ *        builder and context structures.
  */
 /*----------------------------------------------------------------------------*/
 
@@ -702,8 +688,10 @@ cs_equation_system_define(void)
 
     } /* Loop on equations (Diagonal blocks) */
 
-    eqsys->context = eqsys->define(
-      n_eqs, sysp, eqsys->block_factories, &eqsys->system_helper);
+    eqsys->context = eqsys->define(n_eqs,
+                                   sysp,
+                                   eqsys->block_factories,
+                                   &eqsys->system_helper);
 
     cs_timer_t t2 = cs_timer_time();
     cs_timer_counter_add_diff(&(eqsys->timer), &t1, &t2);
@@ -721,13 +709,16 @@ cs_equation_system_define(void)
 /*!
  * \brief  Solve of a system of coupled equations. Unsteady case.
  *
+ * \param[in]      time_step  pointer to a time step structure
  * \param[in]      cur2prev   true="current to previous" operation is performed
  * \param[in, out] eqsys      pointer to the structure to solve
  */
 /*----------------------------------------------------------------------------*/
 
 void
-cs_equation_system_solve(bool cur2prev, cs_equation_system_t *eqsys)
+cs_equation_system_solve(const cs_time_step_t *time_step,
+                         bool                  cur2prev,
+                         cs_equation_system_t *eqsys)
 {
   if (eqsys == nullptr)
     return;
@@ -737,9 +728,7 @@ cs_equation_system_solve(bool cur2prev, cs_equation_system_t *eqsys)
     cs_timer_stats_start(eqsys->timer_id);
 
   if (eqsys->solve_system == nullptr)
-    bft_error(__FILE__,
-              __LINE__,
-              0,
+    bft_error(__FILE__, __LINE__, 0,
               "%s: No solve function set for system \"%s\"\n",
               __func__,
               (eqsys->param == nullptr) ? nullptr : eqsys->param->name);
@@ -748,6 +737,7 @@ cs_equation_system_solve(bool cur2prev, cs_equation_system_t *eqsys)
      has to build this structure before each solving step */
 
   eqsys->solve_system(cur2prev,
+                      time_step,
                       eqsys->n_equations,
                       eqsys->param,
                       eqsys->block_factories,
@@ -762,8 +752,8 @@ cs_equation_system_solve(bool cur2prev, cs_equation_system_t *eqsys)
 
 /*----------------------------------------------------------------------------*/
 /*!
- * \brief  Assign the given equation to the diagonal block located at
- *         position (row_id, row_id) in the matrix of blocks
+ * \brief Assign the given equation to the diagonal block located at position
+ *        (row_id, row_id) in the matrix of blocks
  *
  * \param[in]      row_id  position in the block matrix
  * \param[in]      eq      pointer to the equation to add
@@ -786,13 +776,9 @@ cs_equation_system_assign_equation(int                   row_id,
   int n_eqs = eqsys->n_equations;
 
   if (row_id >= n_eqs)
-    bft_error(__FILE__,
-              __LINE__,
-              0,
+    bft_error(__FILE__, __LINE__, 0,
               "%s: Invalid row id %d (max. possible is %d)\n",
-              __func__,
-              row_id,
-              n_eqs - 1);
+              __func__, row_id, n_eqs - 1);
 
   eqsys->equations[row_id] = eq;
 
@@ -840,35 +826,22 @@ cs_equation_system_assign_param(int                   row_id,
   int n_eqs = eqsys->n_equations;
 
   if (row_id >= n_eqs)
-    bft_error(__FILE__,
-              __LINE__,
-              0,
+    bft_error(__FILE__, __LINE__, 0,
               "%s: Invalid row_id %d (max. possible is %d)\n",
-              __func__,
-              row_id,
-              n_eqs - 1);
+              __func__, row_id, n_eqs - 1);
   if (col_id >= n_eqs)
-    bft_error(__FILE__,
-              __LINE__,
-              0,
+    bft_error(__FILE__, __LINE__, 0,
               "%s: Invalid col_id %d (max. possible is %d)\n",
-              __func__,
-              col_id,
-              n_eqs - 1);
+              __func__, col_id, n_eqs - 1);
 
   const char *sysname
     = (eqsys->param == nullptr) ? nullptr : eqsys->param->name;
 
   if (eqsys->block_factories[row_id * n_eqs + col_id] != nullptr)
-    bft_error(__FILE__,
-              __LINE__,
-              0,
+    bft_error(__FILE__, __LINE__, 0,
               "%s: The block (%d, %d) has already been assigned in"
               " system \"%s\"\n",
-              __func__,
-              row_id,
-              col_id,
-              sysname);
+              __func__, row_id, col_id, sysname);
 
   cs_equation_core_t *block_ij = nullptr;
 

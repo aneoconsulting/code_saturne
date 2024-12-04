@@ -39,11 +39,10 @@
 !> \param[in,out] itypfb        boundary face types
 !> \param[in,out] izfppp        index of the zone for the boundary faces
 !>                               (for the specific physics)
-!> \param[in]     dt            time step (per cell)
 !_______________________________________________________________________________
 
-subroutine pptycl                 &
- ( init , itypfb , izfppp , dt )  &
+subroutine pptycl           &
+ ( init , itypfb , izfppp)  &
  bind(C, name='cs_f_pptycl')
 
 !===============================================================================
@@ -71,7 +70,6 @@ use mesh
 use field
 use cs_c_bindings
 use cs_c_bindings
-use dimens, only: nvar
 
 !===============================================================================
 
@@ -83,8 +81,6 @@ logical(c_bool), value :: init
 
 integer(c_int) ::  itypfb(nfabor)
 integer(c_int) ::  izfppp(nfabor)
-
-real(c_double) :: dt(ncelet)
 
 ! Local variables
 
@@ -186,7 +182,6 @@ call field_build_bc_codes_all(icodcl, rcodcl) ! Get map
 
 ! Atmospheric flows
 if (ippmod(iatmos).ge.0) then
-  call attycl(itypfb, icodcl, rcodcl)
   call cs_atmo_bcond()
 endif
 

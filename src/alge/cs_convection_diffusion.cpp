@@ -172,14 +172,11 @@ _beta_limiter_denom(cs_field_t                 *f,
   const cs_real_t *restrict weight = fvq->weight;
   const cs_real_3_t *restrict cell_cen
     = (const cs_real_3_t *)fvq->cell_cen;
-  const cs_real_3_t *restrict i_face_u_normal
-    = (const cs_real_3_t *)fvq->i_face_u_normal;
+  const cs_nreal_3_t *restrict i_face_u_normal = fvq->i_face_u_normal;
   const cs_real_3_t *restrict i_face_cog
     = (const cs_real_3_t *)fvq->i_face_cog;
-  const cs_real_3_t *restrict diipf
-    = (const cs_real_3_t *)fvq->diipf;
-  const cs_real_3_t *restrict djjpf
-    = (const cs_real_3_t *)fvq->djjpf;
+  const cs_rreal_3_t *restrict diipf = fvq->diipf;
+  const cs_rreal_3_t *restrict djjpf = fvq->djjpf;
 
   const cs_real_t *restrict pvar  = f->val;
   const cs_real_t *restrict pvara = f->val_pre;
@@ -752,18 +749,13 @@ _slope_test_gradient_h
   const cs_real_t *restrict cell_vol = fvq->cell_vol;
   const cs_real_3_t *restrict cell_cen
     = (const cs_real_3_t *)fvq->cell_cen;
-  const cs_real_t *restrict i_face_surf
-    = (const cs_real_t *)fvq->i_face_surf;
-  const cs_real_t *restrict b_face_surf
-    = (const cs_real_t *)fvq->b_face_surf;
-  const cs_real_3_t *restrict i_face_u_normal
-    = (const cs_real_3_t *)fvq->i_face_u_normal;
-  const cs_real_3_t *restrict b_face_u_normal
-    = (const cs_real_3_t *)fvq->b_face_u_normal;
+  const cs_real_t *restrict i_face_surf = fvq->i_face_surf;
+  const cs_real_t *restrict b_face_surf = fvq->b_face_surf;
+  const cs_nreal_3_t *restrict i_face_u_normal = fvq->i_face_u_normal;
+  const cs_nreal_3_t *restrict b_face_u_normal = fvq->b_face_u_normal;
   const cs_real_3_t *restrict i_face_cog
     = (const cs_real_3_t *)fvq->i_face_cog;
-  const cs_real_3_t *restrict diipb
-    = (const cs_real_3_t *)fvq->diipb;
+  const cs_rreal_3_t *restrict diipb = fvq->diipb;
 
   /* Cast to the parent class to obtain info on the parent class.
      On host, we know this is not necessary and we use a simple
@@ -872,18 +864,13 @@ _slope_test_gradient_d
   const cs_real_t *restrict cell_vol = fvq->cell_vol;
   const cs_real_3_t *restrict cell_cen
     = (const cs_real_3_t *)fvq->cell_cen;
-  const cs_real_t *restrict i_face_surf
-    = (const cs_real_t *)fvq->i_face_surf;
-  const cs_real_t *restrict b_face_surf
-    = (const cs_real_t *)fvq->b_face_surf;
-  const cs_real_3_t *restrict i_face_u_normal
-    = (const cs_real_3_t *)fvq->i_face_u_normal;
-  const cs_real_3_t *restrict b_face_u_normal
-    = (const cs_real_3_t *)fvq->b_face_u_normal;
+  const cs_real_t *restrict i_face_surf = fvq->i_face_surf;
+  const cs_real_t *restrict b_face_surf = fvq->b_face_surf;
+  const cs_nreal_3_t *restrict i_face_u_normal = fvq->i_face_u_normal;
+  const cs_nreal_3_t *restrict b_face_u_normal = fvq->b_face_u_normal;
   const cs_real_3_t *restrict i_face_cog
     = (const cs_real_3_t *)fvq->i_face_cog;
-  const cs_real_3_t *restrict diipb
-    = (const cs_real_3_t *)fvq->diipb;
+  const cs_rreal_3_t *restrict diipb = fvq->diipb;
 
   const cs_mesh_adjacencies_t *ma = cs_glob_mesh_adjacencies;
   cs_mesh_adjacencies_update_cell_i_faces();
@@ -1017,18 +1004,13 @@ _slope_test_gradient_strided_h
   const cs_real_t *restrict cell_vol = fvq->cell_vol;
   const cs_real_3_t *restrict cell_cen
     = (const cs_real_3_t *)fvq->cell_cen;
-  const cs_real_3_t *restrict i_face_u_normal
-    = (const cs_real_3_t *)fvq->i_face_u_normal;
-  const cs_real_t *restrict i_f_face_surf
-    = (const cs_real_t *)fvq->i_f_face_surf;
-  const cs_real_3_t *restrict b_face_u_normal
-    = (const cs_real_3_t *)fvq->b_face_u_normal;
-  const cs_real_t *restrict b_f_face_surf
-    = (const cs_real_t *)fvq->b_f_face_surf;
+  const cs_nreal_3_t *restrict i_face_u_normal = fvq->i_face_u_normal;
+  const cs_real_t *restrict i_f_face_surf = fvq->i_f_face_surf;
+  const cs_nreal_3_t *restrict b_face_u_normal = fvq->b_face_u_normal;
+  const cs_real_t *restrict b_f_face_surf = fvq->b_f_face_surf;
   const cs_real_3_t *restrict i_face_cog
     = (const cs_real_3_t *)fvq->i_face_cog;
-  const cs_real_3_t *restrict diipb
-    = (const cs_real_3_t *)fvq->diipb;
+  const cs_rreal_3_t *restrict diipb = fvq->diipb;
 
   /* Cast to the parent class to obtain info on the parent class.
      On host, we know this is not necessary and we use a simple
@@ -1089,7 +1071,7 @@ _slope_test_gradient_strided_h
 
   ctx.parallel_for_b_faces(m, [=] CS_F_HOST_DEVICE (cs_lnum_t  face_id) {
 
-    cs_real_t diipbv[3];
+    cs_rreal_t diipbv[3];
     cs_lnum_t ii = b_face_cells[face_id];
 
     for (cs_lnum_t jsou = 0; jsou < 3; jsou++)
@@ -1177,18 +1159,13 @@ _slope_test_gradient_strided_d
   const cs_real_t *restrict cell_vol = fvq->cell_vol;
   const cs_real_3_t *restrict cell_cen
     = (const cs_real_3_t *)fvq->cell_cen;
-  const cs_real_3_t *restrict i_face_u_normal
-    = (const cs_real_3_t *)fvq->i_face_u_normal;
-  const cs_real_t *restrict i_f_face_surf
-    = (const cs_real_t *)fvq->i_f_face_surf;
-  const cs_real_3_t *restrict b_face_u_normal
-    = (const cs_real_3_t *)fvq->b_face_u_normal;
-  const cs_real_t *restrict b_f_face_surf
-    = (const cs_real_t *)fvq->b_f_face_surf;
+  const cs_nreal_3_t *restrict i_face_u_normal = fvq->i_face_u_normal;
+  const cs_real_t *restrict i_f_face_surf = fvq->i_f_face_surf;
+  const cs_nreal_3_t *restrict b_face_u_normal = fvq->b_face_u_normal;
+  const cs_real_t *restrict b_f_face_surf = fvq->b_f_face_surf;
   const cs_real_3_t *restrict i_face_cog
     = (const cs_real_3_t *)fvq->i_face_cog;
-  const cs_real_3_t *restrict diipb
-    = (const cs_real_3_t *)fvq->diipb;
+  const cs_rreal_3_t *restrict diipb = fvq->diipb;
 
   const cs_mesh_adjacencies_t *ma = cs_glob_mesh_adjacencies;
   cs_mesh_adjacencies_update_cell_i_faces();
@@ -1268,7 +1245,7 @@ _slope_test_gradient_strided_d
 
     cs_lnum_t ii = b_face_cells[face_id];
 
-    cs_real_t diipbv[3];
+    cs_rreal_t diipbv[3];
     for (cs_lnum_t jsou = 0; jsou < 3; jsou++)
       diipbv[jsou] = diipb[face_id][jsou];
 
@@ -1510,6 +1487,7 @@ _convection_diffusion_scalar_steady(const cs_field_t           *f,
   const int imrgra = eqp.imrgra;
   const cs_gradient_limit_t imligp = (cs_gradient_limit_t)(eqp.imligr);
   const int ircflp = eqp.ircflu;
+  const int ircflb = (ircflp > 0) ? eqp.b_diff_flux_rc : 0;
   const int ischcp = eqp.ischcv;
   const int isstpp = eqp.isstpc;
   const int iwarnp = eqp.verbosity;
@@ -1542,16 +1520,12 @@ _convection_diffusion_scalar_steady(const cs_field_t           *f,
   const cs_real_t *restrict cell_vol = fvq->cell_vol;
   const cs_real_3_t *restrict cell_cen
     = (const cs_real_3_t *)fvq->cell_cen;
-  const cs_real_3_t *restrict i_face_u_normal
-    = (const cs_real_3_t *)fvq->i_face_u_normal;
+  const cs_nreal_3_t *restrict i_face_u_normal = fvq->i_face_u_normal;
   const cs_real_3_t *restrict i_face_cog
     = (const cs_real_3_t *)fvq->i_face_cog;
-  const cs_real_3_t *restrict diipf
-    = (const cs_real_3_t *)fvq->diipf;
-  const cs_real_3_t *restrict djjpf
-    = (const cs_real_3_t *)fvq->djjpf;
-  const cs_real_3_t *restrict diipb
-    = (const cs_real_3_t *)fvq->diipb;
+  const cs_rreal_3_t *restrict diipf = fvq->diipf;
+  const cs_rreal_3_t *restrict djjpf = fvq->djjpf;
+  const cs_rreal_3_t *restrict diipb = fvq->diipb;
 
   const int *bc_type = cs_glob_bc_type;
 
@@ -2125,9 +2099,9 @@ _convection_diffusion_scalar_steady(const cs_field_t           *f,
         cs_real_t fluxi = 0.;
         cs_real_t pir, pipr;
 
-        cs_real_t bldfrp = (cs_real_t) ircflp;
+        cs_real_t bldfrp = (cs_real_t) ircflb;
         /* Local limitation of the reconstruction */
-        if (df_limiter != nullptr && ircflp > 0)
+        if (df_limiter != nullptr && ircflb > 0)
           bldfrp = cs_math_fmax(df_limiter[ii], 0.);
 
         cs_b_cd_steady(bldfrp,
@@ -2178,9 +2152,9 @@ _convection_diffusion_scalar_steady(const cs_field_t           *f,
         cs_lnum_t jj = b_face_cells[face_id];
         cs_real_t pip, pipr;
 
-        cs_real_t bldfrp = (cs_real_t) ircflp;
+        cs_real_t bldfrp = (cs_real_t) ircflb;
         /* Local limitation of the reconstruction */
-        if (df_limiter != nullptr && ircflp > 0)
+        if (df_limiter != nullptr && ircflb > 0)
           bldfrp = cs_math_fmax(df_limiter[jj], 0.);
 
         cs_b_cd_steady(bldfrp,
@@ -2221,9 +2195,9 @@ _convection_diffusion_scalar_steady(const cs_field_t           *f,
         cs_real_t pip, pipr, pjpr;
         cs_real_t fluxi = 0.;
 
-        cs_real_t bldfrp = (cs_real_t) ircflp;
+        cs_real_t bldfrp = (cs_real_t) ircflb;
         /* Local limitation of the reconstruction */
-        if (df_limiter != nullptr && ircflp > 0)
+        if (df_limiter != nullptr && ircflb > 0)
           bldfrp = cs_math_fmax(cs_math_fmin(df_limiter_local[ii],
                                              df_limiter[jj]),
                                 0.);
@@ -2285,9 +2259,9 @@ _convection_diffusion_scalar_steady(const cs_field_t           *f,
         cs_real_t fluxi = 0.;
         cs_real_t pir, pipr;
 
-        cs_real_t bldfrp = (cs_real_t) ircflp;
+        cs_real_t bldfrp = (cs_real_t) ircflb;
         /* Local limitation of the reconstruction */
-        if (df_limiter != nullptr && ircflp > 0)
+        if (df_limiter != nullptr && ircflb > 0)
           bldfrp = cs_math_fmax(df_limiter[ii], 0.);
 
         cs_b_cd_steady(bldfrp,
@@ -2394,6 +2368,7 @@ _face_convection_scalar_steady(const cs_field_t           *f,
   const int imrgra = eqp.imrgra;
   const cs_gradient_limit_t imligp = (cs_gradient_limit_t)(eqp.imligr);
   const int ircflp = eqp.ircflu;
+  const int ircflb = (ircflp > 0) ? eqp.b_diff_flux_rc : 0;
   const int ischcp = eqp.ischcv;
   const int isstpp = eqp.isstpc;
   const int iwarnp = eqp.verbosity;
@@ -2416,25 +2391,19 @@ _face_convection_scalar_steady(const cs_field_t           *f,
   const cs_lnum_t *restrict i_group_index = m->i_face_numbering->group_index;
   const cs_lnum_t *restrict b_group_index = m->b_face_numbering->group_index;
 
-  const cs_lnum_2_t *restrict i_face_cells
-    = (const cs_lnum_2_t *)m->i_face_cells;
-  const cs_lnum_t *restrict b_face_cells
-    = (const cs_lnum_t *)m->b_face_cells;
+  const cs_lnum_2_t *restrict i_face_cells = m->i_face_cells;
+  const cs_lnum_t *restrict b_face_cells = m->b_face_cells;
   const cs_real_t *restrict weight = fvq->weight;
   const cs_real_t *restrict i_dist = fvq->i_dist;
   const cs_real_t *restrict cell_vol = fvq->cell_vol;
   const cs_real_3_t *restrict cell_cen
     = (const cs_real_3_t *)fvq->cell_cen;
-  const cs_real_3_t *restrict i_face_u_normal
-    = (const cs_real_3_t *)fvq->i_face_u_normal;
+  const cs_nreal_3_t *restrict i_face_u_normal  = fvq->i_face_u_normal;
   const cs_real_3_t *restrict i_face_cog
     = (const cs_real_3_t *)fvq->i_face_cog;
-  const cs_real_3_t *restrict diipf
-    = (const cs_real_3_t *)fvq->diipf;
-  const cs_real_3_t *restrict djjpf
-    = (const cs_real_3_t *)fvq->djjpf;
-  const cs_real_3_t *restrict diipb
-    = (const cs_real_3_t *)fvq->diipb;
+  const cs_rreal_3_t *restrict diipf = fvq->diipf;
+  const cs_rreal_3_t *restrict djjpf = fvq->djjpf;
+  const cs_rreal_3_t *restrict diipb = fvq->diipb;
 
   const int *bc_type = cs_glob_bc_type;
 
@@ -2938,9 +2907,9 @@ _face_convection_scalar_steady(const cs_field_t           *f,
 
         cs_real_t pir, pipr;
 
-        cs_real_t bldfrp = (cs_real_t) ircflp;
+        cs_real_t bldfrp = (cs_real_t) ircflb;
         /* Local limitation of the reconstruction */
-        if (df_limiter != nullptr && ircflp > 0)
+        if (df_limiter != nullptr && ircflb > 0)
           bldfrp = cs_math_fmax(df_limiter[ii], 0.);
 
         cs_b_cd_steady(bldfrp,
@@ -2994,9 +2963,9 @@ _face_convection_scalar_steady(const cs_field_t           *f,
 
         cs_real_t pir, pipr;
 
-        cs_real_t bldfrp = (cs_real_t) ircflp;
+        cs_real_t bldfrp = (cs_real_t) ircflb;
         /* Local limitation of the reconstruction */
-        if (df_limiter != nullptr && ircflp > 0)
+        if (df_limiter != nullptr && ircflb > 0)
           bldfrp = cs_math_fmax(df_limiter[ii], 0.);
 
         cs_b_cd_steady(bldfrp,
@@ -3115,6 +3084,7 @@ _convection_diffusion_scalar_unsteady
   const int imrgra = eqp.imrgra;
   const cs_gradient_limit_t imligp = (cs_gradient_limit_t)(eqp.imligr);
   const int ircflp = eqp.ircflu;
+  const int ircflb = (ircflp > 0) ? eqp.b_diff_flux_rc : 0;
   const int ischcp = eqp.ischcv;
   const int isstpp = eqp.isstpc;
   const int iwarnp = eqp.verbosity;
@@ -3131,28 +3101,22 @@ _convection_diffusion_scalar_unsteady
 
   const cs_lnum_t n_cells = m->n_cells;
   const cs_lnum_t n_cells_ext = m->n_cells_with_ghosts;
-  const int n_i_faces = m->n_i_faces;
+  const cs_lnum_t n_i_faces = m->n_i_faces;
 
-  const cs_lnum_2_t *restrict i_face_cells
-    = (const cs_lnum_2_t *)m->i_face_cells;
-  const cs_lnum_t *restrict b_face_cells
-    = (const cs_lnum_t *)m->b_face_cells;
+  const cs_lnum_2_t *restrict i_face_cells = m->i_face_cells;
+  const cs_lnum_t *restrict b_face_cells = m->b_face_cells;
   const cs_real_t *restrict weight = fvq->weight;
   const cs_real_t *restrict i_dist = fvq->i_dist;
   const cs_real_t *restrict b_face_surf = fvq->b_face_surf;
   const cs_real_t *restrict cell_vol = fvq->cell_vol;
   const cs_real_3_t *restrict cell_cen
     = (const cs_real_3_t *)fvq->cell_cen;
-  const cs_real_3_t *restrict i_face_u_normal
-    = (const cs_real_3_t *)fvq->i_face_u_normal;
+  const cs_nreal_3_t *restrict i_face_u_normal = fvq->i_face_u_normal;
   const cs_real_3_t *restrict i_face_cog
     = (const cs_real_3_t *)fvq->i_face_cog;
-  const cs_real_3_t *restrict diipf
-    = (const cs_real_3_t *)fvq->diipf;
-  const cs_real_3_t *restrict djjpf
-    = (const cs_real_3_t *)fvq->djjpf;
-  const cs_real_3_t *restrict diipb
-    = (const cs_real_3_t *)fvq->diipb;
+  const cs_rreal_3_t *restrict diipf = fvq->diipf;
+  const cs_rreal_3_t *restrict djjpf = fvq->djjpf;
+  const cs_rreal_3_t *restrict diipb = fvq->diipb;
 
   const int *bc_type = cs_glob_bc_type;
 
@@ -3608,7 +3572,9 @@ _convection_diffusion_scalar_unsteady
                         &pjf);
 
         }
-        else if (ischcp == 3) {
+        else {
+
+          assert(ischcp == 3);
 
           /* Centered
              -------- */
@@ -3935,9 +3901,9 @@ _convection_diffusion_scalar_unsteady
       cs_real_t fluxi = 0.;
       cs_real_t pip;
 
-      cs_real_t bldfrp = (cs_real_t) ircflp;
+      cs_real_t bldfrp = (cs_real_t) ircflb;
       /* Local limitation of the reconstruction */
-      if (df_limiter != nullptr && ircflp > 0)
+      if (df_limiter != nullptr && ircflb > 0)
         bldfrp = cs_math_fmax(df_limiter[ii], 0.);
 
       cs_b_cd_unsteady(bldfrp,
@@ -3984,9 +3950,9 @@ _convection_diffusion_scalar_unsteady
         cs_lnum_t jj = b_face_cells[face_id];
         cs_real_t pip;
 
-        cs_real_t bldfrp = (cs_real_t) ircflp;
+        cs_real_t bldfrp = (cs_real_t) ircflb;
         /* Local limitation of the reconstruction */
-        if (df_limiter != nullptr && ircflp > 0)
+        if (df_limiter != nullptr && ircflb > 0)
           bldfrp = cs_math_fmax(df_limiter[jj], 0.);
 
         cs_b_cd_unsteady(bldfrp,
@@ -4013,6 +3979,8 @@ _convection_diffusion_scalar_unsteady
                                           df_limiter_local);
       }
 
+      ctx.wait(); // Next loop will contribute to rhs.
+
       /* Flux contribution */
       assert(f != nullptr);
       cs_real_t *hintp = f->bc_coeffs->hint;
@@ -4024,9 +3992,9 @@ _convection_diffusion_scalar_unsteady
         cs_real_t pip, pjp;
         cs_real_t fluxi = 0.;
 
-        cs_real_t bldfrp = (cs_real_t) ircflp;
+        cs_real_t bldfrp = (cs_real_t) ircflb;
         /* Local limitation of the reconstruction */
-        if (df_limiter != nullptr && ircflp > 0)
+        if (df_limiter != nullptr && ircflb > 0)
           bldfrp = cs_math_fmax(cs_math_fmin(df_limiter_local[ii],
                                              df_limiter[jj]),
                                 0.);
@@ -4059,6 +4027,7 @@ _convection_diffusion_scalar_unsteady
         CS_FREE_HD(df_limiter_local);
     }
   }
+
   /* Boundary convective flux is imposed at some faces
      (tagged in icvfli array) */
 
@@ -4081,9 +4050,9 @@ _convection_diffusion_scalar_unsteady
       cs_real_t fluxi = 0.;
       cs_real_t pip;
 
-      cs_real_t bldfrp = (cs_real_t) ircflp;
+      cs_real_t bldfrp = (cs_real_t) ircflb;
       /* Local limitation of the reconstruction */
-      if (df_limiter != nullptr && ircflp > 0)
+      if (df_limiter != nullptr && ircflb > 0)
         bldfrp = cs_math_fmax(df_limiter[ii], 0.);
 
       cs_b_cd_unsteady(bldfrp,
@@ -4192,6 +4161,7 @@ _face_convection_scalar_unsteady(const cs_field_t           *f,
   const int imrgra = eqp.imrgra;
   const cs_gradient_limit_t imligp = (cs_gradient_limit_t)(eqp.imligr);
   const int ircflp = eqp.ircflu;
+  const int ircflb = (ircflp > 0) ? eqp.b_diff_flux_rc : 0;
   const int ischcp = eqp.ischcv;
   const int isstpp = eqp.isstpc;
   const int iwarnp = eqp.verbosity;
@@ -4210,25 +4180,19 @@ _face_convection_scalar_unsteady(const cs_field_t           *f,
   const cs_lnum_t n_cells_ext = m->n_cells_with_ghosts;
   const int n_i_faces = m->n_i_faces;
 
-  const cs_lnum_2_t *restrict i_face_cells
-    = (const cs_lnum_2_t *)m->i_face_cells;
-  const cs_lnum_t *restrict b_face_cells
-    = (const cs_lnum_t *)m->b_face_cells;
+  const cs_lnum_2_t *restrict i_face_cells = m->i_face_cells;
+  const cs_lnum_t *restrict b_face_cells = m->b_face_cells;
   const cs_real_t *restrict weight = fvq->weight;
   const cs_real_t *restrict i_dist = fvq->i_dist;
   const cs_real_t *restrict cell_vol = fvq->cell_vol;
   const cs_real_3_t *restrict cell_cen
     = (const cs_real_3_t *)fvq->cell_cen;
-  const cs_real_3_t *restrict i_face_u_normal
-    = (const cs_real_3_t *)fvq->i_face_u_normal;
+  const cs_nreal_3_t *restrict i_face_u_normal = fvq->i_face_u_normal;
   const cs_real_3_t *restrict i_face_cog
     = (const cs_real_3_t *)fvq->i_face_cog;
-  const cs_real_3_t *restrict diipf
-    = (const cs_real_3_t *)fvq->diipf;
-  const cs_real_3_t *restrict djjpf
-    = (const cs_real_3_t *)fvq->djjpf;
-  const cs_real_3_t *restrict diipb
-    = (const cs_real_3_t *)fvq->diipb;
+  const cs_rreal_3_t *restrict diipf = fvq->diipf;
+  const cs_rreal_3_t *restrict djjpf = fvq->djjpf;
+  const cs_rreal_3_t *restrict diipb = fvq->diipb;
 
   const int *bc_type = cs_glob_bc_type;
 
@@ -4916,9 +4880,9 @@ _face_convection_scalar_unsteady(const cs_field_t           *f,
       cs_lnum_t ii = b_face_cells[face_id];
       cs_real_t pip;
 
-      cs_real_t bldfrp = (cs_real_t) ircflp;
+      cs_real_t bldfrp = (cs_real_t) ircflb;
       /* Local limitation of the reconstruction */
-      if (df_limiter != nullptr && ircflp > 0)
+      if (df_limiter != nullptr && ircflb > 0)
         bldfrp = cs_math_fmax(df_limiter[ii], 0.);
 
       cs_b_cd_unsteady(bldfrp,
@@ -4964,9 +4928,9 @@ _face_convection_scalar_unsteady(const cs_field_t           *f,
       cs_lnum_t ii = b_face_cells[face_id];
       cs_real_t pip;
 
-      cs_real_t bldfrp = (cs_real_t) ircflp;
+      cs_real_t bldfrp = (cs_real_t) ircflb;
       /* Local limitation of the reconstruction */
-      if (df_limiter != nullptr && ircflp > 0)
+      if (df_limiter != nullptr && ircflb > 0)
         bldfrp = cs_math_fmax(df_limiter[ii], 0.);
 
       cs_b_cd_unsteady(bldfrp,
@@ -5084,6 +5048,7 @@ _convection_diffusion_vector_steady(cs_field_t                 *f,
   const int idiffp = eqp.idiff;
   const int imrgra = eqp.imrgra;
   const int ircflp = eqp.ircflu;
+  const int ircflb = (ircflp > 0) ? eqp.b_diff_flux_rc : 0;
   const int ischcp = eqp.ischcv;
   const int isstpp = eqp.isstpc;
   const int iwarnp = eqp.verbosity;
@@ -5104,27 +5069,20 @@ _convection_diffusion_vector_steady(cs_field_t                 *f,
   const cs_lnum_t *restrict i_group_index = m->i_face_numbering->group_index;
   const cs_lnum_t *restrict b_group_index = m->b_face_numbering->group_index;
 
-  const cs_lnum_2_t *restrict i_face_cells
-    = (const cs_lnum_2_t *)m->i_face_cells;
-  const cs_lnum_t *restrict b_face_cells
-    = (const cs_lnum_t *)m->b_face_cells;
+  const cs_lnum_2_t *restrict i_face_cells = m->i_face_cells;
+  const cs_lnum_t *restrict b_face_cells = m->b_face_cells;
   const cs_real_t *restrict weight = fvq->weight;
   const cs_real_t *restrict i_dist = fvq->i_dist;
   const cs_real_t *restrict b_face_surf = fvq->b_face_surf;
   const cs_real_3_t *restrict cell_cen
     = (const cs_real_3_t *)fvq->cell_cen;
-  const cs_real_3_t *restrict i_face_u_normal
-    = (const cs_real_3_t *)fvq->i_face_u_normal;
-  const cs_real_3_t *restrict b_face_u_normal
-    = (const cs_real_3_t *)fvq->b_face_u_normal;
+  const cs_nreal_3_t *restrict i_face_u_normal = fvq->i_face_u_normal;
+  const cs_nreal_3_t *restrict b_face_u_normal = fvq->b_face_u_normal;
   const cs_real_3_t *restrict i_face_cog
     = (const cs_real_3_t *)fvq->i_face_cog;
-  const cs_real_3_t *restrict diipf
-    = (const cs_real_3_t *)fvq->diipf;
-  const cs_real_3_t *restrict djjpf
-    = (const cs_real_3_t *)fvq->djjpf;
-  const cs_real_3_t *restrict diipb
-    = (const cs_real_3_t *)fvq->diipb;
+  const cs_rreal_3_t *restrict diipf = fvq->diipf;
+  const cs_rreal_3_t *restrict djjpf = fvq->djjpf;
+  const cs_rreal_3_t *restrict diipb = fvq->diipb;
 
   const int *bc_type = cs_glob_bc_type;
   cs_real_2_t *i_f_face_factor = nullptr;
@@ -5287,7 +5245,7 @@ _convection_diffusion_vector_steady(cs_field_t                 *f,
 
           /* Scaling due to mass balance in porous modelling */
           if (i_f_face_factor != nullptr) {
-            const cs_real_t *n = i_face_u_normal[face_id];
+            const cs_nreal_t *n = i_face_u_normal[face_id];
             cs_math_3_normal_scaling(n, i_f_face_factor[face_id][0], _pi);
             cs_math_3_normal_scaling(n, i_f_face_factor[face_id][0], _pia);
             cs_math_3_normal_scaling(n, i_f_face_factor[face_id][1], _pj);
@@ -5392,7 +5350,7 @@ _convection_diffusion_vector_steady(cs_field_t                 *f,
 
           /* Scaling due to mass balance in porous modelling */
           if (i_f_face_factor != nullptr) {
-            const cs_real_t *n = i_face_u_normal[face_id];
+            const cs_nreal_t *n = i_face_u_normal[face_id];
             cs_math_3_normal_scaling(n, i_f_face_factor[face_id][0], _pi);
             cs_math_3_normal_scaling(n, i_f_face_factor[face_id][0], _pia);
             cs_math_3_normal_scaling(n, i_f_face_factor[face_id][1], _pj);
@@ -5503,7 +5461,7 @@ _convection_diffusion_vector_steady(cs_field_t                 *f,
 
           /* Scaling due to mass balance in porous modelling */
           if (i_f_face_factor != nullptr) {
-            const cs_real_t *n = i_face_u_normal[face_id];
+            const cs_nreal_t *n = i_face_u_normal[face_id];
             cs_math_3_normal_scaling(n, i_f_face_factor[face_id][0], _pi);
             cs_math_3_normal_scaling(n, i_f_face_factor[face_id][0], _pia);
             cs_math_3_normal_scaling(n, i_f_face_factor[face_id][1], _pj);
@@ -5628,14 +5586,14 @@ _convection_diffusion_vector_steady(cs_field_t                 *f,
 
         /* Scaling due to mass balance in porous modelling */
         if (b_f_face_factor != nullptr) {
-          const cs_real_t *n = i_face_u_normal[face_id];
+          const cs_nreal_t *n = i_face_u_normal[face_id];
           cs_math_3_normal_scaling(n, b_f_face_factor[face_id], _pi);
           cs_math_3_normal_scaling(n, b_f_face_factor[face_id], _pia);
         }
 
-        cs_real_t bldfrp = (cs_real_t) ircflp;
+        cs_real_t bldfrp = (cs_real_t) ircflb;
         /* Local limitation of the reconstruction */
-        if (df_limiter != nullptr && ircflp > 0)
+        if (df_limiter != nullptr && ircflb > 0)
           bldfrp = cs_math_fmax(df_limiter[ii], 0.);
 
         cs_b_cd_steady_strided<3>(bldfrp,
@@ -5693,16 +5651,16 @@ _convection_diffusion_vector_steady(cs_field_t                 *f,
           _pja[i]  = pvara[jj][i];
         }
 
-        cs_real_t bldfrp = (cs_real_t) ircflp;
+        cs_real_t bldfrp = (cs_real_t) ircflb;
         /* Local limitation of the reconstruction */
         /* Note: to be treated exactly as a internal face, should be a bending
          * between the two cells... */
-        if (df_limiter != nullptr && ircflp > 0)
+        if (df_limiter != nullptr && ircflb > 0)
           bldfrp = cs_math_fmax(df_limiter[jj], 0.);
 
         /* Scaling due to mass balance in porous modelling */
         if (b_f_face_factor != nullptr) {
-          const cs_real_t *n = b_face_u_normal[face_id];
+          const cs_nreal_t *n = b_face_u_normal[face_id];
           cs_math_3_normal_scaling(n, b_f_face_factor[face_id], _pj);
         }
 
@@ -5753,13 +5711,13 @@ _convection_diffusion_vector_steady(cs_field_t                 *f,
 
         /* Scaling due to mass balance in porous modelling */
         if (b_f_face_factor != nullptr) {
-          const cs_real_t *n = b_face_u_normal[face_id];
+          const cs_nreal_t *n = b_face_u_normal[face_id];
           cs_math_3_normal_scaling(n, b_f_face_factor[face_id], _pj);
         }
 
-        cs_real_t bldfrp = (cs_real_t) ircflp;
+        cs_real_t bldfrp = (cs_real_t) ircflb;
         /* Local limitation of the reconstruction */
-        if (df_limiter != nullptr && ircflp > 0)
+        if (df_limiter != nullptr && ircflb > 0)
           bldfrp = cs_math_fmax(cs_math_fmin(df_limiter_local[ii],
                                              df_limiter[jj]),
                                 0.);
@@ -5837,14 +5795,14 @@ _convection_diffusion_vector_steady(cs_field_t                 *f,
 
         /* Scaling due to mass balance in porous modelling */
         if (b_f_face_factor != nullptr) {
-          const cs_real_t *n = b_face_u_normal[face_id];
+          const cs_nreal_t *n = b_face_u_normal[face_id];
           cs_math_3_normal_scaling(n, b_f_face_factor[face_id], _pi);
           cs_math_3_normal_scaling(n, b_f_face_factor[face_id], _pia);
         }
 
-        cs_real_t bldfrp = (cs_real_t) ircflp;
+        cs_real_t bldfrp = (cs_real_t) ircflb;
         /* Local limitation of the reconstruction */
-        if (df_limiter != nullptr && ircflp > 0)
+        if (df_limiter != nullptr && ircflb > 0)
           bldfrp = cs_math_fmax(df_limiter[ii], 0.);
 
         cs_b_cd_steady_strided<3>(bldfrp,
@@ -5958,6 +5916,7 @@ _convection_diffusion_tensor_steady(cs_field_t                  *f,
   const int idiffp = eqp.idiff;
   const int imrgra = eqp.imrgra;
   const int ircflp = eqp.ircflu;
+  const int ircflb = (ircflp > 0) ? eqp.b_diff_flux_rc : 0;
   const int ischcp = eqp.ischcv;
   const int isstpp = eqp.isstpc;
   const int iwarnp = eqp.verbosity;
@@ -5976,24 +5935,18 @@ _convection_diffusion_tensor_steady(cs_field_t                  *f,
   const cs_lnum_t *restrict i_group_index = m->i_face_numbering->group_index;
   const cs_lnum_t *restrict b_group_index = m->b_face_numbering->group_index;
 
-  const cs_lnum_2_t *restrict i_face_cells
-    = (const cs_lnum_2_t *)m->i_face_cells;
-  const cs_lnum_t *restrict b_face_cells
-    = (const cs_lnum_t *)m->b_face_cells;
+  const cs_lnum_2_t *restrict i_face_cells = m->i_face_cells;
+  const cs_lnum_t *restrict b_face_cells = m->b_face_cells;
   const cs_real_t *restrict weight = fvq->weight;
   const cs_real_t *restrict i_dist = fvq->i_dist;
   const cs_real_3_t *restrict cell_cen
     = (const cs_real_3_t *)fvq->cell_cen;
-  const cs_real_3_t *restrict i_face_u_normal
-    = (const cs_real_3_t *)fvq->i_face_u_normal;
+  const cs_nreal_3_t *restrict i_face_u_normal = fvq->i_face_u_normal;
   const cs_real_3_t *restrict i_face_cog
     = (const cs_real_3_t *)fvq->i_face_cog;
-  const cs_real_3_t *restrict diipf
-    = (const cs_real_3_t *)fvq->diipf;
-  const cs_real_3_t *restrict djjpf
-    = (const cs_real_3_t *)fvq->djjpf;
-  const cs_real_3_t *restrict diipb
-    = (const cs_real_3_t *)fvq->diipb;
+  const cs_rreal_3_t *restrict diipf = fvq->diipf;
+  const cs_rreal_3_t *restrict djjpf = fvq->djjpf;
+  const cs_rreal_3_t *restrict diipb = fvq->diipb;
 
   const int *bc_type = cs_glob_bc_type;
 
@@ -6397,9 +6350,9 @@ _convection_diffusion_tensor_steady(cs_field_t                  *f,
         }
         cs_real_t pir[6], pipr[6], pfac[6];
 
-        cs_real_t bldfrp = (cs_real_t) ircflp;
+        cs_real_t bldfrp = (cs_real_t) ircflb;
         /* Local limitation of the reconstruction */
-        if (df_limiter != nullptr && ircflp > 0)
+        if (df_limiter != nullptr && ircflb > 0)
           bldfrp = cs_math_fmax(df_limiter[ii], 0.);
 
         cs_b_cd_steady_strided<6>(bldfrp,
@@ -6546,6 +6499,7 @@ _convection_diffusion_unsteady_strided
   const int iconvp = eqp.iconv;
   const int idiffp = eqp.idiff;
   const int ircflp = eqp.ircflu;
+  const int ircflb = (ircflp > 0) ? eqp.b_diff_flux_rc : 0;
   const int ischcp = eqp.ischcv;
   const int isstpp = eqp.isstpc;
   const int icoupl = eqp.icoupl;
@@ -6559,30 +6513,23 @@ _convection_diffusion_unsteady_strided
 
   const cs_lnum_t n_cells = m->n_cells;
   const cs_lnum_t n_cells_ext = m->n_cells_with_ghosts;
-  const int n_i_faces = m->n_i_faces;
+  const cs_lnum_t n_i_faces = m->n_i_faces;
 
-  const cs_lnum_2_t *restrict i_face_cells
-    = (const cs_lnum_2_t *)m->i_face_cells;
-  const cs_lnum_t *restrict b_face_cells
-    = (const cs_lnum_t *)m->b_face_cells;
+  const cs_lnum_2_t *restrict i_face_cells = m->i_face_cells;
+  const cs_lnum_t *restrict b_face_cells = m->b_face_cells;
   const cs_real_t *restrict weight = fvq->weight;
   const cs_real_t *restrict i_dist = fvq->i_dist;
   const cs_real_t *restrict cell_vol = fvq->cell_vol;
   const cs_real_t *restrict b_face_surf = fvq->b_face_surf;
   const cs_real_3_t *restrict cell_cen
     = (const cs_real_3_t *)fvq->cell_cen;
-  const cs_real_3_t *restrict i_face_u_normal
-    = (const cs_real_3_t *)fvq->i_face_u_normal;
-  const cs_real_3_t *restrict b_face_u_normal
-    = (const cs_real_3_t *)fvq->b_face_u_normal;
+  const cs_nreal_3_t *restrict i_face_u_normal = fvq->i_face_u_normal;
+  const cs_nreal_3_t *restrict b_face_u_normal = fvq->b_face_u_normal;
   const cs_real_3_t *restrict i_face_cog
     = (const cs_real_3_t *)fvq->i_face_cog;
-  const cs_real_3_t *restrict diipf
-    = (const cs_real_3_t *)fvq->diipf;
-  const cs_real_3_t *restrict djjpf
-    = (const cs_real_3_t *)fvq->djjpf;
-  const cs_real_3_t *restrict diipb
-    = (const cs_real_3_t *)fvq->diipb;
+  const cs_rreal_3_t *restrict diipf = fvq->diipf;
+  const cs_rreal_3_t *restrict djjpf = fvq->djjpf;
+  const cs_rreal_3_t *restrict diipb = fvq->diipb;
 
   const int *bc_type = cs_glob_bc_type;
   cs_real_2_t *i_f_face_factor = nullptr;
@@ -6637,9 +6584,20 @@ _convection_diffusion_unsteady_strided
      or current values are provided */
 
   if (pvar != nullptr && halo != nullptr) {
-    cs_halo_sync_var_strided(halo, halo_type, (cs_real_t *)pvar, stride);
-    if (cs_glob_mesh->n_init_perio > 0)
-      cs_halo_perio_sync_var_vect(halo, halo_type, (cs_real_t *)pvar, stride);
+#if defined(HAVE_ACCEL)
+    if (ctx.use_gpu())
+      cs_halo_sync_d(m->halo, halo_type, CS_REAL_TYPE, stride,
+                     (cs_real_t *)pvar);
+    else
+#endif
+      cs_halo_sync_var_strided(halo, halo_type, (cs_real_t *)pvar, stride);
+
+    if (cs_glob_mesh->have_rotation_perio) {
+      if (stride == 3)
+        cs_halo_perio_sync_var_vect(halo, halo_type, (cs_real_t *)pvar, stride);
+      else if (stride == 6)
+        cs_halo_perio_sync_var_sym_tens(halo, halo_type, (cs_real_t *)pvar);
+    }
   }
   if (pvara == nullptr)
     pvara = (const var_t *)pvar;
@@ -6802,7 +6760,7 @@ _convection_diffusion_unsteady_strided
 
       /* Scaling due to mass balance in porous modelling */
       if (porous_vel) {
-        const cs_real_t *n = i_face_u_normal[face_id];
+        const cs_nreal_t *n = i_face_u_normal[face_id];
         cs_math_3_normal_scaling(n, i_f_face_factor[face_id][0], _pi);
         cs_math_3_normal_scaling(n, i_f_face_factor[face_id][1], _pj);
       }
@@ -6915,7 +6873,7 @@ _convection_diffusion_unsteady_strided
 
         /* Scaling due to mass balance in porous modelling */
         if (porous_vel) {
-          const cs_real_t *n = i_face_u_normal[face_id];
+          const cs_nreal_t *n = i_face_u_normal[face_id];
           cs_math_3_normal_scaling(n, i_f_face_factor[face_id][0], _pi);
           cs_math_3_normal_scaling(n, i_f_face_factor[face_id][1], _pj);
         }
@@ -7103,7 +7061,7 @@ _convection_diffusion_unsteady_strided
 
         /* Scaling due to mass balance in porous modelling */
         if (porous_vel) {
-          const cs_real_t *n = i_face_u_normal[face_id];
+          const cs_nreal_t *n = i_face_u_normal[face_id];
           cs_math_3_normal_scaling(n, i_f_face_factor[face_id][0], _pi);
           cs_math_3_normal_scaling(n, i_f_face_factor[face_id][1], _pj);
         }
@@ -7325,13 +7283,13 @@ _convection_diffusion_unsteady_strided
 
       /* Scaling due to mass balance in porous modeling */
       if (porous_vel) {
-        const cs_real_t *n = b_face_u_normal[face_id];
+        const cs_nreal_t *n = b_face_u_normal[face_id];
         cs_math_3_normal_scaling(n, b_f_face_factor[face_id], _pi);
       }
 
-      cs_real_t bldfrp = (cs_real_t) ircflp;
+      cs_real_t bldfrp = (cs_real_t) ircflb;
       /* Local limitation of the reconstruction */
-      if (df_limiter != nullptr && ircflp > 0)
+      if (df_limiter != nullptr && ircflb > 0)
         bldfrp = cs_math_fmax(df_limiter[ii], 0.);
 
       cs_b_cd_unsteady_strided<stride>(bldfrp,
@@ -7387,8 +7345,6 @@ _convection_diffusion_unsteady_strided
       /* Prepare data for sending */
       CS_MALLOC_HD(pvar_distant, n_distant, var_t, cs_alloc_mode);
 
-      ctx.wait();
-
       for (cs_lnum_t ii = 0; ii < n_distant; ii++) {
         cs_lnum_t face_id = faces_distant[ii];
         cs_lnum_t jj = b_face_cells[face_id];
@@ -7400,16 +7356,16 @@ _convection_diffusion_unsteady_strided
           _pj[i]  = _pvar[jj][i];
         }
 
-        cs_real_t bldfrp = (cs_real_t) ircflp;
+        cs_real_t bldfrp = (cs_real_t) ircflb;
         /* Local limitation of the reconstruction */
         /* Note: to be treated exactly as a internal face, should be a bending
          * between the two cells... */
-        if (df_limiter != nullptr && ircflp > 0)
+        if (df_limiter != nullptr && ircflb > 0)
           bldfrp = cs_math_fmax(df_limiter[jj], 0.);
 
         /* Scaling due to mass balance in porous modelling */
         if (porous_vel) {
-          const cs_real_t *n = b_face_u_normal[face_id];
+          const cs_nreal_t *n = b_face_u_normal[face_id];
           cs_math_3_normal_scaling(n, b_f_face_factor[face_id], _pj);
         }
 
@@ -7438,6 +7394,8 @@ _convection_diffusion_unsteady_strided
                                           df_limiter_local);
       }
 
+      ctx.wait(); // Next loop will contribute to rhs.
+
       /* Flux contribution */
       assert(f != nullptr);
       cs_real_t *hintp = f->bc_coeffs->hint;
@@ -7456,13 +7414,13 @@ _convection_diffusion_unsteady_strided
 
         /* Scaling due to mass balance in porous modelling */
         if (porous_vel) {
-          const cs_real_t *n = b_face_u_normal[face_id];
+          const cs_nreal_t *n = b_face_u_normal[face_id];
           cs_math_3_normal_scaling(n, b_f_face_factor[face_id], _pj);
         }
 
-        cs_real_t bldfrp = (cs_real_t) ircflp;
+        cs_real_t bldfrp = (cs_real_t) ircflb;
         /* Local limitation of the reconstruction */
-        if (df_limiter != nullptr && ircflp > 0)
+        if (df_limiter != nullptr && ircflb > 0)
           bldfrp = cs_math_fmax(cs_math_fmin(df_limiter_local[ii],
                                              df_limiter[jj]),
                                 0.);
@@ -7527,13 +7485,13 @@ _convection_diffusion_unsteady_strided
 
       /* Scaling due to mass balance in porous modelling */
       if (porous_vel) {
-        const cs_real_t *n = b_face_u_normal[face_id];
+        const cs_nreal_t *n = b_face_u_normal[face_id];
         cs_math_3_normal_scaling(n, b_f_face_factor[face_id], _pi);
       }
 
-      cs_real_t bldfrp = (cs_real_t) ircflp;
+      cs_real_t bldfrp = (cs_real_t) ircflb;
       /* Local limitation of the reconstruction */
-      if (df_limiter != nullptr && ircflp > 0)
+      if (df_limiter != nullptr && ircflb > 0)
         bldfrp = cs_math_fmax(df_limiter[ii], 0.);
 
       cs_b_cd_unsteady_strided<stride>(bldfrp,
@@ -7770,7 +7728,7 @@ cs_beta_limiter_building(int                   f_id,
 
   /* Synchronize variable */
   if (halo != nullptr)
-    cs_halo_sync_var(halo, CS_HALO_STANDARD, cpro_beta);
+    cs_halo_sync(halo, CS_HALO_STANDARD, ctx.use_gpu(), cpro_beta);
 
   CS_FREE_HD(denom_inf);
   CS_FREE_HD(denom_sup);
@@ -7886,7 +7844,6 @@ cs_convection_diffusion_scalar(int                         idtvar,
       <std::chrono::microseconds>(t_stop - t_start);
     printf(", total = %ld\n", elapsed.count());
   }
-
 }
 
 /*----------------------------------------------------------------------------*/
@@ -8109,7 +8066,7 @@ cs_convection_diffusion_vector(int                         idtvar,
      or current values are provided */
 
   if (pvar != nullptr && m->halo != nullptr) {
-    cs_halo_sync_var_strided(m->halo, halo_type, (cs_real_t *)pvar, 3);
+    cs_halo_sync(m->halo, halo_type, ctx.use_gpu(), pvar);
     if (cs_glob_mesh->n_init_perio > 0)
       cs_halo_perio_sync_var_vect(m->halo, halo_type, (cs_real_t *)pvar, 3);
   }
@@ -8280,14 +8237,10 @@ cs_convection_diffusion_vector(int                         idtvar,
 
     const cs_real_t *restrict weight = fvq->weight;
     const cs_real_t *restrict i_dist = fvq->i_dist;
-    const cs_real_3_t *restrict i_face_u_normal
-      = (const cs_real_3_t *)fvq->i_face_u_normal;
-    const cs_real_t *restrict i_f_face_surf
-      = (const cs_real_t *)fvq->i_f_face_surf;
-    const cs_real_3_t *restrict b_face_u_normal
-      = (const cs_real_3_t *)fvq->b_face_u_normal;
-    const cs_real_t *restrict b_f_face_surf
-      = (const cs_real_t *)fvq->b_f_face_surf;
+    const cs_nreal_3_t *restrict i_face_u_normal = fvq->i_face_u_normal;
+    const cs_real_t *restrict i_f_face_surf = fvq->i_f_face_surf;
+    const cs_nreal_3_t *restrict b_face_u_normal = fvq->b_face_u_normal;
+    const cs_real_t *restrict b_f_face_surf = fvq->b_f_face_surf;
 
     const double thetap = eqp.theta;
 
@@ -8311,7 +8264,7 @@ cs_convection_diffusion_vector(int                         idtvar,
                         + (1.-w_f)*(grad[jj][0][0]+grad[jj][1][1]+grad[jj][2][2]);
 
       cs_real_t ipjp[3];
-      const cs_real_t *n = i_face_u_normal[face_id];
+      const cs_nreal_t *n = i_face_u_normal[face_id];
 
       /* I'J' */
       for (int i = 0; i < 3; i++)
@@ -8373,15 +8326,12 @@ cs_convection_diffusion_vector(int                         idtvar,
 
     });
 
-
-    /*Free memory */
-    CS_FREE_HD(bndcel);
-
   }
 
   ctx.wait();
 
   /* Free memory */
+  CS_FREE_HD(bndcel);
   CS_FREE_HD(grad);
 
   if (cs_glob_timer_kernels_flag > 0) {
@@ -8492,7 +8442,7 @@ cs_convection_diffusion_tensor(int                          idtvar,
      or current values are provided */
 
   if (pvar != nullptr && m->halo != nullptr) {
-    cs_halo_sync_var_strided(m->halo, halo_type, (cs_real_t *)pvar, 6);
+    cs_halo_sync(m->halo, halo_type, ctx.use_gpu(), pvar);
     if (cs_glob_mesh->n_init_perio > 0)
       cs_halo_perio_sync_var_sym_tens(m->halo, halo_type, (cs_real_t *)pvar);
   }
@@ -8733,6 +8683,7 @@ cs_anisotropic_diffusion_scalar(int                         idtvar,
   const int imrgra = eqp.imrgra;
   const cs_gradient_limit_t imligp = (cs_gradient_limit_t)(eqp.imligr);
   const int ircflp = eqp.ircflu;
+  const int ircflb = (ircflp > 0) ? eqp.b_diff_flux_rc : 0;
   const int iwarnp = eqp.verbosity;
   const int icoupl = eqp.icoupl;
   const double epsrgp = eqp.epsrgr;
@@ -9171,9 +9122,9 @@ cs_anisotropic_diffusion_scalar(int                         idtvar,
 
         cs_real_t pir = pi/relaxp - (1.-relaxp)/relaxp*pia;
 
-        cs_real_t bldfrp = (cs_real_t) ircflp;
+        cs_real_t bldfrp = (cs_real_t) ircflb;
         /* Local limitation of the reconstruction */
-        if (df_limiter != nullptr && ircflp > 0)
+        if (df_limiter != nullptr && ircflb > 0)
           bldfrp = cs_math_fmax(df_limiter[ii], 0.);
 
         /* Recompute II"
@@ -9230,9 +9181,9 @@ cs_anisotropic_diffusion_scalar(int                         idtvar,
 
         cs_real_t pi = _pvar[ii];
 
-        cs_real_t bldfrp = (cs_real_t) ircflp;
+        cs_real_t bldfrp = (cs_real_t) ircflb;
         /* Local limitation of the reconstruction */
-        if (df_limiter != nullptr && ircflp > 0)
+        if (df_limiter != nullptr && ircflb > 0)
           bldfrp = cs_math_fmax(df_limiter[ii], 0.);
 
         /* Recompute II"
@@ -9324,9 +9275,9 @@ cs_anisotropic_diffusion_scalar(int                         idtvar,
         cs_real_t pi = _pvar[ii];
         cs_real_t pj = pvar_local[jj];
 
-        cs_real_t bldfrp = (cs_real_t) ircflp;
+        cs_real_t bldfrp = (cs_real_t) ircflb;
         /* Local limitation of the reconstruction */
-        if (df_limiter != nullptr && ircflp > 0)
+        if (df_limiter != nullptr && ircflb > 0)
           bldfrp = cs_math_fmax(cs_math_fmin(df_limiter_local[ii],
                                              df_limiter[jj]),
                                 0.);
@@ -9478,6 +9429,7 @@ cs_anisotropic_left_diffusion_vector(int                         idtvar,
   const int imrgra = eqp.imrgra;
   const cs_gradient_limit_t imligp = (cs_gradient_limit_t)(eqp.imligr);
   const int ircflp = eqp.ircflu;
+  const int ircflb = (ircflp > 0) ? eqp.b_diff_flux_rc : 0;
   const int iwarnp = eqp.verbosity;
   const int icoupl = eqp.icoupl;
   const double epsrgp = eqp.epsrgr;
@@ -9504,15 +9456,11 @@ cs_anisotropic_left_diffusion_vector(int                         idtvar,
   const cs_real_t *restrict weight = fvq->weight;
   const cs_real_3_t *restrict i_f_face_normal
     = (const cs_real_3_t *)fvq->i_f_face_normal;
-  const cs_real_3_t *restrict i_face_u_normal
-    = (const cs_real_3_t *)fvq->i_face_u_normal;
+  const cs_nreal_3_t *restrict i_face_u_normal = fvq->i_face_u_normal;
   const cs_real_t *restrict i_dist = fvq->i_dist;
-  const cs_real_3_t *restrict diipf
-    = (const cs_real_3_t *)fvq->diipf;
-  const cs_real_3_t *restrict djjpf
-    = (const cs_real_3_t *)fvq->djjpf;
-  const cs_real_3_t *restrict diipb
-    = (const cs_real_3_t *)fvq->diipb;
+  const cs_rreal_3_t *restrict diipf = fvq->diipf;
+  const cs_rreal_3_t *restrict djjpf = fvq->djjpf;
+  const cs_rreal_3_t *restrict diipb = fvq->diipb;
 
   const int *bc_type = cs_glob_bc_type;
 
@@ -9779,12 +9727,12 @@ cs_anisotropic_left_diffusion_vector(int                         idtvar,
 
         cs_lnum_t cell_id = b_face_cells[face_id];
 
-        cs_real_t bldfrp = (cs_real_t) ircflp;
+        cs_real_t bldfrp = (cs_real_t) ircflb;
         /* Local limitation of the reconstruction */
-        if (df_limiter != nullptr && ircflp > 0)
+        if (df_limiter != nullptr && ircflb > 0)
           bldfrp = cs_math_fmax(df_limiter[cell_id], 0.);
 
-        const cs_real_t *diipbv = diipb[face_id];
+        const cs_rreal_t *diipbv = diipb[face_id];
         cs_real_t pipr[3];
 
         for (int k = 0; k < 3; k++) {
@@ -9826,12 +9774,12 @@ cs_anisotropic_left_diffusion_vector(int                         idtvar,
 
         cs_lnum_t cell_id = b_face_cells[face_id];
 
-        cs_real_t bldfrp = (cs_real_t) ircflp;
+        cs_real_t bldfrp = (cs_real_t) ircflb;
         /* Local limitation of the reconstruction */
-        if (df_limiter != nullptr && ircflp > 0)
+        if (df_limiter != nullptr && ircflb > 0)
           bldfrp = cs_math_fmax(df_limiter[cell_id], 0.);
 
-        cs_real_t diipbv[3];
+        cs_rreal_t diipbv[3];
 
         for (int k = 0; k < 3; k++)
           diipbv[k] = diipb[face_id][k];
@@ -9910,7 +9858,7 @@ cs_anisotropic_left_diffusion_vector(int                         idtvar,
               + (1.-pnd)*(gradv[jj][0][0]+gradv[jj][1][1]+gradv[jj][2][2]);
 
           cs_real_t ipjp[3];
-          const cs_real_t *n = i_face_u_normal[face_id];
+          const cs_nreal_t *n = i_face_u_normal[face_id];
 
           /* I'J' */
           for (int i = 0; i < 3; i++)
@@ -10019,6 +9967,7 @@ cs_anisotropic_right_diffusion_vector(int                          idtvar,
   const int imrgra = eqp.imrgra;
   const cs_gradient_limit_t imligp = (cs_gradient_limit_t)(eqp.imligr);
   const int ircflp = eqp.ircflu;
+  const int ircflb = (ircflp > 0) ? eqp.b_diff_flux_rc : 0;
   const int iwarnp = eqp.verbosity;
   const int icoupl = eqp.icoupl;
   const double epsrgp = eqp.epsrgr;
@@ -10406,9 +10355,9 @@ cs_anisotropic_right_diffusion_vector(int                          idtvar,
           pir[isou] = pi[isou]/relaxp - (1.-relaxp)/relaxp*pia[isou];
         }
 
-        cs_real_t bldfrp = (cs_real_t) ircflp;
+        cs_real_t bldfrp = (cs_real_t) ircflb;
         /* Local limitation of the reconstruction */
-        if (df_limiter != nullptr && ircflp > 0)
+        if (df_limiter != nullptr && ircflb > 0)
           bldfrp = cs_math_fmax(df_limiter[ii], 0.);
 
         /* Recompute II"
@@ -10472,9 +10421,9 @@ cs_anisotropic_right_diffusion_vector(int                          idtvar,
           pi[isou] = pvar[ii][isou];
         }
 
-        cs_real_t bldfrp = (cs_real_t) ircflp;
+        cs_real_t bldfrp = (cs_real_t) ircflb;
         /* Local limitation of the reconstruction */
-        if (df_limiter != nullptr && ircflp > 0)
+        if (df_limiter != nullptr && ircflb > 0)
           bldfrp = cs_math_fmax(df_limiter[ii], 0.);
 
         /* Recompute II"
@@ -10573,9 +10522,9 @@ cs_anisotropic_right_diffusion_vector(int                          idtvar,
           pj[isou] = pvar_local[jj][isou];
         }
 
-        cs_real_t bldfrp = (cs_real_t) ircflp;
+        cs_real_t bldfrp = (cs_real_t) ircflb;
         /* Local limitation of the reconstruction */
-        if (df_limiter != nullptr && ircflp > 0)
+        if (df_limiter != nullptr && ircflb > 0)
           bldfrp = cs_math_fmax(cs_math_fmin(df_limiter_local[ii],
                                              df_limiter[jj]),
                                 0.);
@@ -10725,6 +10674,7 @@ cs_anisotropic_diffusion_tensor(int                          idtvar,
   const int imrgra = eqp.imrgra;
   const cs_gradient_limit_t imligp = (cs_gradient_limit_t)(eqp.imligr);
   const int ircflp = eqp.ircflu;
+  const int ircflb = (ircflp > 0) ? eqp.b_diff_flux_rc : 0;
   const int iwarnp = eqp.verbosity;
   const double epsrgp = eqp.epsrgr;
   const double climgp = eqp.climgr;
@@ -11133,9 +11083,9 @@ cs_anisotropic_diffusion_tensor(int                          idtvar,
           pir[isou] = pi[isou]/relaxp - (1.-relaxp)/relaxp*pia[isou];
         }
 
-        cs_real_t bldfrp = (cs_real_t) ircflp;
+        cs_real_t bldfrp = (cs_real_t) ircflb;
         /* Local limitation of the reconstruction */
-        if (df_limiter != nullptr && ircflp > 0)
+        if (df_limiter != nullptr && ircflb > 0)
           bldfrp = cs_math_fmax(df_limiter[ii], 0.);
 
         /* Recompute II"
@@ -11197,9 +11147,9 @@ cs_anisotropic_diffusion_tensor(int                          idtvar,
           pi[isou] = _pvar[ii][isou];
         }
 
-        cs_real_t bldfrp = (cs_real_t) ircflp;
+        cs_real_t bldfrp = (cs_real_t) ircflb;
         /* Local limitation of the reconstruction */
-        if (df_limiter != nullptr && ircflp > 0)
+        if (df_limiter != nullptr && ircflb > 0)
           bldfrp = cs_math_fmax(df_limiter[ii], 0.);
 
         /* Recompute II"
@@ -11342,12 +11292,9 @@ cs_face_diffusion_potential(const int                   f_id,
     = (const cs_lnum_t *)m->b_face_cells;
   const cs_real_t *restrict i_dist = fvq->i_dist;
   const cs_real_t *restrict i_f_face_surf = fvq->i_f_face_surf;
-  const cs_real_3_t *restrict diipf
-    = (const cs_real_3_t *)fvq->diipf;
-  const cs_real_3_t *restrict djjpf
-    = (const cs_real_3_t *)fvq->djjpf;
-  const cs_real_3_t *restrict diipb
-    = (const cs_real_3_t *)fvq->diipb;
+  const cs_rreal_3_t *restrict diipf = fvq->diipf;
+  const cs_rreal_3_t *restrict djjpf = fvq->djjpf;
+  const cs_rreal_3_t *restrict diipb = fvq->diipb;
 
   /* Parallel or device dispatch */
   cs_dispatch_context ctx_i, ctx_b;
@@ -11411,7 +11358,7 @@ cs_face_diffusion_potential(const int                   f_id,
   /* Handle parallelism and periodicity */
 
   if (halo != nullptr)
-    cs_halo_sync_var(halo, halo_type, pvar);
+    cs_halo_sync(halo, halo_type, ctx_i.use_gpu(), pvar);
 
   /*==========================================================================
     2. Update mass flux without reconstruction
@@ -11438,6 +11385,9 @@ cs_face_diffusion_potential(const int                   f_id,
 
       cs_dispatch_sum(&b_massflux[face_id], b_visc[face_id]*pfac, b_sum_type);
     });
+
+    ctx_i.wait();
+    ctx_b.wait();
 
   }
 
@@ -11498,7 +11448,7 @@ cs_face_diffusion_potential(const int                   f_id,
     /* Handle parallelism and periodicity */
 
     if (halo != nullptr)
-      cs_halo_sync_var(halo, halo_type, visel);
+      cs_halo_sync(halo, halo_type, ctx_i.use_gpu(), visel);
 
     /* Mass flow through interior faces */
 
@@ -11537,11 +11487,12 @@ cs_face_diffusion_potential(const int                   f_id,
       cs_dispatch_sum(&b_massflux[face_id], b_visc[face_id]*pfac, b_sum_type);
     });
 
+    ctx_i.wait();
+    ctx_b.wait();
+
     /* Free memory */
     CS_FREE_HD(grad);
   }
-  ctx_i.wait();
-  ctx_b.wait();
 }
 
 /*----------------------------------------------------------------------------*/
@@ -11576,6 +11527,9 @@ cs_face_diffusion_potential(const int                   f_id,
  *                               - = 1 thank to the mean gradient
  * \param[in]     ircflp        indicator
  *                               - 1 flux reconstruction,
+ *                               - 0 otherwise
+ * \param[in]     ircflb        indicator
+ *                               - 1 boundary flux reconstruction,
  *                               - 0 otherwise
  * \param[in]     iphydp        indicator
  *                               - 1 hydrostatic pressure taken into account
@@ -11615,6 +11569,7 @@ cs_face_anisotropic_diffusion_potential(const int                   f_id,
                                         int                         nswrgp,
                                         int                         imligp,
                                         int                         ircflp,
+                                        int                         ircflb,
                                         int                         iphydp,
                                         int                         iwgrp,
                                         int                         iwarnp,
@@ -11935,9 +11890,9 @@ cs_face_anisotropic_diffusion_potential(const int                   f_id,
 
       double pi = pvar[ii];
 
-      cs_real_t bldfrp = (cs_real_t) ircflp;
+      cs_real_t bldfrp = (cs_real_t) ircflb;
       /* Local limitation of the reconstruction */
-      if (df_limiter != nullptr && ircflp > 0)
+      if (df_limiter != nullptr && ircflb > 0)
         bldfrp = cs_math_fmax(df_limiter[ii], 0.);
 
       /* Recompute II"
@@ -12065,12 +12020,9 @@ cs_diffusion_potential(const int                   f_id,
     = (const cs_lnum_t *)m->b_face_cells;
   const cs_real_t *restrict i_dist = fvq->i_dist;
   const cs_real_t *restrict i_f_face_surf = fvq->i_f_face_surf;
-  const cs_real_3_t *restrict diipf
-    = (const cs_real_3_t *)fvq->diipf;
-  const cs_real_3_t *restrict djjpf
-    = (const cs_real_3_t *)fvq->djjpf;
-  const cs_real_3_t *restrict diipb
-    = (const cs_real_3_t *)fvq->diipb;
+  const cs_rreal_3_t *restrict diipf = fvq->diipf;
+  const cs_rreal_3_t *restrict djjpf = fvq->djjpf;
+  const cs_rreal_3_t *restrict diipb = fvq->diipb;
 
   /* Parallel or device dispatch */
   cs_dispatch_context ctx;
@@ -12083,9 +12035,8 @@ cs_diffusion_potential(const int                   f_id,
   int mass_flux_rec_type = cs_glob_velocity_pressure_param->irecmf;
   int w_stride = 1;
 
-  cs_real_3_t *grad;
-  cs_field_t *f;
-
+  cs_field_t *f = nullptr;
+  cs_real_3_t *grad = nullptr;
   cs_real_t *gweight = nullptr;
 
   /*==========================================================================
@@ -12124,7 +12075,7 @@ cs_diffusion_potential(const int                   f_id,
   /* Handle parallelism and periodicity */
 
   if (halo != nullptr)
-    cs_halo_sync_var(halo, halo_type, pvar);
+    cs_halo_sync(halo, halo_type, ctx.use_gpu(), pvar);
 
   /*==========================================================================
     2. Update mass flux without reconstruction techniques
@@ -12175,7 +12126,7 @@ cs_diffusion_potential(const int                   f_id,
     if (iwgrp > 0) {
       gweight = visel;
       if (halo != nullptr)
-        cs_halo_sync_var(halo, halo_type, gweight);
+        cs_halo_sync(halo, halo_type, ctx.use_gpu(), gweight);
     }
 
     else if (f_id > -1) {
@@ -12229,7 +12180,7 @@ cs_diffusion_potential(const int                   f_id,
     /* Handle parallelism and periodicity */
 
     if (halo != nullptr)
-      cs_halo_sync_var(halo, halo_type, visel);
+      cs_halo_sync(halo, halo_type, ctx.use_gpu(), visel);
 
     /* Mass flow through interior faces */
 
@@ -12284,10 +12235,11 @@ cs_diffusion_potential(const int                   f_id,
 
     });
 
-    /* Free memory */
-    CS_FREE_HD(grad);
   }
   ctx.wait();
+
+  /* Free memory */
+  CS_FREE_HD(grad);
 }
 
 /*----------------------------------------------------------------------------*/
@@ -12324,6 +12276,9 @@ cs_diffusion_potential(const int                   f_id,
  *                               - = 1 thank to the mean gradient
  * \param[in]     ircflp        indicator
  *                               - 1 flux reconstruction,
+ *                               - 0 otherwise
+ * \param[in]     ircflb        indicator
+ *                               - 1 boundary flux reconstruction,
  *                               - 0 otherwise
  * \param[in]     iphydp        indicator
  *                               - 1 hydrostatic pressure taken into account
@@ -12362,6 +12317,7 @@ cs_anisotropic_diffusion_potential(const int                   f_id,
                                    int                         nswrgp,
                                    int                         imligp,
                                    int                         ircflp,
+                                   int                         ircflb,
                                    int                         iphydp,
                                    int                         iwgrp,
                                    int                         iwarnp,
@@ -12728,9 +12684,9 @@ cs_anisotropic_diffusion_potential(const int                   f_id,
 
         double pi = pvar[ii];
 
-        cs_real_t bldfrp = (cs_real_t) ircflp;
+        cs_real_t bldfrp = (cs_real_t) ircflb;
         /* Local limitation of the reconstruction */
-        if (df_limiter != nullptr && ircflp > 0)
+        if (df_limiter != nullptr && ircflb > 0)
           bldfrp = cs_math_fmax(df_limiter[ii], 0.);
 
         /* Recompute II"
@@ -12816,8 +12772,7 @@ cs_cell_courant_number(const cs_field_t    *f,
   const cs_lnum_t *cell_b_faces_idx = ma->cell_b_faces_idx;
   const cs_lnum_t *cell_b_faces = ma->cell_b_faces;
 
-  const cs_real_t *restrict vol
-    = (cs_real_t *)fvq->cell_vol;
+  const cs_real_t *restrict vol = fvq->cell_vol;
 
   const int kimasf = cs_field_key_id("inner_mass_flux_id");
   const int kbmasf = cs_field_key_id("boundary_mass_flux_id");
@@ -12826,8 +12781,7 @@ cs_cell_courant_number(const cs_field_t    *f,
   const cs_real_t *restrict b_massflux
     = cs_field_by_id( cs_field_get_key_int(f, kbmasf) )->val;
 
-  const cs_real_t *restrict dt
-    = (const cs_real_t *)CS_F_(dt)->val;
+  const cs_real_t *restrict dt = CS_F_(dt)->val;
 
   /* ---> Contribution from interior and boundary faces */
 
@@ -12991,19 +12945,13 @@ cs_upwind_gradient(const int                     f_id,
 
   const cs_lnum_t n_cells = m->n_cells;
 
-  const cs_lnum_2_t *restrict i_face_cells
-    = (const cs_lnum_2_t *)m->i_face_cells;
-  const cs_lnum_t *restrict b_face_cells
-    = (const cs_lnum_t *)m->b_face_cells;
+  const cs_lnum_2_t *restrict i_face_cells = m->i_face_cells;
+  const cs_lnum_t *restrict b_face_cells = m->b_face_cells;
   const cs_real_t *restrict cell_vol = fvq->cell_vol;
-  const cs_real_t *restrict i_face_surf
-    = (const cs_real_t *)fvq->i_face_surf;
-  const cs_real_t *restrict b_face_surf
-    = (const cs_real_t *)fvq->b_face_surf;
-  const cs_real_3_t *restrict i_face_u_normal
-    = (const cs_real_3_t *)fvq->i_face_u_normal;
-  const cs_real_3_t *restrict b_face_u_normal
-    = (const cs_real_3_t *)fvq->b_face_u_normal;
+  const cs_real_t *restrict i_face_surf = fvq->i_face_surf;
+  const cs_real_t *restrict b_face_surf = fvq->b_face_surf;
+  const cs_nreal_3_t *restrict i_face_u_normal = fvq->i_face_u_normal;
+  const cs_nreal_3_t *restrict b_face_u_normal = fvq->b_face_u_normal;
 
   /* Parallel or device dispatch */
   cs_dispatch_sum_type_t i_sum_type = ctx.get_parallel_for_i_faces_sum_type(m);

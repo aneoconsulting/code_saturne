@@ -82,9 +82,6 @@ module cs_c_bindings
   parameter (VOLUME_ZONE_SOURCE_TERM=8)
   parameter (VOLUME_ZONE_MASS_SOURCE_TERM=16)
 
-  procedure() :: csexit
-  procedure() :: cslogname
-
   !-----------------------------------------------------------------------------
 
   type, bind(c)  :: var_cal_opt
@@ -210,6 +207,17 @@ module cs_c_bindings
       type(c_ptr), value :: k_value
       type(c_ptr)        :: eqp
     end function equation_param_from_vcopt
+
+    !---------------------------------------------------------------------------
+
+    ! Interface to C exit routine function.
+
+    subroutine csexit(status) &
+      bind(C, name='cs_exit')
+      use, intrinsic :: iso_c_binding
+      implicit none
+      integer(c_int), value :: status
+    end subroutine csexit
 
     !---------------------------------------------------------------------------
 
@@ -482,59 +490,6 @@ module cs_c_bindings
 
     !---------------------------------------------------------------------------
 
-    !> \brief Calculation of \f$ u^\star \f$, \f$ k \f$ and \f$\varepsilon \f$
-    !>        from a diameter \f$ D_H \f$ and the reference velocity
-    !>        \f$ U_{ref} \f$
-    !>        for a circular duct flow with smooth wall
-    !>        (use for inlet boundary conditions).
-    !>
-    !> Both \f$ u^\star \f$ and\f$ (k,\varepsilon )\f$ are returned, so that
-    !> the user may compute other values of \f$ k \f$ and \f$ \varepsilon \f$
-    !> with \f$ u^\star \f$.
-    !>
-    !> We use the laws from Idel'Cik, i.e.
-    !> the head loss coefficient \f$ \lambda \f$ is defined by:
-    !> \f[ |\dfrac{\Delta P}{\Delta x}| =
-    !>                        \dfrac{\lambda}{D_H} \frac{1}{2} \rho U_{ref}^2 \f]
-    !>
-    !> then  the relation reads \f$u^\star = U_{ref} \sqrt{\dfrac{\lambda}{8}}\f$.
-    !> \f$\lambda \f$ depends on the hydraulic Reynolds number
-    !> \f$ Re = \dfrac{U_{ref} D_H}{ \nu} \f$ and is given by:
-    !>  - for \f$ Re < 2000 \f$
-    !>      \f[ \lambda = \dfrac{64}{Re} \f]
-    !>
-    !>  - for \f$ Re > 4000 \f$
-    !>      \f[ \lambda = \dfrac{1}{( 1.8 \log_{10}(Re)-1.64 )^2} \f]
-    !>
-    !>  - for \f$ 2000 < Re < 4000 \f$, we complete by a straight line
-    !>      \f[ \lambda = 0.021377 + 5.3115. 10^{-6} Re \f]
-    !>
-    !>  From \f$ u^\star \f$, we can estimate \f$ k \f$ and \f$ \varepsilon\f$
-    !>  from the well known formulae of developped turbulence
-    !>
-    !> \f[ k = \dfrac{u^{\star 2}}{\sqrt{C_\mu}} \f]
-    !> \f[ \varepsilon = \dfrac{ u^{\star 3}}{(\kappa D_H /10)} \f]
-    !>
-    !> \param[in]     uref2         square of the reference flow velocity
-    !> \param[in]     dh            hydraulic diameter \f$ D_H \f$
-    !> \param[in]     rho           mass density \f$ \rho \f$
-    !> \param[in]     mu            dynamic viscosity \f$ \nu \f$
-    !> \param[out]    ustar2        square of friction speed
-    !> \param[out]    k             calculated turbulent intensity \f$ k \f$
-    !> \param[out]    eps           calculated turbulent dissipation
-    !>                               \f$ \varepsilon \f$
-
-    subroutine turbulence_bc_ke_hyd_diam(uref2, dh, rho, mu,                   &
-                                         ustar2, k, eps)                       &
-      bind(C, name='cs_turbulence_bc_ke_hyd_diam')
-      use, intrinsic :: iso_c_binding
-      implicit none
-      real(c_double), value :: uref2, dh, rho, mu
-      real(c_double) :: ustar2, k, eps
-    end subroutine turbulence_bc_ke_hyd_diam
-
-    !---------------------------------------------------------------------------
-
     !> \brief Calculation of \f$ k \f$ and \f$\varepsilon\f$
     !>        from a diameter \f$ D_H \f$, a turbulent intensity \f$ I \f$
     !>        and the reference velocity \f$ U_{ref} \f$
@@ -578,127 +533,6 @@ module cs_c_bindings
 
     !---------------------------------------------------------------------------
 
-    !> \brief Set inlet boundary condition values for turbulence variables based
-    !>        on a diameter \f$ D_H \f$ and the reference velocity
-    !>        \f$ U_{ref} \f$
-    !>        for a circular duct flow with smooth wall.
-    !>
-    !> We use the laws from Idel'Cik, i.e.
-    !> the head loss coefficient \f$ \lambda \f$ is defined by:
-    !> \f[ |\dfrac{\Delta P}{\Delta x}| =
-    !>                        \dfrac{\lambda}{D_H} \frac{1}{2} \rho U_{ref}^2 \f]
-    !>
-    !> then  the relation reads \f$u^\star = U_{ref} \sqrt{\dfrac{\lambda}{8}}\f$.
-    !> \f$\lambda \f$ depends on the hydraulic Reynolds number
-    !> \f$ Re = \dfrac{U_{ref} D_H}{ \nu} \f$ and is given by:
-    !>  - for \f$ Re < 2000 \f$
-    !>      \f[ \lambda = \dfrac{64}{Re} \f]
-    !>
-    !>  - for \f$ Re > 4000 \f$
-    !>      \f[ \lambda = \dfrac{1}{( 1.8 \log_{10}(Re)-1.64 )^2} \f]
-    !>
-    !>  - for \f$ 2000 < Re < 4000 \f$, we complete by a straight line
-    !>      \f[ \lambda = 0.021377 + 5.3115. 10^{-6} Re \f]
-    !>
-    !>  From \f$ u^\star \f$, we can estimate \f$ k \f$ and \f$ \varepsilon\f$
-    !>  from the well known formulae of developped turbulence
-    !>
-    !> \f[ k = \dfrac{u^{\star 2}}{\sqrt{C_\mu}} \f]
-    !> \f[ \varepsilon = \dfrac{ u^{\star 3}}{(\kappa D_H /10)} \f]
-    !>
-    !> \param[in]     face_num   boundary face number
-    !> \param[in]     uref2      square of the reference flow velocity
-    !> \param[in]     dh         hydraulic diameter \f$ D_H \f$
-    !> \param[in]     rho        mass density \f$ \rho \f$
-    !> \param[in]     mu         dynamic viscosity \f$ \nu \f$
-    !> \param[out]    rcodcl     boundary condition values
-
-    subroutine turbulence_bc_inlet_hyd_diam(face_num, uref2, dh, rho, mu,      &
-                                            rcodcl)                            &
-      bind(C, name='cs_f_turbulence_bc_inlet_hyd_diam')
-      use, intrinsic :: iso_c_binding
-      implicit none
-      integer(c_int), value :: face_num
-      real(c_double), value :: uref2, dh, rho, mu
-      real(kind=c_double), dimension(*) :: rcodcl
-    end subroutine turbulence_bc_inlet_hyd_diam
-
-    !---------------------------------------------------------------------------
-
-    !> \brief Set inlet boundary condition values for turbulence variables based
-    !>        on a diameter \f$ D_H \f$, a turbulent intensity \f$ I \f$
-    !>        and the reference velocity \f$ U_{ref} \f$
-    !>        for a circular duct flow with smooth wall.
-    !>
-    !> \param[in]     face_id       boundary face id
-    !> \param[in]     uref2         square of the reference flow velocity
-    !> \param[in]     t_intensity   turbulent intensity \f$ I \f$
-    !> \param[in]     dh            hydraulic diameter \f$ D_H \f$
-    !> \param[out]    rcodcl        boundary condition values
-
-    subroutine turbulence_bc_inlet_turb_intensity(face_num,                    &
-                                                  uref2, t_intensity, dh,      &
-                                                  rcodcl)                      &
-      bind(C, name='cs_f_turbulence_bc_inlet_turb_intensity')
-      use, intrinsic :: iso_c_binding
-      implicit none
-      integer(c_int), value :: face_num
-      real(c_double), value :: uref2, t_intensity, dh
-      real(kind=c_double), dimension(*) :: rcodcl
-    end subroutine turbulence_bc_inlet_turb_intensity
-
-    !---------------------------------------------------------------------------
-
-    !> \brief Set inlet boundary condition values for turbulence variables based
-    !>        on given k and epsilon values.
-    !>
-    !> \param[in]     face_id       boundary face id
-    !> \param[in]     k             turbulent kinetic energy
-    !> \param[in]     epsilon       turbulent dissipation
-    !> \param[out]    rcodcl        boundary condition values
-
-    subroutine turbulence_bc_inlet_k_eps(face_num,                             &
-                                         k, eps,                               &
-                                         vel_dir, shear_dir,                   &
-                                         rcodcl)                               &
-      bind(C, name='cs_f_turbulence_bc_inlet_k_eps')
-      use, intrinsic :: iso_c_binding
-      implicit none
-      integer(c_int), value :: face_num
-      real(c_double), value :: k, eps
-      real(kind=c_double), dimension(3) :: vel_dir
-      real(kind=c_double), dimension(3) :: shear_dir
-      real(kind=c_double), dimension(*) :: rcodcl
-    end subroutine turbulence_bc_inlet_k_eps
-
-    !---------------------------------------------------------------------------
-
-    !> \brief Set inlet boundary condition values for turbulence variables based
-    !>        on given k and epsilon values only if not initialized already.
-    !>
-    !> \param[in]     face_id       boundary face id
-    !> \param[in]     k             turbulent kinetic energy
-    !> \param[in]     epsilon       turbulent dissipation
-    !> \param[in]     vel_dir       velocity direction
-    !> \param[in]     shear_dir     shear direction
-    !> \param[out]    rcodcl        boundary condition values
-
-    subroutine turbulence_bc_set_uninit_inlet_k_eps(face_num,                  &
-                                                    k, eps,                    &
-                                                    vel_dir, shear_dir,        &
-                                                    rcodcl)                    &
-      bind(C, name='cs_f_turbulence_bc_set_uninit_inlet_k_eps')
-      use, intrinsic :: iso_c_binding
-      implicit none
-      integer(c_int), value :: face_num
-      real(c_double), value :: k, eps
-      real(kind=c_double), dimension(3) :: vel_dir
-      real(kind=c_double), dimension(3) :: shear_dir
-      real(kind=c_double), dimension(*) :: rcodcl
-    end subroutine turbulence_bc_set_uninit_inlet_k_eps
-
-    !---------------------------------------------------------------------------
-
     !> \brief Compute molar and mass fractions of elementary species Ye, Xe
     !>  (fuel, O2, CO2, H2O, N2) from global species Yg (fuel, oxidant, products)
 
@@ -713,26 +547,6 @@ module cs_c_bindings
       real(kind=c_double), dimension(*) :: yg
       real(kind=c_double), dimension(*), intent(out) :: ye, xe
     end subroutine yg2xye
-
-    !---------------------------------------------------------------------------
-
-    !> \brief  General user parameters
-
-    subroutine user_parameters()  &
-      bind(C, name='cs_user_parameters_wrapper')
-      use, intrinsic :: iso_c_binding
-      implicit none
-    end subroutine user_parameters
-
-    !---------------------------------------------------------------------------
-
-    !> \brief  General user parameters
-
-    subroutine user_porosity()  &
-      bind(C, name='cs_user_porosity_wrapper')
-      use, intrinsic :: iso_c_binding
-      implicit none
-    end subroutine user_porosity
 
     !---------------------------------------------------------------------------
 
@@ -830,18 +644,6 @@ module cs_c_bindings
 
     !---------------------------------------------------------------------------
 
-    ! Interface to C function initializing condensation-related field key.
-
-    function cs_gas_mix_get_field_key()  &
-      result(k_id) &
-      bind(C, name='cs_gas_mix_get_field_key')
-      use, intrinsic :: iso_c_binding
-      implicit none
-      integer(c_int) :: k_id
-    end function cs_gas_mix_get_field_key
-
-    !---------------------------------------------------------------------------
-
     ! Interface to C function
     !> \brief Get reference value of a physical property
 
@@ -893,82 +695,6 @@ module cs_c_bindings
     !---------------------------------------------------------------------------
 
     ! Interface to C function
-    !> \brief Get property reference values for a given zone
-
-    !> \param[in] name    property name
-    !> \param[in] zname   zone name
-    !> \param[in] retval  array of values to return
-
-    subroutine cs_physical_property_get_zone_values(name, zname, retval) &
-      bind(C, name='cs_physical_property_get_zone_values')
-      use, intrinsic :: iso_c_binding
-      implicit none
-      character(kind=c_char, len=1), dimension(*), intent(in) :: name
-      character(kind=c_char, len=1), dimension(*), intent(in) :: zname
-      real(kind=c_double), dimension(*), intent(out)          :: retval
-    end subroutine cs_physical_property_get_zone_values
-
-    !---------------------------------------------------------------------------
-
-    ! Interface to C function
-    !> \brief Update reference values for a property on a given zone
-
-    !> \param[in] name   property name
-    !> \param[in] zname  zone name
-    !> \param[in] vals   array of values to set
-
-    subroutine cs_physical_property_update_zone_values(name, zname, vals) &
-      bind(C, name='cs_physical_property_update_zone_values')
-      use, intrinsic :: iso_c_binding
-      implicit none
-      character(kind=c_char, len=1), dimension(*), intent(in) :: name
-      character(kind=c_char, len=1), dimension(*), intent(in) :: zname
-      real(kind=c_double), dimension(*), intent(in)           :: vals
-    end subroutine cs_physical_property_update_zone_values
-
-    !---------------------------------------------------------------------------
-
-    ! Interface to C function
-    !> \brief Add a property definition on a given zone using a single value
-
-    !> \param[in] name   property name
-    !> \param[in] zname  zone name
-    !> \param[in] dim    property dimension
-    !> \param[in] val    reference value for the zone
-
-    subroutine cs_physical_property_define_from_value(name, zname, dim, val) &
-      bind(C, name='cs_physical_property_define_from_value')
-      use, intrinsic :: iso_c_binding
-      implicit none
-      character(kind=c_char, len=1), dimension(*), intent(in) :: name
-      character(kind=c_char, len=1), dimension(*), intent(in) :: zname
-      integer(c_int), value                                   :: dim
-      real(kind=c_double), value, intent(in)                  :: val
-    end subroutine cs_physical_property_define_from_value
-
-    !---------------------------------------------------------------------------
-
-    ! Interface to C function
-    !> \brief Add a property multi-diemnsional definition on a given zone
-
-    !> \param[in] name   property name
-    !> \param[in] zname  zone name
-    !> \param[in] dim    property dimension (>1)
-    !> \param[in] vals   array of values to set
-
-    subroutine cs_physical_property_define_from_values(name, zname, dim, vals) &
-      bind(C, name='cs_physical_property_define_from_values')
-      use, intrinsic :: iso_c_binding
-      implicit none
-      character(kind=c_char, len=1), dimension(*), intent(in) :: name
-      character(kind=c_char, len=1), dimension(*), intent(in) :: zname
-      integer(c_int), value                                   :: dim
-      real(kind=c_double), dimension(*), intent(in)           :: vals
-    end subroutine cs_physical_property_define_from_values
-
-    !---------------------------------------------------------------------------
-
-    ! Interface to C function
     !> \brief Add a property definition based on a cs_field_t. Field is created if needed
 
     !> \param[in] name          property name
@@ -1008,30 +734,6 @@ module cs_c_bindings
 
     !---------------------------------------------------------------------------
 
-    ! Interface to C function for uniform distribution random number
-
-    subroutine cs_random_uniform(n, a) &
-      bind(C, name='cs_random_uniform')
-      use, intrinsic :: iso_c_binding
-      implicit none
-      integer(c_int), intent(in), value :: n
-      real(kind=c_double), dimension(*), intent(out) :: a
-    end subroutine cs_random_uniform
-
-    !---------------------------------------------------------------------------
-
-    ! Interface to C function for normal distribution random number
-
-    subroutine cs_random_normal(n, x) &
-      bind(C, name='cs_random_normal')
-      use, intrinsic :: iso_c_binding
-      implicit none
-      integer(c_int), intent(in), value :: n
-      real(kind=c_double), dimension(*), intent(out) :: x
-    end subroutine cs_random_normal
-
-    !---------------------------------------------------------------------------
-
     ! Interface to C function which returns if the restart is from NEPTUNE_CFD
     function cs_restart_present() result(flag) &
       bind(C, name='cs_restart_present')
@@ -1039,41 +741,6 @@ module cs_c_bindings
       implicit none
       integer(c_int) :: flag
     end function cs_restart_present
-
-    !---------------------------------------------------------------------------
-
-    ! Interface to C function to check field read status from checkpoint file
-
-    function cs_restart_get_field_read_status(f_id) result(retval) &
-      bind(C, name='cs_restart_get_field_read_status')
-      use, intrinsic :: iso_c_binding
-      implicit none
-      integer(c_int), value :: f_id
-      integer(c_int)        :: retval
-    end function cs_restart_get_field_read_status
-
-    !---------------------------------------------------------------------------
-
-    ! Interface to C function incrementing time step
-
-    subroutine cs_time_step_update_dt(dt) &
-      bind(C, name='cs_time_step_update_dt')
-      use, intrinsic :: iso_c_binding
-      implicit none
-      real(kind=c_double), value :: dt
-    end subroutine cs_time_step_update_dt
-
-    !---------------------------------------------------------------------------
-
-    ! Interface to C function obtaining a defined statistic based on its name.
-
-    function cs_timer_stats_id_by_name(name) result(id) &
-      bind(C, name='cs_timer_stats_id_by_name')
-      use, intrinsic :: iso_c_binding
-      implicit none
-      character(kind=c_char, len=1), dimension(*), intent(in)  :: name
-      integer(c_int)                                           :: id
-    end function cs_timer_stats_id_by_name
 
     !---------------------------------------------------------------------------
 
@@ -1151,37 +818,6 @@ module cs_c_bindings
       character(kind=c_char, len=1), dimension(*), intent(in) :: scalar_name
       real(kind=c_double), dimension(3), intent(in) :: normal
     end subroutine cs_surface_balance
-
-    !---------------------------------------------------------------------------
-
-    ! Interface to C user function for boundary conditions
-
-    subroutine user_boundary_conditions(bc_type)  &
-      bind(C, name='cs_user_boundary_conditions_wrapper')
-      use, intrinsic :: iso_c_binding
-      implicit none
-      integer(kind=c_int), dimension(*), intent(inout) :: bc_type
-    end subroutine user_boundary_conditions
-
-    !---------------------------------------------------------------------------
-
-    ! Interface to C user function for extra operations
-
-    subroutine user_extra_operations_initialize()  &
-      bind(C, name='cs_user_extra_operations_initialize_wrapper')
-      use, intrinsic :: iso_c_binding
-      implicit none
-    end subroutine user_extra_operations_initialize
-
-    !---------------------------------------------------------------------------
-
-    ! Interface to C user function for initialization
-
-    subroutine user_initialization()  &
-      bind(C, name='cs_user_initialization_wrapper')
-      use, intrinsic :: iso_c_binding
-      implicit none
-    end subroutine user_initialization
 
     !---------------------------------------------------------------------------
 
@@ -1278,27 +914,6 @@ module cs_c_bindings
 
     !---------------------------------------------------------------------------
 
-    !> \brief Sets the chemistry concentration file name
-
-    subroutine cs_atmo_set_chem_conc_file_name(name) &
-      bind(C, name='cs_atmo_set_chem_conc_file_name')
-      use, intrinsic :: iso_c_binding
-      implicit none
-      character(kind=c_char, len=1), dimension(*), intent(in) :: name
-    end subroutine cs_atmo_set_chem_conc_file_name
-
-
-    !> \brief Sets the file name used to initialize the aerosol shared library
-
-    subroutine cs_atmo_chemistry_set_aerosol_file_name(name) &
-      bind(C, name='cs_atmo_chemistry_set_aerosol_file_name')
-      use, intrinsic :: iso_c_binding
-      implicit none
-      character(kind=c_char, len=1), dimension(*), intent(in) :: name
-    end subroutine cs_atmo_chemistry_set_aerosol_file_name
-
-    !---------------------------------------------------------------------------
-
     ! Interface to C function for atmo
 
     subroutine raysze(xlat, xlong, jour, heurtu, imer, albe, za, muzero, omega, fo) &
@@ -1348,28 +963,6 @@ module cs_c_bindings
 
     ! Interface to C function for cooling towers
 
-    subroutine cs_ctwr_init_field_vars(rho0, t0, p0, molmassrat)           &
-      bind(C, name='cs_ctwr_init_field_vars')
-      use, intrinsic :: iso_c_binding
-      implicit none
-      real(kind=c_double), value :: rho0, t0, p0, molmassrat
-    end subroutine cs_ctwr_init_field_vars
-
-    !---------------------------------------------------------------------------
-
-    ! Interface to C function for cooling towers
-
-    subroutine cs_ctwr_restart_field_vars(rho0, t0, p0, humidity0, molmassrat)  &
-      bind(C, name='cs_ctwr_restart_field_vars')
-      use, intrinsic :: iso_c_binding
-      implicit none
-      real(kind=c_double), value :: rho0, t0, p0, humidity0, molmassrat
-    end subroutine cs_ctwr_restart_field_vars
-
-    !---------------------------------------------------------------------------
-
-    ! Interface to C function for cooling towers
-
     subroutine cs_ctwr_phyvar_update(rho0, t0, p0)             &
       bind(C, name='cs_ctwr_phyvar_update')
       use, intrinsic :: iso_c_binding
@@ -1378,75 +971,6 @@ module cs_c_bindings
     end subroutine cs_ctwr_phyvar_update
 
     !---------------------------------------------------------------------------
-
-    ! Interface to C function for cooling towers
-
-    subroutine cs_ctwr_init_flow_vars(liq_mass_flow)                         &
-      bind(C, name='cs_ctwr_init_flow_vars')
-      use, intrinsic :: iso_c_binding
-      implicit none
-      real(kind=c_double), dimension(*), intent(inout) :: liq_mass_flow
-    end subroutine cs_ctwr_init_flow_vars
-
-    !---------------------------------------------------------------------------
-
-    ! Interface to C function for atmospheric module
-
-    subroutine cs_atmo_phyvar_update()             &
-      bind(C, name='cs_atmo_phyvar_update')
-      use, intrinsic :: iso_c_binding
-      implicit none
-    end subroutine cs_atmo_phyvar_update
-
-    !---------------------------------------------------------------------------
-
-    ! Interface to C function for head losses
-
-    subroutine cs_head_losses_compute(ckupdc)  &
-      bind(C, name='cs_head_losses_compute')
-      use, intrinsic :: iso_c_binding
-      implicit none
-      real(kind=c_double), dimension(*) :: ckupdc
-    end subroutine cs_head_losses_compute
-
-    !---------------------------------------------------------------------------
-
-    ! Interface to C function cs_f_math_sym_33_product
-
-    subroutine symmetric_matrix_product(s1, s2, sout)               &
-      bind(C, name='cs_f_math_sym_33_product')
-      use, intrinsic :: iso_c_binding
-      implicit none
-      real(kind=c_double), dimension(*), intent(in) :: s1, s2
-      real(kind=c_double), dimension(*), intent(out) :: sout
-    end subroutine symmetric_matrix_product
-
-    !---------------------------------------------------------------------------
-
-    ! Interface to C function cs_f_math_reduce_symprod33_to_66
-
-    subroutine reduce_symprod33_to_66(s, sout)                      &
-      bind(C, name='cs_f_math_reduce_sym_prod_33_to_66')
-      use, intrinsic :: iso_c_binding
-      implicit none
-      real(kind=c_double), dimension(*), intent(in) :: s
-      real(kind=c_double), dimension(*), intent(out) :: sout
-    end subroutine reduce_symprod33_to_66
-
-    !---------------------------------------------------------------------------
-
-    ! Interface to C function cs_math_sym_33_eigen
-
-    subroutine calc_symtens_eigvals(m, eig_vals)                   &
-      bind(C, name='cs_math_sym_33_eigen')
-      use, intrinsic :: iso_c_binding
-      implicit none
-      real(kind=c_double), dimension(*), intent(in) :: m
-      real(kind=c_double), dimension(*), intent(out) :: eig_vals
-    end subroutine calc_symtens_eigvals
-
-    !---------------------------------------------------------------------------
-
 
     ! Interface to C function cs_math_3_normalize
 
@@ -1612,18 +1136,6 @@ module cs_c_bindings
       character(kind=c_char, len=1), dimension(*), intent(in)  :: name
       real(kind=c_double) :: val
     end function cs_f_notebook_parameter_value_by_name
-
-    !---------------------------------------------------------------------------
-
-    ! Interface to C function returning 1 for active cells
-
-    function cs_f_porous_model_cell_is_active(cell_id) result(is_active) &
-      bind(C, name='cs_f_porous_model_cell_is_active')
-      use, intrinsic :: iso_c_binding
-      implicit none
-      integer(c_int), value :: cell_id
-      integer(kind=c_int) :: is_active
-    end function cs_f_porous_model_cell_is_active
 
     !---------------------------------------------------------------------------
 
@@ -2151,62 +1663,6 @@ contains
 
   !=============================================================================
 
-  !> \brief Get field checkpoint read status. Returns 1 if field was read, 0
-  !         otherwise.
-
-  !> \param[in]  f_id     field id
-  !> \param[out] retval   return value. 1 f field was read, 0 otherwise
-
-  subroutine restart_get_field_read_status(f_id, retval)
-    use, intrinsic :: iso_c_binding
-    implicit none
-
-    ! Arguments
-
-    integer, intent(in)  :: f_id
-    integer, intent(out) :: retval
-
-    ! Local variables
-    integer(c_int) :: c_f_id, c_retval
-    c_f_id = f_id
-
-    c_retval = cs_restart_get_field_read_status(c_f_id)
-    retval = c_retval
-
-  end subroutine restart_get_field_read_status
-
-  !=============================================================================
-
-  !> \brief Return the id of a defined statistic based on its name.
-
-  !> If no timer with the given name exists, -1 is returned.
-
-  !> \param[in]   name   statistic name
-
-  function timer_stats_id_by_name(name) result(id)
-
-    use, intrinsic :: iso_c_binding
-    implicit none
-
-    ! Arguments
-
-    character(len=*), intent(in) :: name
-    integer :: id
-
-    ! Local variables
-
-    character(len=len_trim(name)+1, kind=c_char) :: c_name
-    integer(c_int) :: c_id
-
-    c_name = trim(name)//c_null_char
-
-    c_id = cs_timer_stats_id_by_name(c_name)
-    id = c_id
-
-  end function timer_stats_id_by_name
-
-  !=============================================================================
-
   !> \brief  Wrapper to Fortran user boundary condition definitions.
 
   !> \param[in, out]  bc_type  boundary face types
@@ -2238,6 +1694,38 @@ contains
           (nvar, nscal, icodcl, c_null_ptr, itypfb, izfppp, dt, rcodcl)
 
   end subroutine user_f_boundary_conditions
+
+  !=============================================================================
+
+  !> \brief  Wrapper to Fortran user initialization definitions.
+
+  !> \param[in, out]  bc_type  boundary face types
+
+  subroutine user_f_initialization(dt)  &
+    bind(C, name='cs_f_user_initialization_wrapper')
+
+    use dimens
+    use, intrinsic :: iso_c_binding
+    implicit none
+
+    ! Arguments
+
+    real(c_double), dimension(*), intent(in) :: dt
+
+    ! Externals
+
+    procedure() :: cs_f_user_initialization
+
+    ! Local variables
+
+    integer, pointer, dimension(:,:) :: icodcl
+    double precision, pointer, dimension(:,:,:) :: rcodcl
+
+    call field_build_bc_codes_all(icodcl, rcodcl) ! Get map
+
+    call cs_user_f_initialization(nvar, nscal, dt)
+
+  end subroutine user_f_initialization
 
   !=============================================================================
 
@@ -2353,56 +1841,6 @@ contains
 
   !=============================================================================
 
-  !> \brief  Add a CDO field defining a general solved variable, with default
-  !>         options.
-
-  !> \param[in]  name           field name
-  !> \param[in]  label          field default label, or empty
-  !> \param[in]  location_id    field location type:
-  !>                              0: none
-  !>                              1: cells
-  !>                              2: interior faces
-  !>                              3: interior faces
-  !>                              4: vertices
-  !> \param[in]  dim            field dimension
-  !> \param[in]  has_previous   if greater than 1 then store previous state
-  !> \param[out] id             id of defined field
-
-  subroutine variable_cdo_field_create(name, label, location_id, dim, &
-                                       has_previous, id)
-
-    use, intrinsic :: iso_c_binding
-    implicit none
-
-    ! Arguments
-
-    character(len=*), intent(in) :: name, label
-    integer, intent(in)          :: location_id, dim, has_previous
-    integer, intent(out)         :: id
-
-    ! Local variables
-
-    character(len=len_trim(name)+1, kind=c_char) :: c_name
-    character(len=len_trim(label)+1, kind=c_char) :: c_label
-    integer(c_int) :: c_location_id, c_dim, c_has_previous, c_id
-
-    c_name = trim(name)//c_null_char
-    c_label = trim(label)//c_null_char
-    c_location_id = location_id
-    c_dim = dim
-    c_has_previous = has_previous;
-
-    c_id = cs_variable_cdo_field_create(c_name, c_label, c_location_id, &
-                                        c_dim, c_has_previous)
-
-    id = c_id
-
-    return
-
-  end subroutine variable_cdo_field_create
-
-  !=============================================================================
-
   !> \brief Return notebook parameter value
 
   !> \param[in]     name      name of the notebook parameter
@@ -2429,83 +1867,6 @@ contains
     val = c_val
 
   end function notebook_parameter_value_by_name
-
-  !=============================================================================
-
-  !> \brief Indicate of a cell is active fo the current variable
-
-  !> \param[in]     iel       cell number (cell_id + 1)
-  !> \result        is_active
-
-  function cell_is_active(iel) result(is_active)
-
-    use, intrinsic :: iso_c_binding
-    implicit none
-
-    ! Arguments
-
-    integer :: iel
-    integer :: is_active
-
-    ! Local variables
-
-    integer(kind=c_int) :: c_cell_id
-    integer(kind=c_int) :: c_is_active
-
-
-    c_cell_id = iel - 1
-    c_is_active = cs_f_porous_model_cell_is_active(c_cell_id)
-    is_active = c_is_active
-
-  end function cell_is_active
-
-  !=============================================================================
-
-  !> \brief Sets the chemistry concentration file name
-
-  !> \param[in]     name      name of the file
-
-  subroutine atmo_set_chem_conc_file_name(name)
-
-    use, intrinsic :: iso_c_binding
-    implicit none
-
-    ! Arguments
-
-    character(len=*), intent(in) :: name
-
-    ! Local variables
-
-    character(len=len_trim(name)+1, kind=c_char) :: c_name
-
-    c_name = trim(name)//c_null_char
-    call cs_atmo_set_chem_conc_file_name(c_name)
-
-  end subroutine atmo_set_chem_conc_file_name
-
-  !=============================================================================
-
-  !> \brief Sets the file name used to initialize the aerosol shared library
-
-  !> \param[in]     name      name of the file
-
-  subroutine atmo_chemistry_set_aerosol_file_name(name)
-
-    use, intrinsic :: iso_c_binding
-    implicit none
-
-    ! Arguments
-
-    character(len=*), intent(in) :: name
-
-    ! Local variables
-
-    character(len=len_trim(name)+1, kind=c_char) :: c_name
-
-    c_name = trim(name)//c_null_char
-    call cs_atmo_chemistry_set_aerosol_file_name(c_name)
-
-  end subroutine atmo_chemistry_set_aerosol_file_name
 
   !=============================================================================
   !> brief Clipping scalar field.

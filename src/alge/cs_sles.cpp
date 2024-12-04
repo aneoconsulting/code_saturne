@@ -314,9 +314,9 @@ struct _cs_sles_t {
 
   int                       f_id;          /* matching field id, or < 0 */
 
-  const char               *name;          /* name if f_id < 0, or nullptr */
+  const char               *name;          /* name if f_id < 0, or null */
   char                     *_name;         /* private name if f_id < 0,
-                                              or nullptr */
+                                              or null */
 
   int                       verbosity;     /* verbosity level */
 
@@ -779,7 +779,7 @@ _value_type(size_t     n_vals,
 
   for (ii = 0; ii < n_vals; ii++) {
 
-    if (val[ii] != val[ii]) { /* Test for NaN with IEEE 754 arithmetic */
+    if (isnan(val[ii])) { /* Test for NaN with IEEE 754 arithmetic */
       val[ii] = 0.;
       val_type[ii] = 2;
       retval += 1;
@@ -1161,7 +1161,7 @@ cs_sles_log(cs_log_t  log_type)
  * \brief Return pointer to linear system object, based on matching field id or
  *        system name.
  *
- * If this system did not previously exist, nullptr is returned.
+ * If this system did not previously exist, a null pointer is returned.
  *
  * \param[in]  f_id  associated field id, or < 0
  * \param[in]  name  associated name if f_id < 0, or nullptr

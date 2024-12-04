@@ -106,7 +106,6 @@ BEGIN_C_DECLS
 #define CS_EQUATION_BUILD_HOOK     (1 <<  9)  /*  512 */
 #define CS_EQUATION_USER_TRIGGERED (1 << 10)  /* 1024 */
 
-
 /*!
  * @}
  * @name Flags specifying which extra operation related to an equation is
@@ -451,6 +450,17 @@ typedef struct {
    * Type of boundary gradient reconstruction
    * Same codes as for \ref imrgra
    * (default is 2: least-squares, using extended neighborhood if available)
+   *
+   * \var b_diff_flux_rc
+   * Indicate whether the fluxes (convective and diffusive) and boundary conditions
+   * at the faces should be reconstructed:
+   * - 0: no reconstruction
+   * - 1: reconstruction
+   * - Finer-grained limiters may be added in the future.
+   * Deactivating the reconstruction of the fluxes can have a stabilizing
+   * effect on the calculation, and help follow the maximum principal, with less
+   * degradation of the global precision than deactivating the reconstruction
+   * on the volume mesh.
   */
 
   int iconv;
@@ -485,6 +495,7 @@ typedef struct {
   double relaxv;
 
   int  b_gradient_r;
+  int  b_diff_flux_rc;
 
   /*!
    * @}
@@ -1619,7 +1630,7 @@ cs_equation_param_clear(cs_equation_param_t *eqp);
  *
  * \param[in] eqp  pointer to a \ref cs_equation_param_t
  *
- * \return a NULL pointer
+ * \return a null pointer
  */
 /*----------------------------------------------------------------------------*/
 
@@ -1813,7 +1824,7 @@ cs_equation_add_ic_by_value(cs_equation_param_t *eqp,
  *        returns the requested quantity
  *
  * \param[in, out] eqp       pointer to a cs_equation_param_t structure
- * \param[in]      z_name    name of the associated zone (if NULL or "" all
+ * \param[in]      z_name    name of the associated zone (if null or "" all
  *                           cells are considered)
  * \param[in]      quantity  quantity to distribute over the mesh location
  *
@@ -1835,10 +1846,10 @@ cs_equation_add_ic_by_qov(cs_equation_param_t *eqp,
  *        name z_name is set according to an analytical function
  *
  * \param[in, out] eqp       pointer to a cs_equation_param_t structure
- * \param[in]      z_name    name of the associated zone (if NULL or "" if
+ * \param[in]      z_name    name of the associated zone (if null or "" if
  *                           all cells are considered)
  * \param[in]      analytic  pointer to an analytic function
- * \param[in]      input     NULL or pointer to a structure cast on-the-fly
+ * \param[in]      input     null or pointer to a structure cast on-the-fly
  *
  * \return a pointer to the new \ref cs_xdef_t structure
  */
@@ -1858,11 +1869,11 @@ cs_equation_add_ic_by_analytic(cs_equation_param_t *eqp,
  *        Case of a definition by a DoF function.
  *
  * \param[in, out] eqp       pointer to a cs_equation_param_t structure
- * \param[in]      z_name    name of the associated zone (if NULL or "" if
+ * \param[in]      z_name    name of the associated zone (if null or "" if
  *                           all cells are considered)
  * \param[in]      loc_flag  where information is computed
  * \param[in]      func      pointer to a DoF function
- * \param[in]      input     NULL or pointer to a structure cast on-the-fly
+ * \param[in]      input     null or pointer to a structure cast on-the-fly
  *
  * \return a pointer to the new \ref cs_xdef_t structure
  */
@@ -1972,10 +1983,10 @@ cs_equation_add_bc_by_field(cs_equation_param_t      *eqp,
  *
  * \param[in, out] eqp       pointer to a cs_equation_param_t structure
  * \param[in]      bc_type   type of boundary condition to add
- * \param[in]      z_name    name of the associated zone (if NULL or "" if
+ * \param[in]      z_name    name of the associated zone (if null or "" if
  *                           all cells are considered)
  * \param[in]      analytic  pointer to an analytic function defining the value
- * \param[in]      input     NULL or pointer to a structure cast on-the-fly
+ * \param[in]      input     null or pointer to a structure cast on-the-fly
  *
  * \return a pointer to the new \ref cs_xdef_t structure
 */
@@ -1997,10 +2008,10 @@ cs_equation_add_bc_by_analytic(cs_equation_param_t      *eqp,
  *
  * \param[in, out] eqp      pointer to a cs_equation_param_t structure
  * \param[in]      bc_type  type of boundary condition to add
- * \param[in]      z_name   name of the associated zone (if NULL or "" if
+ * \param[in]      z_name   name of the associated zone (if null or "" if
  *                          all cells are considered)
  * \param[in]      t_func   pointer to an analytic function defining the value
- * \param[in]      input    NULL or pointer to a structure cast on-the-fly
+ * \param[in]      input    null or pointer to a structure cast on-the-fly
  *
  * \return a pointer to the new \ref cs_xdef_t structure
 */
@@ -2021,11 +2032,11 @@ cs_equation_add_bc_by_time_func(cs_equation_param_t      *eqp,
  *
  * \param[in, out] eqp       pointer to a cs_equation_param_t structure
  * \param[in]      bc_type   type of boundary condition to add
- * \param[in]      z_name    name of the associated zone (if NULL or "" if
+ * \param[in]      z_name    name of the associated zone (if null or "" if
  *                           all cells are considered)
  * \param[in]      loc_flag  location where values are computed
  * \param[in]      func      pointer to cs_dof_func_t function
- * \param[in]      input     NULL or pointer to a structure cast on-the-fly
+ * \param[in]      input     null or pointer to a structure cast on-the-fly
  *
  * \return a pointer to the new \ref cs_xdef_t structure
 */
@@ -2075,10 +2086,10 @@ cs_equation_add_volume_mass_injection_by_array(cs_equation_param_t *eqp,
  *        for the given equation param structure and zone.
  *
  * \param[in, out] eqp     pointer to a cs_equation_param_t structure
- * \param[in]      z_name  name of the associated zone (if NULL or "" if
+ * \param[in]      z_name  name of the associated zone (if null or "" if
  *                         all cells are considered)
  *
- * \return a pointer to the \ref cs_xdef_t structure if present, or NULL
+ * \return a pointer to the \ref cs_xdef_t structure if present, or null
 */
 /*----------------------------------------------------------------------------*/
 
@@ -2095,7 +2106,7 @@ cs_equation_find_bc(cs_equation_param_t *eqp,
  * silently.
  *
  * \param[in, out] eqp     pointer to a cs_equation_param_t structure
- * \param[in]      z_name  name of the associated zone (if NULL or "" if
+ * \param[in]      z_name  name of the associated zone (if null or "" if
  *                         all cells are considered)
 */
 /*----------------------------------------------------------------------------*/
@@ -2113,7 +2124,7 @@ cs_equation_remove_bc(cs_equation_param_t *eqp,
  * silently.
  *
  * \param[in, out] eqp     pointer to a cs_equation_param_t structure
- * \param[in]      z_name  name of the associated zone (if NULL or "" if
+ * \param[in]      z_name  name of the associated zone (if null or "" if
  *                         all cells are considered)
 */
 /*----------------------------------------------------------------------------*/
@@ -2247,7 +2258,7 @@ cs_equation_add_reaction(cs_equation_param_t *eqp,
  *        Case of a definition by a constant value
  *
  * \param[in, out] eqp     pointer to a cs_equation_param_t structure
- * \param[in]      z_name  name of the associated zone (if NULL or
+ * \param[in]      z_name  name of the associated zone (if null or
  *                         "" all cells are considered)
  * \param[in]      val     pointer to the value
  *
@@ -2266,10 +2277,10 @@ cs_equation_add_source_term_by_val(cs_equation_param_t *eqp,
  *        Case of a definition by an analytical function
  *
  * \param[in, out] eqp     pointer to a cs_equation_param_t structure
- * \param[in]      z_name  name of the associated zone (if NULL or "" if
+ * \param[in]      z_name  name of the associated zone (if null or "" if
  *                         all cells are considered)
  * \param[in]      func    pointer to an analytical function
- * \param[in]      input   NULL or pointer to a structure cast on-the-fly
+ * \param[in]      input   null or pointer to a structure cast on-the-fly
  *
  * \return a pointer to the new \ref cs_xdef_t structure
  */
@@ -2287,11 +2298,11 @@ cs_equation_add_source_term_by_analytic(cs_equation_param_t *eqp,
  *        Case of a definition by a DoF function
  *
  * \param[in, out] eqp       pointer to a cs_equation_param_t structure
- * \param[in]      z_name    name of the associated zone (if NULL or "" if
+ * \param[in]      z_name    name of the associated zone (if null or "" if
  *                           all cells are considered)
  * \param[in]      loc_flag  location of element ids given as parameter
  * \param[in]      func      pointer to a DoF function
- * \param[in]      input     NULL or pointer to a structure cast on-the-fly
+ * \param[in]      input     null or pointer to a structure cast on-the-fly
  *
  * \return a pointer to the new \ref cs_xdef_t structure
  */
@@ -2310,7 +2321,7 @@ cs_equation_add_source_term_by_dof_func(cs_equation_param_t *eqp,
  *        Case of a definition by an array.
  *
  * \param[in, out] eqp          pointer to a cs_equation_param_t structure
- * \param[in]      z_name       name of the associated zone (if NULL or "" if
+ * \param[in]      z_name       name of the associated zone (if null or "" if
  *                              all cells are considered)
  * \param[in]      loc          information to know where are located values
  * \param[in]      array        pointer to an array
@@ -2340,7 +2351,7 @@ cs_equation_add_source_term_by_array(cs_equation_param_t *eqp,
  *        initializing a cs_xdef_t structure, using a constant value.
  *
  * \param[in, out] eqp     pointer to a cs_equation_param_t structure
- * \param[in]      z_name  name of the associated zone (if NULL or "" if
+ * \param[in]      z_name  name of the associated zone (if null or "" if
  *                         all cells are considered)
  * \param[in]      val     pointer to the value
  *
@@ -2360,7 +2371,7 @@ cs_equation_add_volume_mass_injection_by_value(cs_equation_param_t *eqp,
  *        distributed over the associated zone's volume.
  *
  * \param[in, out] eqp       pointer to a cs_equation_param_t structure
- * \param[in]      z_name    name of the associated zone (if NULL or "" if
+ * \param[in]      z_name    name of the associated zone (if null or "" if
  *                           all cells are considered)
  * \param[in]      quantity  pointer to quantity to distribute over the zone
  *
@@ -2379,10 +2390,10 @@ cs_equation_add_volume_mass_injection_by_qov(cs_equation_param_t *eqp,
  *        initializing a cs_xdef_t structure, using an analytical function.
  *
  * \param[in, out] eqp     pointer to a cs_equation_param_t structure
- * \param[in]      z_name  name of the associated zone (if NULL or "" if
+ * \param[in]      z_name  name of the associated zone (if null or "" if
  *                         all cells are considered)
  * \param[in]      func    pointer to an analytical function
- * \param[in]      input   NULL or pointer to a structure cast on-the-fly
+ * \param[in]      input   null or pointer to a structure cast on-the-fly
  *
  * \return a pointer to the new \ref cs_xdef_t structure
  */
@@ -2400,11 +2411,11 @@ cs_equation_add_volume_mass_injection_by_analytic(cs_equation_param_t *eqp,
  *        initializing a cs_xdef_t structure, using a DoF function.
  *
  * \param[in, out] eqp       pointer to a cs_equation_param_t structure
- * \param[in]      z_name    name of the associated zone (if NULL or "" if
+ * \param[in]      z_name    name of the associated zone (if null or "" if
  *                           all cells are considered)
  * \param[in]      loc_flag  where information is computed
  * \param[in]      func      pointer to an analytical function
- * \param[in]      input     NULL or pointer to a structure cast on-the-fly
+ * \param[in]      input     null or pointer to a structure cast on-the-fly
  *
  * \return a pointer to the new \ref cs_xdef_t structure
  */
@@ -2431,8 +2442,8 @@ cs_equation_add_volume_mass_injection_by_dof_func(cs_equation_param_t *eqp,
  * \param[in, out] eqp         pointer to a cs_equation_param_t structure
  * \param[in]      n_vertices  number of vertices to enforce
  * \param[in]      vertex_ids  list of vertices
- * \param[in]      ref_value   default values or ignored (may be NULL)
- * \param[in]      vtx_values  list of associated values, ignored if NULL
+ * \param[in]      ref_value   default values or ignored (may be null)
+ * \param[in]      vtx_values  list of associated values, ignored if null
  *
  * \return a pointer to a cs_enforcement_param_t structure
  */
@@ -2459,8 +2470,8 @@ cs_equation_add_vertex_dof_enforcement(cs_equation_param_t *eqp,
  * \param[in, out] eqp          pointer to a cs_equation_param_t structure
  * \param[in]      n_edges      number of edges to enforce
  * \param[in]      edge_ids     list of edges
- * \param[in]      ref_value    default values or ignored (may be NULL)
- * \param[in]      edge_values  list of associated values, ignored if NULL
+ * \param[in]      ref_value    default values or ignored (may be null)
+ * \param[in]      edge_values  list of associated values, ignored if null
  *
  * \return a pointer to a cs_enforcement_param_t structure
  */
@@ -2487,8 +2498,8 @@ cs_equation_add_edge_dof_enforcement(cs_equation_param_t *eqp,
  * \param[in, out] eqp          pointer to a cs_equation_param_t structure
  * \param[in]      n_faces      number of faces to enforce
  * \param[in]      face_ids     list of faces
- * \param[in]      ref_value    default values or ignored (may be NULL)
- * \param[in]      face_values  list of associated values, ignored if NULL
+ * \param[in]      ref_value    default values or ignored (may be null)
+ * \param[in]      face_values  list of associated values, ignored if null
  *
  * \return a pointer to a cs_enforcement_param_t structure
  */
@@ -2513,8 +2524,8 @@ cs_equation_add_face_dof_enforcement(cs_equation_param_t *eqp,
  * \param[in, out] eqp          pointer to a cs_equation_param_t structure
  * \param[in]      n_cells      number of selected cells
  * \param[in]      cell_ids     list of cell ids
- * \param[in]      ref_value    ignored if NULL
- * \param[in]      cell_values  list of associated values, ignored if NULL
+ * \param[in]      ref_value    ignored if null
+ * \param[in]      cell_values  list of associated values, ignored if null
  *
  * \return a pointer to a cs_enforcement_param_t structure
  */
@@ -2541,8 +2552,8 @@ cs_equation_add_cell_enforcement(cs_equation_param_t *eqp,
  * \param[in]      enforcement_id  id of the enforcement to handle
  * \param[in]      n_cells         number of selected cells
  * \param[in]      cell_ids        list of cell ids
- * \param[in]      ref_value       ignored if NULL
- * \param[in]      cell_values     list of associated values, ignored if NULL
+ * \param[in]      ref_value       ignored if null
+ * \param[in]      cell_values     list of associated values, ignored if null
  *
  * \return a pointer to a cs_enforcement_param_t structure
  */

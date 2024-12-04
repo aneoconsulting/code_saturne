@@ -69,6 +69,7 @@
 #include "cs_mesh.h"
 #include "cs_mesh_location.h"
 #include "cs_mesh_quantities.h"
+#include "cs_measures_util.h"
 #include "cs_parall.h"
 #include "cs_equation_iterative_solve.h"
 #include "cs_physical_constants.h"
@@ -77,6 +78,7 @@
 #include "cs_prototypes.h"
 #include "cs_rad_transfer.h"
 #include "cs_thermal_model.h"
+#include "cs_turbulence_bc.h"
 #include "cs_turbulence_model.h"
 #include "cs_volume_zone.h"
 #include "cs_balance.h"
@@ -262,7 +264,9 @@ static cs_atmo_option_t  _atmo_option = {
   .soil_cat_r2 = nullptr,
   .sigc = 0.53,
   .infrared_1D_profile = -1,
-  .solar_1D_profile    = -1
+  .solar_1D_profile    = -1,
+  .aod_o3_tot = 0.2,
+  .aod_h2o_tot = 0.1
 };
 
 static const char *_univ_fn_name[] = {N_("Cheng 2005"),
@@ -295,9 +299,18 @@ static cs_atmo_chemistry_t _atmo_chem = {
   .molar_mass = nullptr,
   .chempoint = nullptr,
   .reacnum = nullptr,
+  .dlconc0 = nullptr,
   .aero_file_name = nullptr,
   .chem_conc_file_name = nullptr,
-  .aero_conc_file_name = nullptr
+  .aero_conc_file_name = nullptr,
+  .nt_step_profiles   = 0,
+  .n_z_profiles       = 0,
+  .n_species_profiles = 0,
+  .conc_profiles   = nullptr,
+  .z_conc_profiles = nullptr,
+  .t_conc_profiles = nullptr,
+  .x_conc_profiles = nullptr,
+  .y_conc_profiles = nullptr
 };
 
 /* atmo imbrication options structure */
@@ -414,7 +427,9 @@ cs_f_atmo_get_pointers(cs_real_t              **ps,
                        cs_real_t              **w2ini,
                        cs_real_t              **sigc,
                        int                    **idrayi,
-                       int                    **idrayst);
+                       int                    **idrayst,
+                       cs_real_t              **aod_o3_tot,
+                       cs_real_t              **aod_h2o_tot);
 
 void
 cs_f_atmo_arrays_get_pointers(cs_real_t **z_dyn_met,
@@ -536,6 +551,20 @@ cs_f_atmo_soil_init_arrays(int       *n_soil_cat,
                            cs_real_t **c2w,
                            cs_real_t **r1,
                            cs_real_t **r2);
+
+void
+cs_f_atmo_get_chem_conc_profiles(int **nbchim,
+                                 int **nbchmz,
+                                 int **nespgi);
+void
+cs_f_atmo_get_arrays_chem_conc_profiles(cs_real_t **espnum,
+                                       cs_real_t **zproc,
+                                       cs_real_t **tchem,
+                                       cs_real_t **xchem,
+                                       cs_real_t **ychem);
+
+void
+cs_f_atmo_chem_initialize_dlconc0(cs_real_t **dlconc0);
 
 /*============================================================================
  * Private function definitions
@@ -678,21 +707,21 @@ _hydrostatic_pressure_compute(cs_real_3_t  f_ext[],
 
   cs_face_viscosity(m, mq, eqp_p->imvisf, c_visc, i_viscm, b_viscm);
 
-  cs_matrix_wrapper_scalar(eqp_p->iconv,
-                           eqp_p->idiff,
-                           eqp_p->ndircl,
-                           isym,
-                           eqp_p->theta,
-                           0,
-                           f->bc_coeffs,
-                           rovsdt,
-                           i_massflux,
-                           b_massflux,
-                           i_viscm,
-                           b_viscm,
-                           nullptr,
-                           dam,
-                           xam);
+  cs_matrix_wrapper(eqp_p->iconv,
+                    eqp_p->idiff,
+                    eqp_p->ndircl,
+                    isym,
+                    eqp_p->theta,
+                    0,
+                    f->bc_coeffs,
+                    rovsdt,
+                    i_massflux,
+                    b_massflux,
+                    i_viscm,
+                    b_viscm,
+                    nullptr,
+                    dam,
+                    xam);
 
   /* Right hand side
    *================*/
@@ -1585,7 +1614,7 @@ cs_mo_psih(cs_real_t              z,
  * \param[in]  z0
  * \param[in]  du            velocity difference
  * \param[in]  dt            thermal difference
- * \param[in]  tm
+ * \param[in]  beta          thermal expansion
  * \param[in]  gredu
  * \param[out] dlmo          Inverse Monin Obukhov length
  * \param[out] ustar         friction velocity
@@ -1597,7 +1626,7 @@ cs_mo_compute_from_thermal_diff(cs_real_t   z,
                                 cs_real_t   z0,
                                 cs_real_t   du,
                                 cs_real_t   dt,
-                                cs_real_t   tm,
+                                cs_real_t   beta,
                                 cs_real_t   gredu,
                                 cs_real_t   *dlmo,
                                 cs_real_t   *ustar)
@@ -1636,8 +1665,8 @@ cs_mo_compute_from_thermal_diff(cs_real_t   z,
     coef_moh_old = coef_moh;
 
     /* Update LMO */
-    cs_real_t num = cs_math_pow2(coef_mom) * gredu * dt;
-    cs_real_t denom = cs_math_pow2(du) * tm * coef_moh;
+    cs_real_t num = beta * cs_math_pow2(coef_mom) * gredu * dt;
+    cs_real_t denom = cs_math_pow2(du) * coef_moh;
     if (fabs(denom) > (cs_math_epzero * fabs(num)))
       *dlmo = num / denom;
     else
@@ -1669,7 +1698,7 @@ cs_mo_compute_from_thermal_diff(cs_real_t   z,
  * \param[in]  z0
  * \param[in]  du            velocity difference
  * \param[in]  flux          thermal flux
- * \param[in]  tm
+ * \param[in]  beta          thermal expansion
  * \param[in]  gredu
  * \param[out] dlmo          Inverse Monin Obukhov length
  * \param[out] ustar         friction velocity
@@ -1681,7 +1710,7 @@ cs_mo_compute_from_thermal_flux(cs_real_t   z,
                                 cs_real_t   z0,
                                 cs_real_t   du,
                                 cs_real_t   flux,
-                                cs_real_t   tm,
+                                cs_real_t   beta,
                                 cs_real_t   gredu,
                                 cs_real_t   *dlmo,
                                 cs_real_t   *ustar)
@@ -1715,8 +1744,8 @@ cs_mo_compute_from_thermal_flux(cs_real_t   z,
     coef_mom_old = coef_mom;
 
     /* Update LMO */
-    cs_real_t num = cs_math_pow3(coef_mom) * gredu * flux;
-    cs_real_t denom = cs_math_pow3(du) * cs_math_pow2(kappa) * tm;
+    cs_real_t num = beta * cs_math_pow3(coef_mom) * gredu * flux;
+    cs_real_t denom = cs_math_pow3(du) * cs_math_pow2(kappa);
 
     if (fabs(denom) > (cs_math_epzero * fabs(num)))
       *dlmo = num / denom;
@@ -1881,7 +1910,9 @@ cs_f_atmo_get_pointers(cs_real_t              **ps,
                        cs_real_t              **w2ini,
                        cs_real_t              **sigc,
                        int                    **idrayi,
-                       int                    **idrayst)
+                       int                    **idrayst,
+                       cs_real_t              **aod_o3_tot,
+                       cs_real_t              **aod_h2o_tot)
 {
   *ps        = &(_atmo_constants.ps);
   *syear     = &(_atmo_option.syear);
@@ -1934,6 +1965,8 @@ cs_f_atmo_get_pointers(cs_real_t              **ps,
   *sigc  = &(_atmo_option.sigc);
   *idrayi = &(_atmo_option.infrared_1D_profile);
   *idrayst = &(_atmo_option.solar_1D_profile);
+  *aod_o3_tot  = &(_atmo_option.aod_o3_tot);
+  *aod_h2o_tot  = &(_atmo_option.aod_h2o_tot);
 }
 
 void
@@ -2299,6 +2332,62 @@ cs_f_atmo_chem_initialize_species_to_fid(int *species_fid)
 }
 
 void
+cs_f_atmo_get_chem_conc_profiles(int **nbchim,
+                                 int **nbchmz,
+                                 int **nespgi)
+{
+  *nbchmz = &(_atmo_chem.n_z_profiles);
+  *nbchim = &(_atmo_chem.nt_step_profiles);
+  *nespgi = &(_atmo_chem.n_species_profiles);
+}
+
+void
+cs_f_atmo_get_arrays_chem_conc_profiles(cs_real_t **espnum,
+                                        cs_real_t **zproc,
+                                        cs_real_t **tchem,
+                                        cs_real_t **xchem,
+                                        cs_real_t **ychem)
+{
+  const int _nbchmz = _atmo_chem.n_z_profiles;
+  const int _nbchim = _atmo_chem.nt_step_profiles;
+  const int size = _atmo_chem.n_species*_nbchmz*_nbchim;
+
+  if (_atmo_chem.conc_profiles == nullptr)
+    BFT_MALLOC(_atmo_chem.conc_profiles, size, cs_real_t);
+
+  if (_atmo_chem.z_conc_profiles == nullptr)
+    BFT_MALLOC(_atmo_chem.z_conc_profiles, _nbchmz, cs_real_t);
+
+  if (_atmo_chem.t_conc_profiles == nullptr)
+    BFT_MALLOC(_atmo_chem.t_conc_profiles, _nbchim, cs_real_t);
+
+  if (_atmo_chem.x_conc_profiles == nullptr)
+    BFT_MALLOC(_atmo_chem.x_conc_profiles, _nbchim, cs_real_t);
+
+  if (_atmo_chem.y_conc_profiles == nullptr)
+    BFT_MALLOC(_atmo_chem.y_conc_profiles, _nbchim, cs_real_t);
+
+  *espnum = _atmo_chem.conc_profiles;
+  *zproc  = _atmo_chem.z_conc_profiles;
+  *tchem  = _atmo_chem.t_conc_profiles;
+  *xchem  = _atmo_chem.x_conc_profiles;
+  *ychem  = _atmo_chem.y_conc_profiles;
+}
+
+void
+cs_f_atmo_chem_initialize_dlconc0(cs_real_t **dlconc0)
+{
+  const int n_aer = _atmo_chem.n_size;
+  const int nlayer_aer = _atmo_chem.n_layer;
+  const int size = n_aer*(1+nlayer_aer);
+
+  if (_atmo_chem.dlconc0 == nullptr)
+    BFT_MALLOC(_atmo_chem.dlconc0, size, cs_real_t);
+
+  *dlconc0 = _atmo_chem.dlconc0;
+}
+
+void
 cs_f_atmo_chem_finalize(void)
 {
   if (_atmo_chem.aerosol_model != CS_ATMO_AEROSOL_OFF)
@@ -2312,6 +2401,12 @@ cs_f_atmo_chem_finalize(void)
   BFT_FREE(_atmo_chem.spack_file_name);
   BFT_FREE(_atmo_chem.aero_file_name);
   BFT_FREE(_atmo_chem.chem_conc_file_name);
+  BFT_FREE(_atmo_chem.conc_profiles);
+  BFT_FREE(_atmo_chem.z_conc_profiles);
+  BFT_FREE(_atmo_chem.t_conc_profiles);
+  BFT_FREE(_atmo_chem.x_conc_profiles);
+  BFT_FREE(_atmo_chem.y_conc_profiles);
+  BFT_FREE(_atmo_chem.dlconc0);
 }
 
 void
@@ -2420,55 +2515,6 @@ cs_f_atmo_soil_init_arrays(int        *n_soil_cat,
 
 /*----------------------------------------------------------------------------*/
 /*!
- * \brief Update the thermo physical properties fields for the humid air and
- *        the liquid.
- */
-/*----------------------------------------------------------------------------*/
-
-void
-cs_atmo_phyvar_update()
-{
-  cs_atmo_option_t *at_opt = cs_glob_atmo_option;
-  bool rain = at_opt->rain;
-
-  if (rain == true) {
-    /* Initialisation of fields */
-    cs_air_fluid_props_t *air_prop = cs_glob_air_props;
-
-    cs_field_t *meteo_pressure = cs_field_by_name_try("meteo_pressure");
-    cs_field_t *yw_liq = cs_field_by_name_try("liquid_water");
-    cs_field_t *real_temp = cs_field_by_name_try("real_temperature");
-    cs_field_t *beta_h = cs_field_by_name_try("thermal_expansion");
-    cs_real_t *theta_liq = cs_field_by_name("temperature")->val; /* Liq. pot. temp. */
-
-    cs_real_t *rho_m = (cs_real_t *)CS_F_(rho)->val;    /* Humid air + rain
-                                                           (bulk) density */
-    cs_real_t *rho_h = cs_field_by_name("rho_humid_air")->val; /* Humid air
-                                                                  density */
-    cs_real_t *yr = cs_field_by_name_try("ym_l_r")->val;   /* Rain mass fraction */
-    cs_real_t *ym_w = (cs_real_t *)CS_F_(ym_w)->val;     /* Water mass fraction*/
-
-    /*Iterations on cells */
-    cs_lnum_t n_cells = cs_glob_mesh->n_cells;
-    for (cs_lnum_t cell_id = 0; cell_id < n_cells; cell_id++) {
-      cs_rho_humidair(ym_w[cell_id],
-                      theta_liq[cell_id],
-                      meteo_pressure->val[cell_id],
-                      &(yw_liq->val[cell_id]),
-                      &(real_temp->val[cell_id]),
-                      &(rho_h[cell_id]),
-                      &(beta_h->val[cell_id]));
-      /* Homogeneous mixture density */
-      rho_m[cell_id] = 1. / ((1.-yr[cell_id])/rho_h[cell_id]
-                                + yr[cell_id]/1000);
-    }
-  }
-}
-
-
-
-/*----------------------------------------------------------------------------*/
-/*!
  * \brief Phase change source terms - Exchange terms between the injected
  *        liquid and the water vapor phase in the bulk, humid air
  *
@@ -2508,8 +2554,7 @@ cs_atmo_source_term(int              f_id,
   cs_real_t *nc = cs_field_by_name_try("number_of_droplets")->val;
   cs_real_t *nr = cs_field_by_name_try("n_r")->val;
 
-  /* Fields ID */
-  int yc_id = cs_field_by_name_try("liquid_water")->id;
+  /* Field ids */
   int nc_id = cs_field_by_name_try("number_of_droplets")->id;
   int yr_id = cs_field_by_name_try("ym_l_r")->id;
   int nr_id = cs_field_by_name_try("n_r")->id;
@@ -2636,6 +2681,263 @@ cs_atmo_source_term(int              f_id,
 }
 
 /*----------------------------------------------------------------------------
+ * initialize fields, stage 0
+ *----------------------------------------------------------------------------*/
+
+void
+cs_atmo_fields_init0(void)
+{
+  int has_restart = cs_restart_present();
+
+  /* Only if the simulation is not a restart from another one */
+  if (has_restart != 0)
+    return;
+
+  cs_mesh_t *m = cs_glob_domain->mesh;
+  cs_mesh_quantities_t *mq = cs_glob_domain->mesh_quantities;
+  const cs_real_3_t *cell_cen = (const cs_real_3_t *)mq->cell_cen;
+
+  /* Meteo large scale fields */
+  cs_real_3_t *cpro_met_vel = nullptr;
+  cs_field_t *f_met_vel = cs_field_by_name_try("meteo_velocity");
+  if (f_met_vel != nullptr)
+    cpro_met_vel = (cs_real_3_t *) (f_met_vel->val);
+
+  cs_real_t *cpro_met_potemp = nullptr;
+  cs_field_t *f_met_potemp = cs_field_by_name_try("meteo_pot_temperature");
+  if (f_met_potemp != nullptr)
+    cpro_met_potemp = f_met_potemp->val;
+
+  cs_real_t *cpro_met_k = nullptr;
+  cs_field_t *f_met_k = cs_field_by_name_try("meteo_tke");
+  if (f_met_k != nullptr)
+    cpro_met_k = f_met_k->val;
+
+  cs_real_t *cpro_met_eps = nullptr;
+  cs_field_t *f_met_eps = cs_field_by_name_try("meteo_eps");
+  if (f_met_eps != nullptr)
+    cpro_met_eps = f_met_eps->val;
+
+  cs_real_6_t *cpro_met_rij = nullptr;
+  cs_field_t *f_met_rij = cs_field_by_name_try("meteo_rij");
+  if (f_met_rij != nullptr)
+    cpro_met_rij = (cs_real_6_t *) (f_met_rij->val);
+
+  cs_real_t *cpro_met_qv = nullptr;
+  cs_field_t *f_met_qv = cs_field_by_name_try("meteo_humidity");
+  if (f_met_qv != nullptr)
+    cpro_met_qv = f_met_qv->val;
+
+  cs_real_t *cpro_met_nc = nullptr;
+  cs_field_t *f_met_nc = cs_field_by_name_try("meteo_drop_nb");
+  if (f_met_nc != nullptr)
+    cpro_met_nc = f_met_nc->val;
+
+  cs_fluid_properties_t *phys_pro = cs_get_glob_fluid_properties();
+
+  /* Atmospheric fields, velocity and turbulence  */
+
+  cs_real_t *cvar_k = nullptr;
+  if (CS_F_(k) != nullptr)
+    cvar_k = CS_F_(k)->val;
+  cs_real_t *cvar_eps = nullptr;
+  if (CS_F_(eps) != nullptr)
+    cvar_eps = CS_F_(eps)->val;
+
+  cs_real_t *cvar_phi = nullptr;
+  if (CS_F_(phi) != nullptr)
+    cvar_phi = CS_F_(phi)->val;
+
+  cs_real_t *cvar_omg = nullptr;
+  if (CS_F_(omg) != nullptr)
+    cvar_omg = CS_F_(omg)->val;
+
+  cs_real_t *cvar_nusa = nullptr;
+  if (CS_F_(nusa) != nullptr)
+    cvar_nusa = CS_F_(nusa)->val;
+
+  cs_real_6_t *cvar_rij = nullptr;
+  if (CS_F_(rij) != nullptr)
+    cvar_rij = (cs_real_6_t *)(CS_F_(rij)->val);
+
+  cs_real_3_t *cvar_vel = (cs_real_3_t *)(CS_F_(vel)->val);
+  cs_field_t *f_th = cs_thermal_model_field();
+
+  cs_real_t *cvar_totwt = nullptr;
+  cs_real_t *cvar_ntdrp = nullptr;
+  if (cs_glob_physical_model_flag[CS_ATMOSPHERIC] == CS_ATMO_HUMID) {
+    cvar_totwt = cs_field_by_name("ym_water")->val;
+    cvar_ntdrp = cs_field_by_name("number_of_droplets")->val;
+  }
+
+  if (cs_glob_atmo_option->meteo_profile == 0) {
+
+    cs_atmo_option_t *aopt = &_atmo_option;
+    if (f_th != nullptr) {
+      /* Reference fluid properties set from meteo values */
+      cs_real_t ps = cs_glob_atmo_constants->ps;
+      cs_real_t rair = phys_pro->r_pg_cnst;
+      cs_real_t cp0 = phys_pro->cp0;
+      cs_real_t rscp = rair/cp0;
+      cs_real_t clatev = phys_pro->clatev;
+      cs_real_t theta0 = (phys_pro->t0 - clatev/cp0 * aopt->meteo_ql0)
+                       * pow(ps/ phys_pro->p0, rscp);
+
+      cs_array_real_set_value(m->n_cells_with_ghosts, 1, &theta0, f_th->val);
+    }
+
+    /* Note: cvar_totwt and cvar_ntdrp are already initialized by 0 */
+  }
+  /* When using meteo data */
+  else {
+    cs_equation_param_t *eqp_vel = cs_field_get_equation_param(CS_F_(vel));
+
+    if (eqp_vel->verbosity > 0)
+      bft_printf("   ** INIT DYNAMIC VARIABLES FROM METEO FILE\n"
+                 "      --------------------------------------\n");
+
+    /* Meteo profile or meteo data */
+    for (cs_lnum_t cell_id = 0; cell_id < m->n_cells; cell_id++) {
+
+      cs_real_t k_in, eps_in;
+      cs_real_6_t rij_loc;
+      if (cs_glob_atmo_option->meteo_profile == 1) {
+        cs_real_t z_in = cell_cen[cell_id][2];
+
+        /* Velocity */
+        for (cs_lnum_t i = 0; i < 2; i++) {
+          cs_real_t *vel_met;
+          if (i == 0)
+            vel_met = cs_glob_atmo_option->u_met;
+          if (i == 1)
+            vel_met = cs_glob_atmo_option->v_met;
+          cvar_vel[cell_id][i]
+            = cs_intprf(cs_glob_atmo_option->met_1d_nlevels_d,
+                        cs_glob_atmo_option->met_1d_ntimes,
+                        cs_glob_atmo_option->z_dyn_met,
+                        cs_glob_atmo_option->time_met,
+                        vel_met,
+                        z_in,
+                        cs_glob_time_step->t_cur);
+        }
+
+        /* Turbulence TKE and dissipation */
+        k_in = cs_intprf(
+              cs_glob_atmo_option->met_1d_nlevels_d,
+              cs_glob_atmo_option->met_1d_ntimes,
+              cs_glob_atmo_option->z_dyn_met,
+              cs_glob_atmo_option->time_met,
+              cs_glob_atmo_option->ek_met,
+              z_in,
+              cs_glob_time_step->t_cur);
+
+        eps_in = cs_intprf(
+            cs_glob_atmo_option->met_1d_nlevels_d,
+            cs_glob_atmo_option->met_1d_ntimes,
+            cs_glob_atmo_option->z_dyn_met,
+            cs_glob_atmo_option->time_met,
+            cs_glob_atmo_option->ep_met,
+            z_in,
+            cs_glob_time_step->t_cur);
+
+        /* Theta */
+        if (cs_glob_physical_model_flag[CS_ATMOSPHERIC] >= 1) {
+          f_th->val[cell_id] = cs_intprf(
+              cs_glob_atmo_option->met_1d_nlevels_t,
+              cs_glob_atmo_option->met_1d_ntimes,
+              cs_glob_atmo_option->z_temp_met,
+              cs_glob_atmo_option->time_met,
+              cs_glob_atmo_option->pot_t_met,
+              z_in,
+              cs_glob_time_step->t_cur);
+
+        }
+
+        /*  Humid Atmosphere */
+        if (cs_glob_physical_model_flag[CS_ATMOSPHERIC] == CS_ATMO_HUMID) {
+          cvar_totwt[cell_id] = cs_intprf(
+              cs_glob_atmo_option->met_1d_nlevels_t,
+              cs_glob_atmo_option->met_1d_ntimes,
+              cs_glob_atmo_option->z_temp_met,
+              cs_glob_atmo_option->time_met,
+              cs_glob_atmo_option->qw_met,
+              z_in,
+              cs_glob_time_step->t_cur);
+
+          cvar_ntdrp[cell_id] = cs_intprf(cs_glob_atmo_option->met_1d_nlevels_t,
+              cs_glob_atmo_option->met_1d_ntimes,
+              cs_glob_atmo_option->z_temp_met,
+              cs_glob_atmo_option->time_met,
+              cs_glob_atmo_option->ndrop_met,
+              z_in,
+              cs_glob_time_step->t_cur);
+
+        }
+
+      }
+      else {
+        for (cs_lnum_t i = 0; i < 3; i++)
+          cvar_vel[cell_id][i] =cpro_met_vel[cell_id][i];
+
+        /* Turbulence TKE and dissipation */
+        k_in = cpro_met_k[cell_id];
+        eps_in = cpro_met_eps[cell_id];
+        if (f_th != nullptr)
+          f_th->val[cell_id] = cpro_met_potemp[cell_id];
+
+        if (cvar_totwt != nullptr)
+          cvar_totwt[cell_id]= cpro_met_qv[cell_id];
+
+        if (cvar_ntdrp != nullptr)
+          cvar_ntdrp[cell_id] = cpro_met_nc[cell_id];
+
+      }
+
+      cs_real_t vel_dir[3];
+      cs_math_3_normalize(cvar_vel[cell_id], vel_dir);
+
+      if (f_met_rij == nullptr) {
+        rij_loc[0] = 2. / 3. * k_in;
+        rij_loc[1] = 2. / 3. * k_in;
+        rij_loc[2] = 2. / 3. * k_in;
+        rij_loc[3] = 0.; // Rxy
+        rij_loc[4] = -sqrt(cs_turb_cmu) * k_in * vel_dir[1]; // Ryz
+        rij_loc[5] = -sqrt(cs_turb_cmu) * k_in * vel_dir[0]; // Rxz
+
+      }
+      else
+        for (cs_lnum_t i = 0; i < 6; i++)
+          rij_loc[i] = cpro_met_rij[cell_id][i]; //TODO give a value
+
+
+      /* Initialize turbulence from TKE, dissipation and anistropy if needed */
+      if (cvar_k != nullptr)
+        cvar_k[cell_id]= k_in;
+
+      if (cvar_eps != nullptr)
+        cvar_eps[cell_id] = eps_in;
+
+      if (cvar_rij != nullptr) {
+        for (cs_lnum_t i = 0; i < 6; i++)
+          cvar_rij[cell_id][i] = rij_loc[i];
+      }
+
+      /* Note cvar_fb is already 0. */
+      if (cvar_phi != nullptr)
+        cvar_phi[cell_id] = 2./3.;
+
+      if (cvar_omg != nullptr)
+        cvar_omg[cell_id] = eps_in / k_in / cs_turb_cmu;
+
+      if (cvar_nusa != nullptr)
+        cvar_nusa[cell_id] = cs_turb_cmu * k_in * k_in / eps_in ;
+    }
+
+  }
+
+}
+
+/*----------------------------------------------------------------------------
  * Automatic boundary condition for cooling towers
  *----------------------------------------------------------------------------*/
 
@@ -2646,16 +2948,263 @@ cs_atmo_bcond(void)
   bool rain = at_opt->rain;
 
   /* Mesh-related data */
+  cs_mesh_quantities_t *mq = cs_glob_domain->mesh_quantities;
   const cs_lnum_t n_b_faces = cs_glob_mesh->n_b_faces;
-  const int *bc_type = cs_glob_bc_type;
+  int *bc_type = cs_boundary_conditions_get_bc_type();
+  const cs_lnum_t *b_face_cells = cs_glob_mesh->b_face_cells;
+  const cs_real_3_t *restrict b_face_cog
+    = (const cs_real_3_t *restrict)mq->b_face_cog;
+  const cs_real_3_t *cell_cen =
+    (const cs_real_3_t *)mq->cell_cen;
+  const cs_real_3_t *restrict b_face_u_normal =
+    (const cs_real_3_t *)mq->b_face_u_normal;
 
+  cs_physical_constants_t *phys_cst = cs_get_glob_physical_constants();
+  const cs_fluid_properties_t *phys_pro = cs_get_glob_fluid_properties();
+  cs_real_t *grav = phys_cst->gravity;
+  cs_real_t ps = cs_glob_atmo_constants->ps;
+  cs_real_t rair = phys_pro->r_pg_cnst;
+  cs_real_t cp0 = phys_pro->cp0;
+  cs_real_t rscp = rair/cp0;
+
+  cs_field_t *th_f = cs_thermal_model_field();
+  cs_field_t *ym_w = cs_field_by_name_try("ym_water");
+
+  /* Soil atmosphere boundary conditions
+   *------------------------------------ */
+
+  if (at_opt->soil_model > 0) {
+    const cs_zone_t *z = cs_boundary_zone_by_id(at_opt->soil_zone_id);
+    const cs_real_t *bvar_tempp = cs_field_by_name("soil_pot_temperature")->val;
+    const cs_real_t *bvar_total_water = cs_field_by_name("soil_total_water")->val;
+
+    for (cs_lnum_t ii = 0; ii < z->n_elts; ii++) {
+
+      const cs_lnum_t face_id = z->elt_ids[ii];
+
+      // Rough wall if no specified
+      // Note: roughness and thermal roughness are computed in solmoy
+      if (bc_type[face_id] == 0)
+        bc_type[face_id] = CS_ROUGHWALL;
+
+      if (th_f != nullptr) {
+        if (th_f->bc_coeffs->rcodcl1[face_id] > cs_math_infinite_r*0.5) {
+          // Dirichlet with wall function Expressed directly in term of
+          // potential temperature
+          th_f->bc_coeffs->icodcl[face_id]  = -6;
+          th_f->bc_coeffs->rcodcl1[face_id] = bvar_tempp[ii];
+        }
+      }
+      if (cs_glob_physical_model_flag[CS_ATMOSPHERIC] == CS_ATMO_HUMID) {
+        // If not yet specified
+        if (ym_w->bc_coeffs->rcodcl1[face_id] > cs_math_infinite_r*0.5) {
+          ym_w->bc_coeffs->icodcl[face_id]  = 6;
+          ym_w->bc_coeffs->rcodcl1[face_id] = bvar_total_water[ii];
+        }
+      }
+
+    }
+  }
+
+  /* Imbrication
+     ----------- */
+
+  if (_atmo_imbrication.imbrication_flag) {
+
+    const int id_type = 2; // interpolation on boundary faces
+    const cs_lnum_t n_b_faces_max
+      = (cs_lnum_t)cs_math_fmax(100.0, (cs_real_t)n_b_faces);
+
+    cs_summon_cressman(cs_glob_time_step->t_cur);
+
+    if (_atmo_imbrication.cressman_u) {
+      cs_real_t *rcodcl1 = CS_F_(vel)->bc_coeffs->rcodcl1;
+      cs_measures_set_t *ms = cs_measures_set_by_id(_atmo_imbrication.id_u);
+      cs_cressman_interpol(ms, rcodcl1, id_type);
+
+      if (_atmo_imbrication.imbrication_verbose)
+        for (cs_lnum_t face_id = 0; face_id < n_b_faces_max; face_id++)
+          bft_printf("cs_atmo_bcond:: xbord, ybord, zbord, ubord = %10.14e %10.14e"
+                     "%10.14e %10.14e\n",
+                     b_face_cog[face_id][0], b_face_cog[face_id][1],
+                     b_face_cog[face_id][2], rcodcl1[face_id]);
+    }
+
+    if (_atmo_imbrication.cressman_v) {
+      cs_real_t *rcodcl1 = CS_F_(vel)->bc_coeffs->rcodcl1 + n_b_faces;
+      cs_measures_set_t *ms = cs_measures_set_by_id(_atmo_imbrication.id_v);
+      cs_cressman_interpol(ms, rcodcl1, id_type);
+
+      if (_atmo_imbrication.imbrication_verbose)
+        for (cs_lnum_t face_id = 0; face_id < n_b_faces_max; face_id++)
+          bft_printf("cs_atmo_bcond:: xbord, ybord, zbord, vbord = %10.14e %10.14e"
+                     "%10.14e %10.14e\n",
+                     b_face_cog[face_id][0], b_face_cog[face_id][1],
+                     b_face_cog[face_id][2], rcodcl1[face_id]);
+    }
+
+    if (_atmo_imbrication.cressman_tke) {
+      cs_real_t *rcodcl1 = CS_F_(k)->bc_coeffs->rcodcl1;
+      cs_measures_set_t *ms = cs_measures_set_by_id(_atmo_imbrication.id_tke);
+      cs_cressman_interpol(ms, rcodcl1, id_type);
+
+      if (_atmo_imbrication.imbrication_verbose)
+        for (cs_lnum_t face_id = 0; face_id < n_b_faces_max; face_id++)
+          bft_printf("cs_atmo_bcond:: xbord, ybord, zbord, tkebord = %10.14e %10.14e"
+                     "%10.14e %10.14e\n",
+                     b_face_cog[face_id][0], b_face_cog[face_id][1],
+                     b_face_cog[face_id][2], rcodcl1[face_id]);
+
+    }
+
+    if (_atmo_imbrication.cressman_eps) {
+      cs_real_t *rcodcl1 = CS_F_(eps)->bc_coeffs->rcodcl1;
+      cs_measures_set_t *ms = cs_measures_set_by_id(_atmo_imbrication.id_eps);
+      cs_cressman_interpol(ms, rcodcl1, id_type);
+
+      if (_atmo_imbrication.imbrication_verbose)
+        for (cs_lnum_t face_id = 0; face_id < n_b_faces_max; face_id++)
+          bft_printf("cs_atmo_bcond:: xbord, ybord, zbord, epsbord = %10.14e %10.14e"
+                     "%10.14e %10.14e\n",
+                     b_face_cog[face_id][0], b_face_cog[face_id][1],
+                     b_face_cog[face_id][2], rcodcl1[face_id]);
+    }
+
+    if (   _atmo_imbrication.cressman_theta
+        && cs_glob_physical_model_flag[CS_ATMOSPHERIC] > CS_ATMO_CONSTANT_DENSITY) {
+      cs_real_t *rcodcl1 = th_f->bc_coeffs->rcodcl1;
+      cs_measures_set_t *ms = cs_measures_set_by_id(_atmo_imbrication.id_theta);
+      cs_cressman_interpol(ms, rcodcl1, id_type);
+
+      if (_atmo_imbrication.imbrication_verbose)
+        for (cs_lnum_t face_id = 0; face_id < n_b_faces_max; face_id++)
+          bft_printf("cs_atmo_bcond:: xbord, ybord, zbord, thetabord = %10.14e %10.14e"
+                     "%10.14e %10.14e\n",
+                     b_face_cog[face_id][0], b_face_cog[face_id][1],
+                     b_face_cog[face_id][2], rcodcl1[face_id]);
+    }
+
+    if (   _atmo_imbrication.cressman_qw
+        && cs_glob_physical_model_flag[CS_ATMOSPHERIC] == CS_ATMO_HUMID) {
+      cs_real_t *rcodcl1 = ym_w->bc_coeffs->rcodcl1;
+      cs_measures_set_t *ms = cs_measures_set_by_id(_atmo_imbrication.id_qw);
+      cs_cressman_interpol(ms, rcodcl1, id_type);
+
+      if (_atmo_imbrication.imbrication_verbose)
+        for (cs_lnum_t face_id = 0; face_id < n_b_faces_max; face_id++)
+          bft_printf("cs_atmo_bcond:: xbord, ybord, zbord, thetabord = %10.14e %10.14e"
+                     "%10.14e %10.14e\n",
+                     b_face_cog[face_id][0], b_face_cog[face_id][1],
+                     b_face_cog[face_id][2], rcodcl1[face_id]);
+    }
+
+    if (   _atmo_imbrication.cressman_nc
+        && cs_glob_physical_model_flag[CS_ATMOSPHERIC] == CS_ATMO_HUMID) {
+      cs_field_t *f = cs_field_by_name("number_of_droplets");
+      cs_real_t *rcodcl1 = f->bc_coeffs->rcodcl1;
+      cs_measures_set_t *ms = cs_measures_set_by_id(_atmo_imbrication.id_nc);
+      cs_cressman_interpol(ms, rcodcl1, id_type);
+
+      if (_atmo_imbrication.imbrication_verbose)
+        for (cs_lnum_t face_id = 0; face_id < n_b_faces_max; face_id++)
+          bft_printf("cs_atmo_bcond:: xbord, ybord, zbord, thetabord = %10.14e %10.14e"
+                     "%10.14e %10.14e\n",
+                     b_face_cog[face_id][0], b_face_cog[face_id][1],
+                     b_face_cog[face_id][2], rcodcl1[face_id]);
+    }
+
+  } //  imbrication_flag
+
+  /*  Atmospheric gaseous chemistry
+      ----------------------------- */
+  if (_atmo_chem.model > 0) {
+
+    for (cs_lnum_t face_id = 0; face_id < n_b_faces; face_id++) {
+
+      if (bc_type[face_id] != CS_INLET)
+        continue;
+
+      /* For species present in the concentration profiles chemistry file,
+         profiles are used here as boundary conditions if boundary
+         conditions have not been treated earlier (eg, in cs_user_boundary_conditions) */
+      for (int ii = 0; ii < _atmo_chem.n_species_profiles; ii++) {
+        const int f_id =_atmo_chem.species_to_scalar_id[ii];
+        cs_field_t *f = cs_field_by_id(f_id);
+        if (f->bc_coeffs->rcodcl1[face_id] <= cs_math_infinite_r*0.5)
+          continue;
+        const cs_real_t xcent = cs_intprf(_atmo_chem.n_z_profiles,
+                                          _atmo_chem.nt_step_profiles,
+                                          _atmo_chem.z_conc_profiles,
+                                          _atmo_chem.t_conc_profiles,
+                                          _atmo_chem.conc_profiles,
+                                          b_face_cog[face_id][2],
+                                          cs_glob_time_step->t_cur);
+        f->bc_coeffs->rcodcl1[face_id] = xcent;
+      }
+
+      /* For other species zero Dirichlet conditions are imposed,
+       * unless they have already been treated earlier (eg, in cs_user_boundary_conditions) */
+      for (int ii = 0; ii < _atmo_chem.n_species; ii++) {
+        const int f_id =_atmo_chem.species_to_scalar_id[ii];
+        cs_field_t *f = cs_field_by_id(f_id);
+        if (f->bc_coeffs->rcodcl1[face_id] > cs_math_infinite_r*0.5)
+          f->bc_coeffs->rcodcl1[face_id] = 0.0;
+      }
+
+    }
+
+  }
+
+  // Atmospheric aerosol chemistry
+  if (_atmo_chem.aerosol_model != CS_ATMO_AEROSOL_OFF) {
+
+    const int n_aer = _atmo_chem.n_size;
+    const int nespg = _atmo_chem.n_species;
+    const int nlayer_aer = _atmo_chem.n_layer;
+
+    for (cs_lnum_t face_id = 0; face_id < n_b_faces; face_id++) {
+
+      if (bc_type[face_id] != CS_INLET)
+        continue;
+
+      for (int ii = 0; ii < nlayer_aer*n_aer+n_aer; ii++) {
+        const int f_id =_atmo_chem.species_to_scalar_id[ii];
+        cs_field_t *f = cs_field_by_id(f_id);
+        if (f->bc_coeffs->rcodcl1[face_id] > cs_math_infinite_r*0.5)
+          f->bc_coeffs->rcodcl1[face_id] = _atmo_chem.dlconc0[ii];
+      }
+
+      /* For other species zero dirichlet conditions are imposed,
+         unless they have already been treated earlier */
+      for (int ii = 0; ii < nlayer_aer*n_aer+n_aer; ii++) {
+        const int f_id = _atmo_chem.species_to_scalar_id[ii];
+        cs_field_t *f = cs_field_by_id(f_id);
+        if (f->bc_coeffs->rcodcl1[face_id] > cs_math_infinite_r*0.5)
+          f->bc_coeffs->rcodcl1[face_id] = 0.0;
+      }
+
+      /* For gaseous species which have not been treated earlier
+         (for example species not present in the third gaseous scheme,
+         which can be treated in usatcl of with the file chemistry)
+         zero dirichlet conditions are imposed */
+      for (int ii = 0; ii < nespg; ii++) {
+        const int f_id =_atmo_chem.species_to_scalar_id[ii];
+        cs_field_t *f = cs_field_by_id(f_id);
+        if (f->bc_coeffs->rcodcl1[face_id] > cs_math_infinite_r*0.5)
+          f->bc_coeffs->rcodcl1[face_id] = 0.0;
+      }
+    }
+
+  }
+
+  /* Boundary condition for rain phase */
   if (rain == true) {
     cs_field_t *yr= cs_field_by_name("ym_l_r");
 
     for (cs_lnum_t face_id = 0; face_id < n_b_faces; face_id++) {
 
       if (   bc_type[face_id] == CS_SMOOTHWALL
-               || bc_type[face_id] == CS_ROUGHWALL) {
+          || bc_type[face_id] == CS_ROUGHWALL) {
 
         yr->bc_coeffs->icodcl[face_id] = 1;
         yr->bc_coeffs->rcodcl1[face_id] = 0.;
@@ -2663,7 +3212,377 @@ cs_atmo_bcond(void)
     }
   }
 
+  /* Inlet BCs from meteo profiles
+   * ----------------------------- */
+
+  int *iautom = cs_glob_bc_pm_info->iautom;
+  int *icodcl_vel = CS_F_(vel)->bc_coeffs->icodcl;
+  int *icodcl_p = CS_F_(p)->bc_coeffs->icodcl;
+  cs_real_t *rcodcl1_vel = CS_F_(vel)->bc_coeffs->rcodcl1;
+  cs_real_t *rcodcl1_p = CS_F_(p)->bc_coeffs->rcodcl1;
+
+  cs_real_t *rcodcl1_k = nullptr;
+  if (CS_F_(k) != nullptr)
+    rcodcl1_k = CS_F_(k)->bc_coeffs->rcodcl1;
+  cs_real_t *rcodcl1_eps = nullptr;
+  if (CS_F_(eps) != nullptr)
+    rcodcl1_eps = CS_F_(eps)->bc_coeffs->rcodcl1;
+
+  cs_field_t *f_th = cs_thermal_model_field();
+  int *icodcl_theta = nullptr;
+  cs_real_t *rcodcl1_theta = nullptr;
+  if (f_th  != nullptr) {
+    icodcl_theta = f_th->bc_coeffs->icodcl;
+    rcodcl1_theta = f_th->bc_coeffs->rcodcl1;
+  }
+
+  cs_real_t *rcodcl1_qw = nullptr;
+  cs_real_t *rcodcl1_nc = nullptr;
+  if (cs_glob_physical_model_flag[CS_ATMOSPHERIC] == CS_ATMO_HUMID) {
+    rcodcl1_qw = cs_field_by_name("ym_water")->bc_coeffs->rcodcl1;
+    rcodcl1_nc = cs_field_by_name("number_of_droplets")->bc_coeffs->rcodcl1;
+  }
+
+  /* Meteo large scale fields */
+  cs_real_3_t *cpro_met_vel = nullptr;
+  cs_field_t *f_met_vel = cs_field_by_name_try("meteo_velocity");
+  if (f_met_vel != nullptr)
+    cpro_met_vel = (cs_real_3_t *) (f_met_vel->val);
+
+  cs_real_t *cpro_met_potemp = nullptr;
+  cs_field_t *f_met_potemp = cs_field_by_name_try("meteo_pot_temperature");
+  if (f_met_potemp != nullptr)
+    cpro_met_potemp = f_met_potemp->val;
+
+  cs_real_t *cpro_met_p = nullptr;
+  cs_field_t *f_met_p = cs_field_by_name_try("meteo_pressure");
+  if (f_met_p != nullptr)
+    cpro_met_p = f_met_p->val;
+
+  cs_real_t *cpro_met_rho = nullptr;
+  cs_field_t *f_met_rho = cs_field_by_name_try("meteo_density");
+  if (f_met_rho != nullptr)
+    cpro_met_rho = f_met_rho->val;
+
+  cs_real_t *cpro_met_k = nullptr;
+  cs_field_t *f_met_k = cs_field_by_name_try("meteo_tke");
+  if (f_met_k != nullptr)
+    cpro_met_k = f_met_k->val;
+
+  cs_real_t *cpro_met_eps = nullptr;
+  cs_field_t *f_met_eps = cs_field_by_name_try("meteo_eps");
+  if (f_met_eps != nullptr)
+    cpro_met_eps = f_met_eps->val;
+
+  cs_real_6_t *cpro_met_rij = nullptr;
+  cs_field_t *f_met_rij = cs_field_by_name_try("meteo_rij");
+  if (f_met_rij != nullptr)
+    cpro_met_rij = (cs_real_6_t *) (f_met_rij->val);
+
+  cs_real_t *cpro_met_qv = nullptr;
+  cs_field_t *f_met_qv = cs_field_by_name_try("meteo_humidity");
+  if (f_met_qv != nullptr)
+    cpro_met_qv = f_met_qv->val;
+
+  cs_real_t *cpro_met_nc = nullptr;
+  cs_field_t *f_met_nc = cs_field_by_name_try("meteo_drop_nb");
+  if (f_met_nc != nullptr)
+    cpro_met_nc = f_met_nc->val;
+
+  for (cs_lnum_t face_id = 0; face_id < n_b_faces; face_id++) {
+
+    cs_lnum_t cell_id = b_face_cells[face_id];
+
+    /* If meteo profile is on, we take the value and store it in rcolcl if not
+     * already modified
+     * It will be used for inlet or backflows */
+
+    if (cs_glob_atmo_option->meteo_profile >= 1) {
+      cs_real_t z_in = b_face_cog[face_id][2];
+
+      cs_real_t vel_in[3] = {0., 0., 0.};
+      /* If specified by the user or by code-code coupling */
+      for (cs_lnum_t i = 0; i < 3; i++) {
+        if (rcodcl1_vel[i*n_b_faces + face_id] < 0.5 * cs_math_infinite_r)
+          vel_in[i] = rcodcl1_vel[i*n_b_faces + face_id];
+        else if (cs_glob_atmo_option->meteo_profile == 1) {
+          cs_real_t *vel_met;
+          if (i == 0)
+            vel_met = cs_glob_atmo_option->u_met;
+          if (i == 1)
+            vel_met = cs_glob_atmo_option->v_met;
+
+          if (i != 2)
+            vel_in[i] = cs_intprf(
+                cs_glob_atmo_option->met_1d_nlevels_d,
+                cs_glob_atmo_option->met_1d_ntimes,
+                cs_glob_atmo_option->z_dyn_met,
+                cs_glob_atmo_option->time_met,
+                vel_met,
+                z_in,
+                cs_glob_time_step->t_cur);
+        }
+        else
+          vel_in[i] = cpro_met_vel[cell_id][i];
+      }
+
+      cs_real_t k_in = cs_math_infinite_r;
+      if (CS_F_(k) != nullptr) {
+        if (rcodcl1_k[face_id] < 0.5 * cs_math_infinite_r)
+          k_in = rcodcl1_k[face_id];
+      }
+      if (k_in > 0.5 * cs_math_infinite_r) {
+        if (cs_glob_atmo_option->meteo_profile == 1)
+          k_in = cs_intprf(
+              cs_glob_atmo_option->met_1d_nlevels_d,
+              cs_glob_atmo_option->met_1d_ntimes,
+              cs_glob_atmo_option->z_dyn_met,
+              cs_glob_atmo_option->time_met,
+              cs_glob_atmo_option->ek_met,
+              z_in,
+              cs_glob_time_step->t_cur);
+
+        else
+          k_in = cpro_met_k[cell_id];
+      }
+
+      cs_real_t eps_in = cs_math_infinite_r;
+      if (CS_F_(eps) != nullptr) {
+        if (rcodcl1_eps[face_id] < 0.5 * cs_math_infinite_r)
+          eps_in = rcodcl1_eps[face_id];
+      }
+      if (eps_in > 0.5 * cs_math_infinite_r) {
+        if (cs_glob_atmo_option->meteo_profile == 1)
+          eps_in = cs_intprf(
+              cs_glob_atmo_option->met_1d_nlevels_d,
+              cs_glob_atmo_option->met_1d_ntimes,
+              cs_glob_atmo_option->z_dyn_met,
+              cs_glob_atmo_option->time_met,
+              cs_glob_atmo_option->ep_met,
+              z_in,
+              cs_glob_time_step->t_cur);
+
+        else
+          eps_in = cpro_met_eps[cell_id];
+      }
+
+      cs_real_t theta_in;
+      if (cs_glob_physical_model_flag[CS_ATMOSPHERIC] >= 1) {
+        if (rcodcl1_theta[face_id] < 0.5 * cs_math_infinite_r)
+          theta_in = rcodcl1_theta[face_id];
+        else if (cs_glob_atmo_option->meteo_profile == 1)
+          theta_in = cs_intprf(
+              cs_glob_atmo_option->met_1d_nlevels_t,
+              cs_glob_atmo_option->met_1d_ntimes,
+              cs_glob_atmo_option->z_temp_met,
+              cs_glob_atmo_option->time_met,
+              cs_glob_atmo_option->pot_t_met,
+              z_in,
+              cs_glob_time_step->t_cur);
+
+
+        else
+          theta_in = cpro_met_potemp[cell_id];
+      }
+
+      cs_real_t vel_dot_n =
+        cs_math_3_dot_product(vel_in, b_face_u_normal[face_id]);
+
+      /* We update the boundary type if automatic setting is on
+       * We update the Dirichlet value if not already specified by the user
+       * */
+      if (iautom[face_id] >= 1) {
+        if (vel_dot_n > cs_math_epzero)
+          bc_type[face_id] = CS_OUTLET;
+        else
+          if (bc_type[face_id] == 0)
+            bc_type[face_id] = CS_INLET;
+      }
+
+      cs_real_t vel_dir[3];
+
+      /* Normalized velocity direction */
+      cs_math_3_normalize(vel_in, vel_dir);
+
+      cs_real_t rij_loc[6];
+      if (f_met_rij == nullptr) {
+        rij_loc[0] = 2. / 3. * k_in;
+        rij_loc[1] = 2. / 3. * k_in;
+        rij_loc[2] = 2. / 3. * k_in;
+        rij_loc[3] = 0.; // Rxy
+        rij_loc[4] = -sqrt(cs_turb_cmu) * k_in * vel_dir[1]; // Ryz
+        rij_loc[5] = -sqrt(cs_turb_cmu) * k_in * vel_dir[0]; // Rxz
+
+      }
+      else
+        for (cs_lnum_t i = 0; i < 6; i++)
+          rij_loc[i] = cpro_met_rij[cell_id][i];
+
+      if (   bc_type[face_id] == CS_INLET
+          || bc_type[face_id] == CS_CONVECTIVE_INLET) {
+
+        /* If not already specified */
+        for (cs_lnum_t i = 0; i < 3; i++) {
+          if (rcodcl1_vel[i*n_b_faces + face_id] > cs_math_infinite_r * 0.5)
+            rcodcl1_vel[i*n_b_faces + face_id] = vel_in[i];
+        }
+
+        /* Turbulence inlet */
+        cs_turbulence_bc_set_uninit_inlet(face_id, k_in, rij_loc, eps_in);
+
+        /* Thermal scalar and humide atmosphere variables */
+        if (f_th != nullptr) {
+
+          if (rcodcl1_theta[face_id] > 0.5 * cs_math_infinite_r)
+            rcodcl1_theta[face_id] = theta_in;
+
+          /*  Humid Atmosphere */
+          if (rcodcl1_qw != nullptr) {
+            if (rcodcl1_qw[face_id] > 0.5 * cs_math_infinite_r) {
+              cs_real_t qw_in;
+              if (cs_glob_atmo_option->meteo_profile == 1)
+                qw_in = cs_intprf(
+                    cs_glob_atmo_option->met_1d_nlevels_t,
+                    cs_glob_atmo_option->met_1d_ntimes,
+                    cs_glob_atmo_option->z_temp_met,
+                    cs_glob_atmo_option->time_met,
+                    cs_glob_atmo_option->qw_met,
+                    z_in,
+                    cs_glob_time_step->t_cur);
+
+
+              else
+                qw_in = cpro_met_qv[cell_id];
+              rcodcl1_qw[face_id] = qw_in;
+
+            }
+          }
+          if (rcodcl1_nc != nullptr) {
+            if (rcodcl1_nc[face_id] > 0.5 * cs_math_infinite_r) {
+              cs_real_t nc_in;
+              if (cs_glob_atmo_option->meteo_profile == 1)
+                nc_in = cs_intprf(cs_glob_atmo_option->met_1d_nlevels_t,
+                    cs_glob_atmo_option->met_1d_ntimes,
+                    cs_glob_atmo_option->z_temp_met,
+                    cs_glob_atmo_option->time_met,
+                    cs_glob_atmo_option->ndrop_met,
+                    z_in,
+                    cs_glob_time_step->t_cur);
+
+
+              else
+                nc_in = cpro_met_nc[cell_id];
+              rcodcl1_nc[face_id] = nc_in;
+            }
+          }
+
+        }
+
+      } /* End of inlets */
+
+      /* Large scale forcing with momentum source terms
+       * ---------------------------------------------- */
+      if (cs_glob_atmo_option->open_bcs_treatment > 0) {
+
+        if (iautom[face_id] >= 1) {
+
+          /* Dirichlet on the pressure: expressed in solved pressure directly
+           * (not in total pressure), that is why -1 is used
+           * (transformed as 1 in cs_boundary_conditions_type). */
+          icodcl_p[face_id] = -1;
+          rcodcl1_p[face_id] = CS_F_(p)->bc_coeffs->a[face_id];
+
+          /* Dirichlet on turbulent variables */
+          cs_turbulence_bc_set_uninit_inlet(face_id, k_in, rij_loc, eps_in);
+
+          if (iautom[face_id] == 1) {
+
+            /* Homogeneous Neumann on the velocity */
+            icodcl_vel[face_id] = 3;
+            for (cs_lnum_t i = 0; i < 3; i++)
+              rcodcl1_vel[i*n_b_faces + face_id] = 0.;
+          }
+          else if (iautom[face_id] == 2) {
+
+            /* Dirichlet on the velocity */
+            icodcl_vel[face_id] = 1;
+            for (cs_lnum_t i = 0; i < 3; i++)
+              rcodcl1_vel[i*n_b_faces + face_id] = vel_in[i];
+          }
+        }
+      } /* End of open BCs */
+    }
+
+    /* Conversion Temperature to potential temperature for Dirichlet and
+     * wall boundary conditions
+     *
+     * if icodcl < 0 it is directly expressed in term of potential temperature
+     * so no need of conversion. */
+    if (icodcl_theta != nullptr) {
+
+      if (icodcl_theta[face_id] < 0)
+        icodcl_theta[face_id] = CS_ABS(icodcl_theta[face_id]);
+      else if ((icodcl_theta[face_id] == 1
+            || icodcl_theta[face_id] == 5 || icodcl_theta[face_id] == 6)
+         && rcodcl1_theta[face_id] < 0.5 * cs_math_infinite_r) {
+
+        cs_real_t z_in = b_face_cog[face_id][2];
+        cs_real_t pp;
+        cs_real_t dum1;
+        cs_real_t dum2;
+        if (cs_glob_atmo_option->meteo_profile == 0)
+          cs_atmo_profile_std(z_in, &pp, &dum1, &dum2);
+
+        /* Pressure profile from meteo file: */
+        else if (cs_glob_atmo_option->meteo_profile == 1)
+          pp = cs_intprf(
+              cs_glob_atmo_option->met_1d_nlevels_t,
+              cs_glob_atmo_option->met_1d_ntimes,
+              cs_glob_atmo_option->z_temp_met,
+              cs_glob_atmo_option->time_met,
+              cs_glob_atmo_option->hyd_p_met,
+              z_in,
+              cs_glob_time_step->t_cur);
+
+        else
+          pp = cpro_met_p[cell_id]
+            - cpro_met_rho[cell_id] * grav[2] * (cell_cen[cell_id][2] - z_in);
+
+        /* Convert from temperature in Kelvin to potential temperature */
+        rcodcl1_theta[face_id] *= pow(ps/pp, rscp);
+      }
+    }
+  } /* End loop of boundary faces */
+
+  /* Inlet BCs for thermal turbulent fluxes
+   * -------------------------------------- */
+  if (cs_glob_atmo_option->meteo_profile == 2) {
+
+    cs_field_t *f_tf
+      = cs_field_by_composite_name_try("temperature", "turbulent_flux");
+
+    if (f_tf != nullptr) {
+      int *icodcl_tf = f_tf->bc_coeffs->icodcl;
+      cs_real_t *rcodcl1_tf = f_tf->bc_coeffs->rcodcl1;
+
+      cs_real_3_t *muptp =
+        (cs_real_3_t *)(cs_field_by_name("meteo_temperature_turbulent_flux")->val);
+      for (cs_lnum_t face_id = 0; face_id < n_b_faces; face_id++) {
+
+        if (   bc_type[face_id] == CS_INLET
+            || bc_type[face_id] == CS_CONVECTIVE_INLET) {
+
+          cs_lnum_t cell_id = b_face_cells[face_id];
+          icodcl_tf[face_id] = 1;
+          for (cs_lnum_t k = 0; k < f_tf->dim; k++)
+            rcodcl1_tf[k*n_b_faces+face_id] = muptp[cell_id][k];
+        }
+      }
+    }
+
+  }
 }
+
 /*----------------------------------------------------------------------------*/
 /*!
  * \brief Deardorff force restore model
@@ -2741,7 +3660,8 @@ cs_soil_model(void)
     /* In case of multi energy balance (MEB) models including PV */
     cs_field_t *cover_geometry_ratio = cs_field_by_name_try("cover_geometry_ratio");
     cs_field_t *cover_reflectivity = cs_field_by_name_try("cover_reflectivity");
-    cs_field_t *cover_temperature_radiative = cs_field_by_name_try("cover_temperature_radiative");
+    cs_field_t *cover_temperature_radiative
+      = cs_field_by_name_try("cover_temperature_radiative");
 
     for (cs_lnum_t soil_id = 0; soil_id < z->n_elts; soil_id++) {
       cs_real_t ray2 = 0;
@@ -3043,7 +3963,7 @@ cs_atmo_init_meteo_profiles(void)
   cs_fluid_properties_t *phys_pro = cs_get_glob_fluid_properties();
 
   /* potential temp at ref */
-  cs_real_t pref = cs_glob_atmo_constants->ps;
+  cs_real_t ps = cs_glob_atmo_constants->ps;
   cs_real_t rair = phys_pro->r_pg_cnst;
   cs_real_t cp0 = phys_pro->cp0;
   cs_real_t rscp = rair/cp0;
@@ -3066,8 +3986,7 @@ cs_atmo_init_meteo_profiles(void)
   phys_pro->ro0 = phys_pro->p0/(rhum * aopt->meteo_t0); /* ref density T0 */
   cs_real_t clatev = phys_pro->clatev;
   cs_real_t theta0 = (aopt->meteo_t0 - clatev/cp0 * aopt->meteo_ql0)
-                   * pow(pref/ aopt->meteo_psea, rscp);
-
+                   * pow(ps/ aopt->meteo_psea, rscp);
 
   cs_real_t z0 = aopt->meteo_z0;
   cs_real_t zref = aopt->meteo_zref;
@@ -3366,11 +4285,11 @@ cs_atmo_compute_meteo_profiles(void)
 
   const cs_fluid_properties_t *phys_pro = cs_get_glob_fluid_properties();
   /* potential temp at ref */
-  cs_real_t pref = cs_glob_atmo_constants->ps;
+  cs_real_t ps = cs_glob_atmo_constants->ps;
   cs_real_t rair = phys_pro->r_pg_cnst;
   cs_real_t cp0 = phys_pro->cp0;
   cs_real_t rscp = rair/cp0;
-  cs_real_t theta0 = aopt->meteo_t0 * pow(pref/ aopt->meteo_psea, rscp);
+  cs_real_t theta0 = aopt->meteo_t0 * pow(ps/ aopt->meteo_psea, rscp);
 
   /* LMO inverse, ustar at ground */
   cs_real_t dlmo = aopt->meteo_dlmo;
@@ -3425,7 +4344,10 @@ cs_atmo_compute_meteo_profiles(void)
   }
 
   /* For DRSM models store Rxz/k */
-  cs_field_t *f_axz = cs_field_by_name_try("meteo_shear_anisotropy");
+  cs_real_6_t *cpro_met_rij = nullptr;
+  cs_field_t *f_met_rij = cs_field_by_name_try("meteo_rij");
+  if (f_met_rij != nullptr)
+    cpro_met_rij = (cs_real_6_t *) (f_met_rij->val);
 
   if (dlmo > 0)
     ri_max = 0.75; // Value chosen to limit buoyancy vs shear production
@@ -3458,8 +4380,20 @@ cs_atmo_compute_meteo_profiles(void)
     /* TKE profile */
     cpro_met_k[cell_id] = cs_math_pow2(ustar0) / sqrt(cmu)
       * sqrt(1. - CS_MIN(ri_f, 1.));
-    if (f_axz != nullptr)
-      f_axz->val[cell_id] = -sqrt(cmu / (1. - CS_MIN(ri_f, ri_max)));
+
+    if (f_met_rij != nullptr) {
+      cs_real_t vel_dir[3];
+      cs_math_3_normalize(cpro_met_vel[cell_id], vel_dir);
+
+      cs_real_t axz = -sqrt(cmu / (1. - CS_MIN(ri_f, ri_max)));
+      cs_real_t k_in = cpro_met_k[cell_id];
+      cpro_met_rij[cell_id][0] = 2. / 3. * k_in;
+      cpro_met_rij[cell_id][1] = 2. / 3. * k_in;
+      cpro_met_rij[cell_id][2] = 2. / 3. * k_in;
+      cpro_met_rij[cell_id][3] = 0.; // Rxy
+      cpro_met_rij[cell_id][4] = axz * k_in * vel_dir[1]; // Ryz
+      cpro_met_rij[cell_id][5] = axz * k_in * vel_dir[0]; // Rxz
+    }
 
     /* epsilon profile */
     cpro_met_eps[cell_id] = cs_math_pow3(ustar0) / (kappa * (z+z0))
@@ -3528,8 +4462,19 @@ cs_atmo_compute_meteo_profiles(void)
         cpro_met_k[cell_id] = cs_math_pow2(ustar0) / sqrt(cmu)
           * sqrt(1. - CS_MIN(ri_max, 1.));
 
-        if (f_axz != nullptr)
-          f_axz->val[cell_id] = -sqrt(cmu / (1. - CS_MIN(ri_max, 1.)));
+        if (f_met_rij != nullptr) {
+          cs_real_t vel_dir[3];
+          cs_math_3_normalize(cpro_met_vel[cell_id], vel_dir);
+
+          cs_real_t axz = -sqrt(cmu / (1. - CS_MIN(ri_max, 1.)));
+          cs_real_t k_in = cpro_met_k[cell_id];
+          cpro_met_rij[cell_id][0] = 2. / 3. * k_in;
+          cpro_met_rij[cell_id][1] = 2. / 3. * k_in;
+          cpro_met_rij[cell_id][2] = 2. / 3. * k_in;
+          cpro_met_rij[cell_id][3] = 0.; // Rxy
+          cpro_met_rij[cell_id][4] = axz * k_in * vel_dir[1]; // Ryz
+          cpro_met_rij[cell_id][5] = axz * k_in * vel_dir[0]; // Rxz
+        }
 
         /* epsilon profile */
         cpro_met_eps[cell_id] = cs_math_pow3(ustar0) / kappa  * dlmo_var[cell_id]
@@ -3799,7 +4744,7 @@ cs_atmo_hydrostatic_profiles_compute(void)
 
   const cs_fluid_properties_t *phys_pro = cs_get_glob_fluid_properties();
   /* potential temp at ref */
-  cs_real_t pref = cs_glob_atmo_constants->ps;
+  cs_real_t ps = cs_glob_atmo_constants->ps;
   cs_real_t rair = phys_pro->r_pg_cnst;
   cs_real_t cp0 = phys_pro->cp0;
   cs_real_t rscp = rair/cp0; /* Around 2/7 */
@@ -3859,7 +4804,7 @@ cs_atmo_hydrostatic_profiles_compute(void)
 
     if (idilat > 0)
       temp->val[cell_id] =   potemp->val[cell_id]
-                           * pow((f->val[cell_id]/pref), rscp);
+                           * pow((f->val[cell_id]/ps), rscp);
     if (cs_glob_physical_model_flag[CS_ATMOSPHERIC]
         != CS_ATMO_CONSTANT_DENSITY)
       density->val[cell_id] = f->val[cell_id] / (rair * temp->val[cell_id]);
@@ -3966,12 +4911,12 @@ cs_atmo_hydrostatic_profiles_compute(void)
     /* L infinity residual computation and forcing update */
     inf_norm = 0.;
     for (cs_lnum_t cell_id = 0; cell_id < m->n_cells; cell_id++) {
-      inf_norm = fmax(fabs(f->val[cell_id] - f->val_pre[cell_id])/pref, inf_norm);
+      inf_norm = fmax(fabs(f->val[cell_id] - f->val_pre[cell_id])/ps, inf_norm);
 
       /* Boussinesq hypothesis: do not update adiabatic temperature profile */
       if (idilat > 0) {
         temp->val[cell_id] =   potemp->val[cell_id]
-                             * pow((f->val[cell_id]/pref), rscp);
+                             * pow((f->val[cell_id]/ps), rscp);
       }
 
       /* f_ext = rho^k * g */

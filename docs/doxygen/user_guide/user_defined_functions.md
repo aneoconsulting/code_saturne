@@ -55,13 +55,13 @@ be useful for application specific or embedded models.
 Function and file names
 -----------------------
 
-In most cases, a given user function reference may be found in the C or
-Fortran file of the same name.
+In most cases, a given user function reference may be found in the C++
+(or C) file of the same name.
 
-When both C and Fortran versions of a given function of function series exist,
-the C version may be prefixed by `cs`, while the fortran version may be
-prefixed by `cs_f`. The Fortran version is usually called first, so the
-C function has the "last word". For example, `cs_user_extra_operations`
+Fortran versions of some commonly used user-defined functions are still
+available for compatibility, but deprecated, and not documented here
+any more. When this is the case, the Fortran version is called first, so the
+C/C++ function has the "last word". For example, `cs_user_extra_operations`
 may be found in the `cs_user_extra_operations.c` file, while
 `cs_f_user_extra_operations` is in `cs_user_extra_operations.f90`.
 
@@ -134,7 +134,7 @@ functions which will be able to access those elements.
 
 ### For all physical models
 
-- \ref cs_user_model (in \ref cs_user_parameters.c)
+- \ref cs_user_model (in \ref cs_user_parameters.cpp)
 
   Allows defining user scalars (species), variances, or activating
   a specific physical model (by setting \ref cs_physical_model_type_t
@@ -151,8 +151,6 @@ functions which will be able to access those elements.
   of CDO-related modules such that Navier--Stokes, solidification or
   groundwater flows.
 
-  The equivalent Fortran function is named \ref usppmo.
-
 - \ref cs_user_zones
 
   Allows defining which zones (based on mesh groups or geometric criteria)
@@ -162,7 +160,7 @@ functions which will be able to access those elements.
 
   It is called before all physical or numerical oriented user functions.
 
-- \ref cs_user_parameters (in \ref cs_user_parameters.c)
+- \ref cs_user_parameters (in \ref cs_user_parameters.cpp)
 
   Allows defining most general settings, such as reference physical properties
   model and numerical settings  for main variable and property fields, etc.
@@ -179,21 +177,19 @@ functions which will be able to access those elements.
   key/value principle). Additional stuffs (management of the time
   stepping or the log output frequency) is also handled at this stage.
 
-  The equivalent Fortran function is named \ref usppmo.
-
 - \ref cs_user_postprocess_writers, \ref cs_user_postprocess_meshes,
-  and \ref cs_user_postprocess_probes (in \ref cs_user_postprocess.c)
+  and \ref cs_user_postprocess_probes (in \ref cs_user_postprocess.cpp)
 
   May be used to define or modify postprocessing extracts using the
   supported output formats, using the
   [mesh and writer](@ref cs_ug_postprocess_intro) concepts.
 
-- \ref cs_user_boundary_conditions_setup (in \ref cs_user_boundary_conditions.c)
+- \ref cs_user_boundary_conditions_setup (in \ref cs_user_boundary_conditions.cpp)
 
   May be used to define advanced boundary conditions using zone-based
   definitions.
 
-- \ref cs_user_finalize_setup (in \ref cs_user_parameters.c)
+- \ref cs_user_finalize_setup (in \ref cs_user_parameters.cpp)
 
   May be used for additionl definitions, or as an alternative or extension
   to \ref cs_user_boundary_conditions_setup.
@@ -227,7 +223,7 @@ Functions called before time stepping
   In case of computation restart, the values from the restart files are loaded before
   this function is called, so can be either further modified or left alone.
 
-- \ref cs_user_extra_operations_initialize (in \ref cs_user_extra_operations.c)
+- \ref cs_user_extra_operations_initialize (in \ref cs_user_extra_operations.cpp)
 
   Called just after \ref cs_user_initialization (with only a few updates
   for some specific models in between), this function is used for more
@@ -255,7 +251,7 @@ Functions called during time stepping
 
   Allows defining complex source terms.
 
-- \ref cs_user_postprocess_values (in \ref cs_user_postprocess.c)
+- \ref cs_user_postprocess_values (in \ref cs_user_postprocess.cpp)
 
   May be used to output locally-computed volume or surface values,
   such as formulas involving fields, or for fine grained association
@@ -276,7 +272,7 @@ Functions called during time stepping
 Functions called during after time stepping
 -------------------------------------------
 
-- \ref cs_user_extra_operations_finalize (in \ref cs_user_extra_operations.c)
+- \ref cs_user_extra_operations_finalize (in \ref cs_user_extra_operations.cpp)
 
   Called just after the time stepping/resolution stage, this function
   allows handling operations required only at the end of the computation (such

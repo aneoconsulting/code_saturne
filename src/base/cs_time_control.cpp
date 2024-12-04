@@ -93,9 +93,9 @@ static const cs_time_control_t  cs_time_control_default
   .at_start = false,
   .at_first = false,
   .at_end = false,
-  .start_nt = -1,
-  .end_nt = -1,
-  .interval_nt = 1,
+  {.start_nt = -1},
+  {.end_nt = -1},
+  {.interval_nt = 1},
   .control_func = nullptr,
   .control_input = nullptr,
   .current_state = false,
@@ -294,7 +294,7 @@ cs_time_control_init_by_time(cs_time_control_t  *tc,
  *!
  * \brief Simple time control initialization based on external function.
  *
- * \remark: if the input pointer is non-nullptr, it must point to valid data
+ * \remark: if the input pointer is non-null, it must point to valid data
  *          when the control function is called, so that value or structure
  *          should not be temporary (i.e. local);
  *

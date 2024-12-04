@@ -208,9 +208,9 @@ _get_cell_def_id(const cs_lnum_t c_id,
 /*!
  * \brief Compute the value of a property at the cell center
  *
- * \param[in] c_id     id of the current cell
- * \param[in] t_eval   physical time at which one evaluates the term
- * \param[in] pty      pointer to a cs_property_t structure
+ * \param[in] c_id    id of the current cell
+ * \param[in] t_eval  physical time at which one evaluates the term
+ * \param[in] pty     pointer to a cs_property_t structure
  *
  * \return the value of the property for the given cell
  */
@@ -1171,7 +1171,7 @@ cs_property_add_as_product(const char             *name,
  *
  * \param[in] name    name of the property to find
  *
- * \return nullptr if not found otherwise the associated pointer
+ * \return null if not found otherwise the associated pointer
  */
 /*----------------------------------------------------------------------------*/
 
@@ -1198,7 +1198,7 @@ cs_property_by_name(const char   *name)
  *
  * \param[in] id      id of the property to find
  *
- * \return nullptr if not found otherwise the associated pointer
+ * \return null if not found otherwise the associated pointer
  */
 /*----------------------------------------------------------------------------*/
 
@@ -1586,7 +1586,7 @@ cs_property_get_array(const cs_property_t     *pty)
 /*----------------------------------------------------------------------------*/
 /*!
  * \brief  Define a \ref cs_property_data_t structure (not a pointer to this
- *         structure). If property is nullptr then one considers that this is a
+ *         structure). If property is null then one considers that this is a
  *         unitary property
  *
  * \param[in]   need_tensor  true if one needs a tensor-valued evaluation
@@ -1649,7 +1649,7 @@ cs_property_data_define(bool                     need_tensor,
 /*----------------------------------------------------------------------------*/
 /*!
  * \brief  Initialize a \ref cs_property_data_t structure. If property is
- * nullptr then one considers that this is a unitary property
+ * null then one considers that this is a unitary property
  *
  * \param[in]      need_tensor  true if one needs a tensor-valued evaluation
  * \param[in]      need_eigen   true if one needs an evaluation of eigen values
@@ -1708,21 +1708,21 @@ cs_property_data_init(bool                     need_tensor,
 
 /*----------------------------------------------------------------------------*/
 /*!
- * \brief  Define a single uniform and steady isotropic definition for the
- *         given cs_property_t structure.
- *         This is a specialized variant of \ref cs_property_def_iso_by_value
- *         since several assumptions are satisfied.
+ * \brief Define a single uniform and steady isotropic definition for the
+ *        given cs_property_t structure.
+ *        This is a specialized variant of \ref cs_property_def_iso_by_value
+ *        since several assumptions are satisfied.
  *
- * \param[in, out]  pty      pointer to a cs_property_t structure
- * \param[in]       val      value to set
+ * \param[in, out] pty  pointer to a cs_property_t structure
+ * \param[in]      val  value to set
  *
  * \return a pointer to the resulting cs_xdef_t structure
  */
 /*----------------------------------------------------------------------------*/
 
 cs_xdef_t *
-cs_property_def_constant_value(cs_property_t    *pty,
-                               double            val)
+cs_property_def_constant_value(cs_property_t *pty,
+                               double         val)
 {
   if (pty == nullptr)
     bft_error(__FILE__, __LINE__, 0, _(_err_empty_pty));
@@ -1731,7 +1731,7 @@ cs_property_def_constant_value(cs_property_t    *pty,
               " Invalid setting: property %s is not isotropic.\n"
               " Please check your settings.", pty->name);
 
-  int  new_id = _add_new_def(pty);
+  int new_id = _add_new_def(pty);
 
   if (new_id > 0)
     bft_error(__FILE__, __LINE__, 0,
@@ -1739,10 +1739,10 @@ cs_property_def_constant_value(cs_property_t    *pty,
               " Several definitions have been added.\n"
               " Please check your settings.", __func__, pty->name);
 
-  cs_flag_t  state_flag = CS_FLAG_STATE_UNIFORM | CS_FLAG_STATE_CELLWISE |
-    CS_FLAG_STATE_STEADY;
-  cs_flag_t  meta_flag = 0; /* metadata */
-  cs_xdef_t  *d = cs_xdef_volume_create(CS_XDEF_BY_VALUE,
+  cs_flag_t state_flag
+    = CS_FLAG_STATE_UNIFORM | CS_FLAG_STATE_CELLWISE | CS_FLAG_STATE_STEADY;
+  cs_flag_t meta_flag = 0; /* metadata */
+  cs_xdef_t *d = cs_xdef_volume_create(CS_XDEF_BY_VALUE,
                                         1,     /* dim */
                                         0,     /* all cells */
                                         state_flag,
@@ -1771,7 +1771,7 @@ cs_property_def_constant_value(cs_property_t    *pty,
  *         related to a volume zone
  *
  * \param[in, out]  pty      pointer to a cs_property_t structure
- * \param[in]       zname    name of the associated zone (if nullptr or "" all
+ * \param[in]       zname    name of the associated zone (if null or "" all
  *                           cells are considered)
  * \param[in]       val      value to set
  *
@@ -1828,7 +1828,7 @@ cs_property_def_iso_by_value(cs_property_t    *pty,
  *        faces associated to the boundary zone named zname
  *
  * \param[in, out]  pty      pointer to a cs_property_t structure
- * \param[in]       zname    name of the associated zone (if nullptr or "" all
+ * \param[in]       zname    name of the associated zone (if null or "" all
  *                           boundary faces are considered)
  * \param[in]       val      value to set
  *
@@ -1871,7 +1871,7 @@ cs_property_boundary_def_iso_by_value(cs_property_t    *pty,
  *         related to a volume zone
  *
  * \param[in, out]  pty      pointer to a cs_property_t structure
- * \param[in]       zname    name of the associated zone (if nullptr or "" all
+ * \param[in]       zname    name of the associated zone (if null or "" all
  *                           cells are considered)
  * \param[in]       val      values to set (vector of size 3)
  *
@@ -1923,7 +1923,7 @@ cs_property_def_ortho_by_value(cs_property_t    *pty,
  *        faces associated to the boundary zone named zname
  *
  * \param[in, out]  pty      pointer to a cs_property_t structure
- * \param[in]       zname    name of the associated zone (if nullptr or "" all
+ * \param[in]       zname    name of the associated zone (if null or "" all
  *                           boundary faces are considered)
  * \param[in]       vals     values to set
  *
@@ -1966,7 +1966,7 @@ cs_property_boundary_def_ortho_by_value(cs_property_t    *pty,
  *         related to a volume zone
  *
  * \param[in, out]  pty      pointer to a cs_property_t structure
- * \param[in]       zname    name of the associated zone (if nullptr or "" all
+ * \param[in]       zname    name of the associated zone (if null or "" all
  *                           cells are considered)
  * \param[in]       tens     values to set (3x3 tensor)
  *
@@ -2027,7 +2027,7 @@ cs_property_def_aniso_by_value(cs_property_t    *pty,
  *        faces associated to the boundary zone named zname
  *
  * \param[in, out]  pty      pointer to a cs_property_t structure
- * \param[in]       zname    name of the associated zone (if nullptr or "" all
+ * \param[in]       zname    name of the associated zone (if null or "" all
  *                           boundary faces are considered)
  * \param[in]       tens     values to set given as a 3x3 tensor
  *
@@ -2077,7 +2077,7 @@ cs_property_boundary_def_aniso_by_value(cs_property_t    *pty,
  *        Optimized case with a symmetric storage.
  *
  * \param[in, out] pty       pointer to a cs_property_t structure
- * \param[in]      zname     name of the associated zone (if nullptr or "" all
+ * \param[in]      zname     name of the associated zone (if null or "" all
  *                           boundary faces are considered)
  * \param[in]      symtens   symmetric tensor given as an array of 6 values
  *
@@ -2131,7 +2131,7 @@ cs_property_def_aniso_sym_by_value(cs_property_t    *pty,
  *        Optimized case with a symmetric storage.
  *
  * \param[in, out]  pty      pointer to a cs_property_t structure
- * \param[in]       zname    name of the associated zone (if nullptr or "" all
+ * \param[in]       zname    name of the associated zone (if null or "" all
  *                           boundary faces are considered)
  * \param[in]       tens     tensor to set given as an array of 6 values
  *
@@ -2174,29 +2174,29 @@ cs_property_boundary_def_aniso_sym_by_value(cs_property_t    *pty,
  * \brief Define a cs_property_t structure thanks to a time function for all
  *        cells associated to the zone named zname
  *
- * \param[in, out]  pty      pointer to a cs_property_t structure
- * \param[in]       zname    name of the associated zone (if nullptr or "" all
- *                           cells are considered)
- * \param[in]       func     pointer to a cs_time_func_t function
- * \param[in]       input    nullptr or pointer to a structure cast on-the-fly
+ * \param[in, out]  pty    pointer to a cs_property_t structure
+ * \param[in]       zname  name of the associated zone (if nullptr or "" all
+ *                         cells are considered)
+ * \param[in]       func   pointer to a cs_time_func_t function
+ * \param[in]       input  nullptr or pointer to a structure cast on-the-fly
  *
  * \return a pointer to the resulting cs_xdef_t structure
  */
 /*----------------------------------------------------------------------------*/
 
 cs_xdef_t *
-cs_property_def_by_time_func(cs_property_t      *pty,
-                             const char         *zname,
-                             cs_time_func_t     *func,
-                             void               *input)
+cs_property_def_by_time_func(cs_property_t   *pty,
+                             const char      *zname,
+                             cs_time_func_t  *func,
+                             void            *input)
 {
   if (pty == nullptr)
     bft_error(__FILE__, __LINE__, 0, _(_err_empty_pty));
 
-  int  new_id = _add_new_def(pty);
-  int  z_id = cs_volume_zone_id_by_name(zname);
-  cs_flag_t  state_flag = CS_FLAG_STATE_UNIFORM | CS_FLAG_STATE_CELLWISE;
-  cs_flag_t  meta_flag = 0; /* metadata */
+  int new_id = _add_new_def(pty);
+  int z_id = cs_volume_zone_id_by_name(zname);
+  cs_flag_t state_flag = CS_FLAG_STATE_UNIFORM | CS_FLAG_STATE_CELLWISE;
+  cs_flag_t meta_flag = 0; /* metadata */
   cs_xdef_time_func_context_t tfc
     = { .z_id = z_id, .func = func, .input = input, .free_input = nullptr };
 
@@ -2251,10 +2251,10 @@ cs_property_def_by_time_func(cs_property_t      *pty,
  *        to a time function in a subdomain attached to a zone named zname
  *
  * \param[in, out]  pty      pointer to a cs_property_t structure
- * \param[in]       zname    name of the associated zone (if nullptr or "" all
+ * \param[in]       zname    name of the associated zone (if null or "" all
  *                           boundary faces are considered)
  * \param[in]       func     pointer to a cs_time_func_t function
- * \param[in]       input    nullptr or pointer to a structure cast on-the-fly
+ * \param[in]       input    null or pointer to a structure cast on-the-fly
  *
  * \return a pointer to the resulting cs_xdef_t structure
  */
@@ -2303,10 +2303,10 @@ cs_property_boundary_def_by_time_func(cs_property_t      *pty,
  *        all cells associated to the zone named zname
  *
  * \param[in, out]  pty      pointer to a cs_property_t structure
- * \param[in]       zname    name of the associated zone (if nullptr or "" all
+ * \param[in]       zname    name of the associated zone (if null or "" all
  *                           cells are considered)
  * \param[in]       func     pointer to a cs_analytic_func_t function
- * \param[in]       input    nullptr or pointer to a structure cast on-the-fly
+ * \param[in]       input    null or pointer to a structure cast on-the-fly
  *
  * \return a pointer to the resulting cs_xdef_t structure
  */
@@ -2350,10 +2350,10 @@ cs_property_def_by_analytic(cs_property_t        *pty,
  *        named zname
  *
  * \param[in, out]  pty      pointer to a cs_property_t structure
- * \param[in]       zname    name of the associated zone (if nullptr or "" all
+ * \param[in]       zname    name of the associated zone (if null or "" all
  *                           boundary faces are considered)
  * \param[in]       func     pointer to a cs_analytic_func_t function
- * \param[in]       input    nullptr or pointer to a structure cast on-the-fly
+ * \param[in]       input    null or pointer to a structure cast on-the-fly
  *
  * \return a pointer to the resulting cs_xdef_t structure
  */
@@ -2397,7 +2397,7 @@ cs_property_boundary_def_by_analytic(cs_property_t        *pty,
  *        associated to the zone named zname
  *
  * \param[in, out] pty           pointer to a cs_property_t structure
- * \param[in]      zname         name of the zone (if nullptr or "" then all
+ * \param[in]      zname         name of the zone (if null or "" then all
  * cells are selected) \param[in]      context       pointer to a structure (may
  * be nullptr) \param[in]      get_eval_at_cell      pointer to a function
  * \param[in]      get_eval_at_cell_cw   pointer to a function
@@ -2444,7 +2444,7 @@ cs_property_def_by_func(cs_property_t         *pty,
  *        cs_xdef_array_set_adjacency and/or \ref cs_xdef_array_set_sublist
  *
  * \param[in, out] pty           pointer to a cs_property_t structure
- * \param[in]      zname         name of the zone (if nullptr or "" then all
+ * \param[in]      zname         name of the zone (if null or "" then all
  * cells are selected) \param[in]      val_location  information to know where
  * are located values \param[in]      array         pointer to an array
  * \param[in]      is_owner      transfer the lifecycle to the cs_xdef_t struc.
@@ -2546,7 +2546,7 @@ cs_property_def_by_array(cs_property_t      *pty,
  *        cs_xdef_array_set_sublist
  *
  * \param[in, out] pty          pointer to a cs_property_t structure
- * \param[in]      zname        nullptr or name of the boundary zone
+ * \param[in]      zname        null or name of the boundary zone
  * \param[in]      val_loc      information to know where are located values
  * \param[in]      array        pointer to an array
  * \param[in]      is_owner     transfer the lifecycle to the cs_xdef_t struct.
@@ -3239,8 +3239,9 @@ cs_property_eval_at_cells(cs_real_t               t_eval,
   /* Apply a scaling factor is requested */
 
   if (fabs(scaling_factor - 1.0) > 10*FLT_MIN)
-    cs_array_real_scale(
-      n_cells, cs_property_get_dim(pty), nullptr, scaling_factor, array);
+    cs_array_real_scale(n_cells, cs_property_get_dim(pty),
+                        nullptr, scaling_factor,
+                        array);
 }
 
 /*----------------------------------------------------------------------------*/
@@ -3596,22 +3597,22 @@ cs_property_get_cell_tensor(cs_lnum_t               c_id,
 
 /*----------------------------------------------------------------------------*/
 /*!
- * \brief  Compute the value of a property at the cell center
+ * \brief Compute the value of a property at the cell center
  *
- * \param[in]   c_id     id of the current cell
- * \param[in]   t_eval   physical time at which one evaluates the term
- * \param[in]   pty      pointer to a cs_property_t structure
+ * \param[in] c_id    id of the current cell
+ * \param[in] t_eval  physical time at which one evaluates the term
+ * \param[in] pty     pointer to a cs_property_t structure
  *
  * \return the value of the property for the given cell
  */
 /*----------------------------------------------------------------------------*/
 
 cs_real_t
-cs_property_get_cell_value(cs_lnum_t              c_id,
-                           cs_real_t              t_eval,
-                           const cs_property_t   *pty)
+cs_property_get_cell_value(cs_lnum_t            c_id,
+                           cs_real_t            t_eval,
+                           const cs_property_t *pty)
 {
-  cs_real_t  result = 0;
+  cs_real_t result = 0;
 
   if (pty == nullptr)
     return result;
@@ -3781,26 +3782,26 @@ cs_property_value_in_cell(const cs_cell_mesh_t   *cm,
  * \brief Compute the values of an isotropic property in each portion of dual
  *        cell in a (primal) cell. This relies on the c2v connectivity.
  *
- * \param[in]      cm        pointer to a cs_cell_mesh_t structure
- * \param[in]      pty       pointer to a cs_property_t structure
- * \param[in]      t_eval    physical time at which one evaluates the term
- * \param[in, out] eval      array of values storing the evaluation
+ * \param[in]      cm      pointer to a cs_cell_mesh_t structure
+ * \param[in]      pty     pointer to a cs_property_t structure
+ * \param[in]      t_eval  physical time at which one evaluates the term
+ * \param[in, out] eval    array of values storing the evaluation
  */
 /*----------------------------------------------------------------------------*/
 
 void
-cs_property_c2v_values(const cs_cell_mesh_t   *cm,
-                       const cs_property_t    *pty,
-                       cs_real_t               t_eval,
-                       cs_real_t              *eval)
+cs_property_c2v_values(const cs_cell_mesh_t *cm,
+                       const cs_property_t  *pty,
+                       cs_real_t             t_eval,
+                       cs_real_t            *eval)
 {
   if (pty == nullptr)
     return;
 
   if ((pty->type & CS_PROPERTY_ISO) == 0)
     bft_error(__FILE__, __LINE__, 0,
-              " Invalid type of property for this function.\n"
-              " Property %s has to be isotropic.", pty->name);
+              "%s: Invalid type of property for this function.\n"
+              " Property %s has to be isotropic.", __func__, pty->name);
 
   assert(cs_property_is_subcell(pty));
   assert(eval != nullptr);
@@ -3830,34 +3831,34 @@ cs_property_c2v_values(const cs_cell_mesh_t   *cm,
 
   case CS_XDEF_BY_ARRAY:
     {
-      cs_xdef_array_context_t  *cx = (cs_xdef_array_context_t *)def->context;
+      cs_xdef_array_context_t *ctx = (cs_xdef_array_context_t *)def->context;
 
-      assert(cx->stride == 1);
+      assert(ctx->stride == 1);
 
-      if (cx->value_location == cs_flag_primal_vtx ||
-          cx->value_location == cs_flag_dual_cell) {
+      if (ctx->value_location == cs_flag_primal_vtx ||
+          ctx->value_location == cs_flag_dual_cell) {
 
         for (int i = 0; i < cm->n_vc; i++)
-          eval[i] = cx->values[cm->v_ids[i]];
+          eval[i] = ctx->values[cm->v_ids[i]];
 
       }
-      else if (cx->value_location == cs_flag_primal_cell) {
+      else if (ctx->value_location == cs_flag_primal_cell) {
 
-        const cs_real_t val_c = cx->values[cm->c_id];
+        const cs_real_t val_c = ctx->values[cm->c_id];
         for (int i = 0; i < cm->n_vc; i++)
           eval[i] = val_c;
 
       }
-      else if (cx->value_location == cs_flag_dual_cell_byc) {
+      else if (ctx->value_location == cs_flag_dual_cell_byc) {
 
-        const cs_adjacency_t  *adj = cx->adjacency;
-        cs_real_t  *_val = cx->values + adj->idx[cm->c_id];
+        const cs_adjacency_t *adj = ctx->adjacency;
+        const cs_real_t *_val = ctx->values + adj->idx[cm->c_id];
         memcpy(eval, _val, cm->n_vc*sizeof(cs_real_t));
 
       }
       else
-        bft_error(__FILE__, __LINE__, 0, "%s: Invalid location for array.",
-                  __func__);
+        bft_error(__FILE__, __LINE__, 0,
+                  "%s: Invalid location for array.", __func__);
     }
     break;
 

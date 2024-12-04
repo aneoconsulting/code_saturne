@@ -1202,7 +1202,7 @@ cs_cdo_connect_build(cs_mesh_t *mesh,
  * \param[in]      mesh        pointer to a mesh structure
  * \param[in, out] connect     pointer to additional CDO connectivities
  *
- * \return a nullptr pointer
+ * \return a null pointer
  */
 /*----------------------------------------------------------------------------*/
 
@@ -1383,7 +1383,8 @@ cs_cdo_connect_allocate_cw_buffer(const cs_cdo_connect_t *connect)
 {
   int n_vc = connect->n_max_vbyc;
   int max_ent
-    = 3 * CS_MAX(n_vc, CS_MAX(connect->n_max_ebyc, connect->n_max_fbyc));
+    = 3 * CS_MAX(n_vc + 1,
+                 CS_MAX(connect->n_max_ebyc, connect->n_max_fbyc + 1));
 
   cs_cdo_connect_cw_buffer_size = CS_MAX(n_vc * (n_vc + 1) / 2, max_ent);
 

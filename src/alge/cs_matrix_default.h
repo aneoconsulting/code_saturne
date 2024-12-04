@@ -122,41 +122,27 @@ cs_matrix_default(bool       symmetric,
                   cs_lnum_t  extra_diag_block_size);
 
 /*----------------------------------------------------------------------------
- * Return MSR matrix for a given fill type
- *
- * parameters:
- *   symmetric              <-- Indicates if matrix coefficients are symmetric
- *   diag_block_size        <-- Block sizes for diagonal
- *   extra_diag_block_size  <-- Block sizes for extra diagonal
+ * Return MSR matrix
  *
  * returns:
- *   pointer to MSR matrix adapted to fill type
+ *   pointer to MSR matrix
  *----------------------------------------------------------------------------*/
 
 cs_matrix_t  *
-cs_matrix_msr(bool       symmetric,
-              cs_lnum_t  diag_block_size,
-              cs_lnum_t  extra_diag_block_size);
+cs_matrix_msr(void);
 
 /*----------------------------------------------------------------------------
- * Return native matrix for a given fill type
- *
- * parameters:
- *   symmetric              <-- Indicates if matrix coefficients are symmetric
- *   diag_block_size        <-- Block sizes for diagonal
- *   extra_diag_block_size  <-- Block sizes for extra diagonal
+ * Return native matrix
  *
  * returns:
- *   pointer to native matrix adapted to fill type
+ *   pointer to native matrix
  *----------------------------------------------------------------------------*/
 
 cs_matrix_t  *
-cs_matrix_native(bool       symmetric,
-                 cs_lnum_t  diag_block_size,
-                 cs_lnum_t  extra_diag_block_size);
+cs_matrix_native(void);
 
 /*----------------------------------------------------------------------------*/
-/*!
+/*
  * \brief Return matrix wrapper for external library for a given fill type.
  *
  * \param[in]  type_name              Matrix type name
@@ -175,7 +161,7 @@ cs_matrix_external(const char  *type_name,
                    cs_lnum_t    extra_diag_block_size);
 
 /*----------------------------------------------------------------------------*/
-/*!
+/*
  * \brief Copy base matrix to external library matrix type for given fill type.
  *
  * Note that the matrix containers share the same assigned structure,
@@ -242,7 +228,7 @@ int
 cs_matrix_get_tuning_runs(void);
 
 /*----------------------------------------------------------------------------*/
-/*!
+/*
  * \brief Set default matrix type for a given fill type.
  *
  * \param[in] fill type  Fill type for which tuning behavior is set
@@ -255,12 +241,15 @@ cs_matrix_default_set_type(cs_matrix_fill_type_t  fill_type,
                            cs_matrix_type_t       type);
 
 /*----------------------------------------------------------------------------*/
-/*!
+/*
  * \brief Return a (0-based) global block row numbering for a given matrix.
  *
  * The numbering is built or updated if not previously used, or if the
- * previous call considered a differeent matrix, and is simply returned
- * otherwise. In other words, this works as a matrix global numbering cache.
+ * previous call considered a different matrix or halo, and is simply
+ * returned otherwise.
+ * In other words, this works as a matrix global numbering cache.
+ *
+ * The matrix's halo is used for the update.
  *
  * \param[in]  m  associated matrix
  *
@@ -271,17 +260,60 @@ cs_matrix_default_set_type(cs_matrix_fill_type_t  fill_type,
 const cs_gnum_t *
 cs_matrix_get_block_row_g_id(const cs_matrix_t  *m);
 
+END_C_DECLS
+#ifdef __cplusplus
+
 /*----------------------------------------------------------------------------*/
-/*!
+/*
+ * \brief Return a (0-based) global block row numbering for a given matrix.
+ *
+ * The numbering is built or updated if not previously used, or if the
+ * previous call considered a different matrix or halo, and is simply
+ * returned otherwise.
+ * In other words, this works as a matrix global numbering cache.
+ *
+ * \param[in]  m     associated matrix
+ * \param[in]  halo  associated halo
+ *
+ * \return  pointer to requested global numbering
+ */
+/*----------------------------------------------------------------------------*/
+
+const cs_gnum_t *
+cs_matrix_get_block_row_g_id(const cs_matrix_t  *m,
+                             const cs_halo_t    *halo);
+
+#endif /* cplusplus */
+BEGIN_C_DECLS
+
+/*----------------------------------------------------------------------------*/
+/*
+ * \brief Return matrix associated wiht a matrix assembler.
+ *
+ * Coefficients are not assigned at this stage.
+ *
+ * \param[in]  f                      pointer to associated field
+ * \param[in]  type                   matrix type
+ *
+ * \return  pointer to associated matrix structure
+ */
+/*----------------------------------------------------------------------------*/
+
+cs_matrix_t *
+cs_matrix_by_assembler(const cs_field_t  *f,
+                       cs_matrix_type_t   type);
+
+/*----------------------------------------------------------------------------*/
+/*
  * \brief Assign coefficients to a matrix using a matrix assembler.
  *
  * \param[in]  f                      pointer to associated field
  * \param[in]  type                   matrix type
  * \param[in]  symmetric              is matrix symmetric ?
- * \param[in]  diag_block_size        block sizes for diagonal
- * \param[in]  extra_diag_block_size  block sizes for extra diagonal
- * \param[in]  da                     diagonal values (NULL if zero)
- * \param[in]  xa                     extradiagonal values (NULL if zero)
+ * \param[in]  diag_block_size        block sizes for diagonal, or nullptr
+ * \param[in]  extra_diag_block_size  block sizes for extra diagonal, or nullptr
+ * \param[in]  da                     diagonal values (nullptr if zero)
+ * \param[in]  xa                     extradiagonal values (nullptr if zero)
  *                                    casts as:
  *                                      xa[n_edges]    if symmetric,
  *                                      xa[n_edges][2] if non symmetric

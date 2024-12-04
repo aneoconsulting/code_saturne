@@ -1001,7 +1001,13 @@ cs_macfb_monolithic_init_sharing(const cs_equation_param_t *eqp,
 
   if (slesp->precond_block_type != CS_PARAM_PRECOND_BLOCK_NONE) {
     if (slesp->solver_class != CS_PARAM_SOLVER_CLASS_PETSC) {
-      bft_error(__FILE__, __LINE__, 0, " %s: Not implemented.\n", __func__);
+      bft_error(__FILE__,
+                __LINE__,
+                0,
+                " %s: Not implemented block type %d for solver %d.\n",
+                __func__,
+                slesp->precond_block_type,
+                slesp->solver_class);
     }
   }
 
@@ -1255,7 +1261,7 @@ cs_macfb_monolithic_init_scheme_context(const cs_navsto_param_t *nsp,
  *
  * \param[in] scheme_context   pointer to a scheme context structure to free
  *
- * \return a nullptr pointer
+ * \return a null pointer
  */
 /*----------------------------------------------------------------------------*/
 

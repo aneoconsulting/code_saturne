@@ -151,6 +151,7 @@ typedef struct {
   cs_real_3_t  *forstp;      /*!< predicted force vectors (N) */
 
   cs_real_t  *dtstr;         /*!< time step used to solve structure movements */
+  cs_real_t *dtsta; /*!< previous time step used to solve structure movements */
 
   /* Association with mesh */
 
@@ -191,7 +192,7 @@ static int _post_out_stat_id = -1;
  *============================================================================*/
 
 /*! Maximum number of implicitation iterations of the structure displacement */
-int cs_glob_mobile_structures_i_max = 1;
+int cs_glob_mobile_structures_n_iter_max = 1;
 
 /*! Relative precision of implicitation of the structure displacement */
 double cs_glob_mobile_structures_i_eps = 1e-5;
@@ -256,6 +257,7 @@ _mobile_structures_create(void)
   ms->forstp = nullptr;
 
   ms->dtstr = nullptr;
+  ms->dtsta = nullptr;
 
   /* Plot info */
 
@@ -309,6 +311,7 @@ _mobile_structures_destroy(cs_mobile_structures_t  **ms)
   BFT_FREE(_ms->forstp);
 
   BFT_FREE(_ms->dtstr);
+  BFT_FREE(_ms->dtsta);
 
   /* Plot info */
 
@@ -379,9 +382,11 @@ _init_internal_structures(cs_mobile_structures_t *ms,
   BFT_REALLOC(ms->forstp, n_structures, cs_real_3_t);
 
   BFT_REALLOC(ms->dtstr, n_structures, cs_real_t);
+  BFT_REALLOC(ms->dtsta, n_structures, cs_real_t);
 
   for (int i = n_int_structs_prev; i < n_structures; i++) {
     ms->dtstr[i] = 0;
+    ms->dtsta[i] = 0;
     for (int j = 0; j < 3; j++) {
       ms->xstr[i][j]   = 0;
       ms->xpstr[i][j]  = 0;
@@ -737,7 +742,10 @@ cs_mobile_structures_setup(void)
 
   int monitor = 1;
 
-  cs_gui_mobile_mesh_init_structures(ms->n_int_structs,
+  const cs_time_step_t *ts         = cs_glob_time_step;
+  int                   is_restart = (ts->nt_prev > 0) ? 1 : 0;
+
+  cs_gui_mobile_mesh_init_structures(is_restart,
                                      &(ms->aexxst),
                                      &(ms->bexxst),
                                      &(ms->cfopre),
@@ -745,9 +753,6 @@ cs_mobile_structures_setup(void)
                                      (cs_real_t *)ms->xstp,
                                      (cs_real_t *)ms->xstreq,
                                      (cs_real_t *)ms->xpstr);
-
-  const cs_time_step_t *ts = cs_glob_time_step;
-  int is_restart = (ts->nt_prev > 0) ? 1 : 0;
 
   cs_user_fsi_structure_define(is_restart,
                                ms->n_int_structs,
@@ -760,11 +765,12 @@ cs_mobile_structures_setup(void)
                                ms->xpstr,
                                ms->xstreq);
 
+  /* Coefficents are given in Fabien Huvelin PhD (pp 19, sect 2.2)*/
   if (ms->aexxst < -0.5*cs_math_big_r)
-    ms->aexxst = 0.5;
+    ms->aexxst = 1.0;
   if (ms->bexxst < -0.5*cs_math_big_r)
-    ms->bexxst = 0.;
-  if (cs_glob_mobile_structures_i_max == 1) {
+    ms->bexxst = 0.5;
+  if (cs_glob_mobile_structures_n_iter_max == 1) {
     if (ms->cfopre < -0.5*cs_math_big_r)
       ms->cfopre = 2.0;
   }
@@ -784,8 +790,8 @@ cs_mobile_structures_initialize(void)
 {
   cs_mobile_structures_t *ms = _mobile_structures;
 
-  int n_int_structs = cs_mobile_structures_get_n_structures();
-  int n_ast_structs = cs_ast_coupling_n_couplings();
+  int n_int_structs = cs_mobile_structures_get_n_int_structures();
+  int n_ast_structs = cs_mobile_structures_get_n_ext_structures();
 
   if (n_int_structs + n_ast_structs == 0)
     return;
@@ -848,8 +854,10 @@ cs_mobile_structures_initialize(void)
   }
 
   if (n_int_structs > 0) {
-    for (int i = 0; i < n_int_structs; i++)
+    for (int i = 0; i < n_int_structs; i++) {
       ms->dtstr[i] = cs_glob_time_step->dt[0];
+      ms->dtsta[i] = cs_glob_time_step->dt[1];
+    }
   }
 
   /* Prepare and exchange mesh info with code_aster
@@ -873,8 +881,11 @@ cs_mobile_structures_initialize(void)
     const cs_real_t almax = cs_glob_turb_ref_values->almax;
 
     /* Exchange code_aster coupling parameters */
-    cs_ast_coupling_initialize(cs_glob_mobile_structures_i_max,
+    cs_ast_coupling_initialize(cs_glob_mobile_structures_n_iter_max,
                                cs_glob_mobile_structures_i_eps);
+
+    /* Set coefficient for prediction */
+    cs_ast_coupling_set_coefficients(ms->aexxst, ms->bexxst, ms->cfopre);
 
     /* Send geometric information to code_aster */
     cs_ast_coupling_geometry(n_ast_faces, face_ids, almax);
@@ -888,13 +899,13 @@ cs_mobile_structures_initialize(void)
      displacement will be needed. */
 
   if (n_int_structs + n_ast_structs == 0) {
-    cs_glob_mobile_structures_i_max = 1;
+    cs_glob_mobile_structures_n_iter_max = 1;
 
     BFT_FREE(ms->idfstr);
     idfstr = nullptr;
   }
 
-  if (n_int_structs && ms->plot > 0)
+  if (n_int_structs > 0 && ms->plot > 0)
     _init_time_plot(ms);
 }
 
@@ -925,8 +936,8 @@ cs_mobile_structures_log_setup(void)
 {
   cs_mobile_structures_t *ms = _mobile_structures;
 
-  int n_int_structs = cs_mobile_structures_get_n_structures();
-  int n_ast_structs = cs_ast_coupling_n_couplings();
+  int n_int_structs = cs_mobile_structures_get_n_int_structures();
+  int n_ast_structs = cs_mobile_structures_get_n_ext_structures();
 
   cs_log_t log = CS_LOG_SETUP;
 
@@ -991,7 +1002,7 @@ cs_mobile_structures_log_setup(void)
                   ms->plot_time_control.interval_nt,
                   ms->plot_time_control.interval_t);
 
-    if (cs_glob_mobile_structures_i_max == 1) {
+    if (cs_glob_mobile_structures_n_iter_max == 1) {
       cs_log_printf(log,
                     ("\n"
                      "  Explicit coupling scheme\n"
@@ -1009,8 +1020,27 @@ cs_mobile_structures_log_setup(void)
                      "  Implicit coupling scheme\n"
                      "    maximum number of inner iterations: %d\n"
                      "    convergence threshold:              %g\n\n"),
-                    cs_glob_mobile_structures_i_max,
+                    cs_glob_mobile_structures_n_iter_max,
                     cs_glob_mobile_structures_i_eps);
+    }
+
+    for (int i = 0; i < n_int_structs; i++) {
+      cs_log_printf(log,
+                    ("  Parameters for internal structure %d:\n"
+                     "\n"
+                     "    Initial displacement: (%g, %g, %g) \n"
+                     "    Initial velocity: (%g, %g, %g) \n"
+                     "    Equilibirum displacement: (%g, %g, %g) \n"),
+                    i,
+                    ms->xstp[i][0],
+                    ms->xstp[i][1],
+                    ms->xstp[i][2],
+                    ms->xpstr[i][0],
+                    ms->xpstr[i][1],
+                    ms->xpstr[i][2],
+                    ms->xstreq[i][0],
+                    ms->xstreq[i][1],
+                    ms->xstreq[i][2]);
     }
   }
 
@@ -1032,12 +1062,34 @@ cs_mobile_structures_log_setup(void)
 /*----------------------------------------------------------------------------*/
 
 int
-cs_mobile_structures_get_n_structures(void)
+cs_mobile_structures_get_n_int_structures(void)
 {
   int retval = 0;
 
   if (_mobile_structures != nullptr)
     retval = _mobile_structures->n_int_structs;
+
+  return retval;
+}
+
+/*----------------------------------------------------------------------------*/
+/*!
+ * \brief  Query number of external mobile structures defined.
+ *
+ * \return  number of external mobile structures
+ */
+/*----------------------------------------------------------------------------*/
+
+int
+cs_mobile_structures_get_n_ext_structures(void)
+{
+  int retval = 0;
+
+  if (_mobile_structures != nullptr) {
+    if (_mobile_structures->has_ext_structs) {
+      retval = 1;
+    }
+  }
 
   return retval;
 }
@@ -1154,8 +1206,8 @@ cs_mobile_structures_prediction(int  itrale,
 {
   cs_mobile_structures_t *ms = _mobile_structures;
 
-  int n_int_structs = cs_mobile_structures_get_n_structures();
-  int n_ast_structs = cs_ast_coupling_n_couplings();
+  int n_int_structs = cs_mobile_structures_get_n_int_structures();
+  int n_ast_structs = cs_mobile_structures_get_n_ext_structures();
 
   if (n_int_structs + n_ast_structs == 0)
     return;
@@ -1177,14 +1229,16 @@ cs_mobile_structures_prediction(int  itrale,
    * - The displacement used for the previous computation if restarted with no
    *   modification by user.
    *
-   * Its value must be transferred to xstr (which is used by  Newmark).
+   * Its value must be transferred to xstr (which is used by Newmark).
    * In the following iterations (itrale>0) we use the standard computation
    * schemes for xstp. */
 
   if (n_int_structs > 0) {
-    cs_real_t dt_ref = cs_glob_time_step->dt[0];
+    cs_real_t dt_curr = cs_glob_time_step->dt[0];
+    cs_real_t dt_prev = cs_glob_time_step->dt[1];
     for (int i = 0; i < ms->n_int_structs; i++) {
-      ms->dtstr[i] = dt_ref;
+      ms->dtstr[i] = dt_curr;
+      ms->dtsta[i] = dt_prev;
     }
 
     if (itrale == 0) {
@@ -1193,20 +1247,21 @@ cs_mobile_structures_prediction(int  itrale,
           ms->xstr[i][j] = ms->xstp[i][j];
       }
     }
-
     else {
 
       /* Explicit coupling scheme */
-      if (cs_glob_mobile_structures_i_max == 1) {
+      if (cs_glob_mobile_structures_n_iter_max == 1) {
         cs_real_t aexxst = ms->aexxst;
         cs_real_t bexxst = ms->bexxst;
 
         for (int i = 0; i < n_int_structs; i++) {
-          cs_real_t dt = ms->dtstr[i];
-          for (int j= 0; j < 3; j++) {
-            ms->xstp[i][j] =   ms->xstr[i][j]
-                             + aexxst*dt*ms->xpstr[i][j]
-                             + bexxst*dt*(ms->xpstr[i][j]-ms->xpsta[i][j]);
+          /* Adams-Bashforth scheme of order 2 if aexxst = 1, bexxst = 0.5 */
+          /* Euler explicit scheme of order 1 if aexxst = 1, bexxst = 0 */
+          cs_real_t b_curr  = dt_curr * (aexxst + bexxst * dt_curr / dt_prev);
+          cs_real_t b_prev  = -bexxst * dt_curr * dt_curr / dt_prev;
+          for (int j = 0; j < 3; j++) {
+            ms->xstp[i][j] = ms->xstr[i][j] + b_curr * ms->xpstr[i][j] +
+                             b_prev * ms->xpsta[i][j];
           }
         }
       }
@@ -1338,10 +1393,7 @@ cs_mobile_structures_prediction(int  itrale,
         const cs_real_t *cvara_pr = CS_F_(p)->val_pre;
 
         BFT_REALLOC(_pr_save, n_b_faces, cs_real_t);
-        cs_real_t *xprale = _pr_save;
-
-        for (cs_lnum_t i = 0; i < n_vals; i++)
-          xprale[i] = cvara_pr[i];
+        cs_array_copy(n_vals, cvara_pr, _pr_save);
       }
 
     } /* ineefl */
@@ -1366,8 +1418,8 @@ cs_mobile_structures_displacement(int itrale, int italim, int *itrfin)
 
   cs_mobile_structures_t *ms = _mobile_structures;
 
-  int n_int_structs = cs_mobile_structures_get_n_structures();
-  int n_ast_structs = cs_ast_coupling_n_couplings();
+  int n_int_structs = cs_mobile_structures_get_n_int_structures();
+  int n_ast_structs = cs_mobile_structures_get_n_ext_structures();
 
   if (n_int_structs + n_ast_structs == 0)
     return;
@@ -1401,8 +1453,6 @@ cs_mobile_structures_displacement(int itrale, int italim, int *itrfin)
   if (n_ast_structs > 0)
     forast = cs_ast_coupling_get_fluid_forces_pointer();
 
-  /* Allocate a temporary array */
-
   int *idfstr = ms->idfstr;
 
   cs_lnum_t indast = 0;
@@ -1426,23 +1476,26 @@ cs_mobile_structures_displacement(int itrale, int italim, int *itrfin)
     }
   }
 
-  cs_parall_sum(n_int_structs * 3, CS_REAL_TYPE, (cs_real_t *)ms->forstr);
+  if (n_int_structs > 0) {
+    cs_parall_sum(n_int_structs * 3, CS_REAL_TYPE, (cs_real_t *)ms->forstr);
 
-  /* Compute effort sent to internal structures */
+    /* Compute effort sent to internal structures */
 
-  const cs_real_t cfopre = ms->cfopre;
+    const cs_real_t cfopre = ms->cfopre;
 
-  for (int i = 0; i < n_int_structs; i++) {
-    for (int j = 0; j < 3; j++) {
-      ms->forstp[i][j] =          cfopre * ms->forstr[i][j]
-                         + (1.0 - cfopre) * ms->forsta[i][j];
+    for (int i = 0; i < n_int_structs; i++) {
+      for (int j = 0; j < 3; j++) {
+        ms->forstp[i][j] =
+          cfopre * ms->forstr[i][j] + (1.0 - cfopre) * ms->forsta[i][j];
+      }
     }
   }
 
   /* Send effort applied to external structures */
 
   if (n_ast_structs > 0) {
-    cs_ast_coupling_exchange_fields();
+    cs_ast_coupling_send_fluid_forces();
+    cs_ast_coupling_evaluate_cvg();
   }
 
   /* Structure characteristics defined by the user
@@ -1454,6 +1507,8 @@ cs_mobile_structures_displacement(int itrale, int italim, int *itrfin)
                                            ms->xkstru,
                                            ms->forstp);
 
+    /* All structures have the same value here */
+    const cs_real_t dt_calc = ms->dtstr[0];
     cs_user_fsi_structure_values(n_int_structs,
                                  ts,
                                  ms->xstreq,
@@ -1464,6 +1519,26 @@ cs_mobile_structures_displacement(int itrale, int italim, int *itrfin)
                                  ms->xkstru,
                                  ms->forstp,
                                  ms->dtstr);
+
+    for (int i = 0; i < n_int_structs; i++) {
+      if (CS_ABS(dt_calc - ms->dtstr[i]) / dt_calc > 1e-10) {
+        bft_error(__FILE__,
+                  __LINE__,
+                  0,
+                  _("@\n"
+                    "@ @@ Warning: ALE displacement of internal structures\n"
+                    "@    =======\n"
+                    "@  Structure: %d\n"
+                    "@  The time step of the strucutre: %14.5e \n"
+                    "@  is different of the time step of the fluid %14.5e \n"
+                    "@  This is currently not available. \n"
+                    "@\n"
+                    "@  Calculation abort\n"),
+                  i,
+                  ms->dtstr[i],
+                  dt_calc);
+      }
+    }
   }
 
   /* If the fluid is initializing, we do not read structures */
@@ -1487,14 +1562,15 @@ cs_mobile_structures_displacement(int itrale, int italim, int *itrfin)
   /* Convergence test
      ---------------- */
 
-  int icvext = 0, icvint = 0, icved  = 0;
-  double delta = 0.;
+  int icvext = 0, icvint = 0, icved = 0;
 
-  for (int i = 0; i < n_int_structs; i++) {
-    delta += cs_math_3_square_distance(ms->xstr[i], ms->xstp[i]);
-  }
+  cs_real_t delta = 0.;
 
   if (n_int_structs > 0) {
+    for (int i = 0; i < n_int_structs; i++) {
+      delta += cs_math_3_square_distance(ms->xstr[i], ms->xstp[i]);
+    }
+
     const cs_real_t almax = cs_glob_turb_ref_values->almax;
 
     delta = sqrt(delta) / almax / n_int_structs;
@@ -1502,8 +1578,10 @@ cs_mobile_structures_displacement(int itrale, int italim, int *itrfin)
       icvint = 1;
   }
 
-  if (n_ast_structs > 0)
-    icvext = cs_ast_coupling_get_ext_cvg();
+  if (n_ast_structs > 0) {
+    delta  = cs_ast_coupling_get_current_residual();
+    icvext = cs_ast_coupling_get_current_cvg();
+  }
 
   if (n_int_structs > 0) {
     if (n_ast_structs > 0)
@@ -1536,28 +1614,32 @@ cs_mobile_structures_displacement(int itrale, int italim, int *itrfin)
       icved = 0;
     }
   }
-  else if (*itrfin == 0  &&  italim == cs_glob_mobile_structures_i_max-1) {
+  else if (*itrfin == 0 && italim == cs_glob_mobile_structures_n_iter_max - 1) {
     /* this will be the last iteration */
     *itrfin = 1;
   }
-  else if (italim == cs_glob_mobile_structures_i_max) {
+  else if (italim == cs_glob_mobile_structures_n_iter_max) {
     /* we have itrfin=1 and are finished */
-    if (cs_glob_mobile_structures_i_max > 1)
+    if (cs_glob_mobile_structures_n_iter_max > 1)
       bft_printf(_("@\n"
-                   "@ @@ Warning: implicit ALE'\n"
-                   "@    =======\n"
+                   "@  Warning: implicit ALE'\n"
+                   "@  ======================\n"
                    "@  Maximum number of iterations (%d) reached\n"
                    "@  Normed drift: %12.5e\n"
                    "@\n"),
-                 italim, delta);
+                 italim,
+                 delta);
     *itrfin = -1;
     /* Set icved to 1 so code_aster also stops. */
     icved = 1;
   }
 
-  /* Return the final convergence indicator to code_aster */
-  if (n_ast_structs > 0)
-    cs_ast_coupling_send_cvg(icved);
+  /* Return the final convergence indicator to code_aster
+   * and received displacement */
+  if (n_ast_structs > 0) {
+    cs_ast_coupling_set_final_cvg(icved);
+    cs_ast_coupling_recv_displacement();
+  }
 
   /* Restore previous values if required
      ----------------------------------- */
@@ -1574,24 +1656,19 @@ cs_mobile_structures_displacement(int itrale, int italim, int *itrfin)
 
     for (int field_id = 0; field_id < n_fields; field_id++) {
       cs_field_t *f = cs_field_by_id(field_id);
-      if (   f->type & CS_FIELD_VARIABLE
-          && f->location_id == CS_MESH_LOCATION_CELLS
-          && (f->type & CS_FIELD_CDO) == 0) {
-
+      if (f->type & CS_FIELD_VARIABLE &&
+          f->location_id == CS_MESH_LOCATION_CELLS &&
+          (f->type & CS_FIELD_CDO) == 0) {
         cs_real_t *cvar_var = f->val;
         cs_real_t *cvara_var = f->val_pre;
         cs_lnum_t n_vals = (cs_lnum_t)f->dim*n_cells_ext;
 
         if (   f == CS_F_(p)
             && cs_glob_velocity_pressure_param->nterup > 1) {
-          cs_real_t *xprale = _pr_save;
-          for (cs_lnum_t i = 0; i < n_vals; i++)
-            cvara_var[i] = xprale[i];
+          cs_array_copy(n_vals, _pr_save, cvara_var);
         }
 
-        for (cs_lnum_t i = 0; i < n_vals; i++)
-          cvar_var[i] = cvara_var[i];
-
+        cs_array_copy(n_vals, cvara_var, cvar_var);
       }
     }
 
@@ -1608,11 +1685,8 @@ cs_mobile_structures_displacement(int itrale, int italim, int *itrfin)
     cs_real_t *imasfl_pre = f_i->val_pre;
     cs_real_t *bmasfl_pre = f_b->val_pre;
 
-    for (cs_lnum_t face_id = 0; face_id < n_i_faces; face_id++)
-      imasfl[face_id] = imasfl_pre[face_id];
-
-    for (cs_lnum_t face_id = 0; face_id < n_b_faces; face_id++)
-      bmasfl[face_id] = bmasfl_pre[face_id];
+    cs_array_copy(n_i_faces, imasfl_pre, imasfl);
+    cs_array_copy(n_b_faces, bmasfl_pre, bmasfl);
 
     /* Restore BC coefficients.
 
@@ -1689,8 +1763,8 @@ cs_mobile_structures_restart_read(cs_restart_t  *r)
 
   int n_str[2] = {0, 0}, n_str_prev[2] = {0, 0};
 
-  n_str[0] = cs_mobile_structures_get_n_structures();
-  n_str[1] = cs_ast_coupling_n_couplings();
+  n_str[0] = cs_mobile_structures_get_n_int_structures();
+  n_str[1] = cs_mobile_structures_get_n_ext_structures();
 
   if (n_str[0] + n_str[1] == 0)
     return;
@@ -1813,8 +1887,8 @@ cs_mobile_structures_restart_write(cs_restart_t  *r)
 
   int n_str[2] = {0, 0};
 
-  n_str[0] = cs_mobile_structures_get_n_structures();
-  n_str[1] = cs_ast_coupling_n_couplings();
+  n_str[0] = cs_mobile_structures_get_n_int_structures();
+  n_str[1] = cs_mobile_structures_get_n_ext_structures();
 
   if (n_str[0] + n_str[1] == 0)
     return;

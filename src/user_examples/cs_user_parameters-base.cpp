@@ -445,7 +445,7 @@ cs_user_model(void)
    *   CS_TURB_SPALART_ALLMARAS: Spalart-Allmaras model */
 
   cs_turb_model_t *turb_model = cs_get_glob_turb_model();
-  turb_model->iturb = CS_TURB_K_EPSILON_LIN_PROD;
+  turb_model->model = CS_TURB_K_EPSILON_LIN_PROD;
 
   /*! [turbulence_model_choice] */
 
@@ -592,9 +592,10 @@ cs_user_model(void)
   /* Maximum number of iterations in case of implicit Fluid Structure Coupling
      with structural calculations (internal and/or external
      (i.e. using code_aster).
-     For an explicit FSI scheme, set cs_glob_mobile_structures_i_max = 1; */
+     For an explicit FSI scheme, set cs_glob_mobile_structures_n_iter_max = 1;
+   */
 
-  cs_glob_mobile_structures_i_max = 15;
+  cs_glob_mobile_structures_n_iter_max = 15;
 
   /* Relative precision of sub-cycling Fluid Structure Coupling algorithm */
 
@@ -748,6 +749,31 @@ cs_user_model(void)
   /* Add some sources from a file
    * The file contains lines with x,y,z (in meters) format */
   cs_ibm_add_sources_by_file_name("sources.csv");
+
+  /* Example: reading a different format of pts file
+   * ------------------------------------------------*/
+
+  int n_headers = 11;
+
+  cs_glob_porosity_from_scan_opt->n_headers = n_headers;
+
+  const char *local_headers[] = {"X", "Y", "Z", "Intensity", "Return_Number",
+                                 "Number_Of_Returns", "Scan_Direction_Flag",
+                                 "Classification", "Scan_Angle",
+                                 "Point_Source_ID", "Gps_Time"};
+
+  int local_type[] = {1,1,1,0,0,0,0,0,0,0,0};
+
+  BFT_MALLOC(cs_glob_porosity_from_scan_opt->headers, n_headers, char *);
+  BFT_MALLOC(cs_glob_porosity_from_scan_opt->header_type, n_headers, int);
+
+  // Copy each string into modifiable memory
+  for (int i = 0; i < n_headers; i++) {
+    BFT_MALLOC(cs_glob_porosity_from_scan_opt->headers[i],
+        strlen(local_headers[i]) + 1, char);
+    strcpy(cs_glob_porosity_from_scan_opt->headers[i], local_headers[i]);
+    cs_glob_porosity_from_scan_opt->header_type[i] = local_type[i];
+  }
 
   /* Example: setup options for radiative transfer
    * --------------------------------------------- */
@@ -1051,7 +1077,7 @@ cs_user_parameters(cs_domain_t *domain)
                               viscosity/diffusivity, and specific heat
 
      When a specific physics module is active
-       (coal, combustion, electric arcs, compressible: see usppmo)
+       (coal, combustion, electric arcs, compressible: see cs_user_model)
        we MUST NOT set variables 'irovar', 'ivivar', and 'icp' here, as
        they are defined automatically.
      Nonetheless, for the compressible case, ivivar may be modified
@@ -1421,7 +1447,7 @@ cs_user_parameters(cs_domain_t *domain)
    * This is the purpose of the test on iscavr(jj) in the example below.
    *
    * For non-user scalars relative to specific physics (coal, combustion,
-   * electric arcs: see usppmo) implicitly defined according to the
+   * electric arcs: see cs_user_model) implicitly defined according to the
    * model, the information is automatically set elsewhere: we
    * do not set min or max values here. */
 
@@ -1923,6 +1949,7 @@ cs_user_finalize_setup(cs_domain_t     *domain)
 
   /*! [param_var_rij_clipping] */
 
+  /*! [atmo_ad_rad_def] */
   /* Example: define 1-D radiative transfer mesh for
    * the atmospheric module */
   /*-----------------------------------------------------------------*/
@@ -2018,6 +2045,7 @@ cs_user_finalize_setup(cs_domain_t     *domain)
     at_opt->rad_1d_xy[2 * at_opt->rad_1d_nvert + i] = 1.; /* kmin in case of
                                                              non-flat terrain */
   }
+  /*! [atmo_ad_rad_def] */
 }
 
 /*----------------------------------------------------------------------------*/

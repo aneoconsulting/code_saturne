@@ -83,6 +83,9 @@ BEGIN_C_DECLS
  * Macro definitions
  *============================================================================*/
 
+static cs_lnum_t _iv2t[6] = {0, 1, 2, 0, 1, 0};
+static cs_lnum_t _jv2t[6] = {0, 1, 2, 1, 2, 2};
+
 /*============================================================================
  * Type definitions
  *============================================================================*/
@@ -145,43 +148,6 @@ _turb_bc_id =
    nullptr,  /* f_id_ut */
    nullptr   /* f_id_alp_bl_t */
 };
-
-/*============================================================================
- * Prototypes for functions intended for use only by Fortran wrappers.
- * (descriptions follow, with function bodies).
- *============================================================================*/
-
-void
-cs_f_turbulence_bc_inlet_hyd_diam(cs_lnum_t   face_num,
-                                  double      uref2,
-                                  double      dh,
-                                  double      rho,
-                                  double      mu);
-
-void
-cs_f_turbulence_bc_inlet_turb_intensity(cs_lnum_t   face_num,
-                                        double      uref2,
-                                        double      t_intensity,
-                                        double      dh);
-
-void
-cs_f_turbulence_bc_inlet_k_eps(cs_lnum_t   face_num,
-                               double      k,
-                               double      eps,
-                               double      vel_dir[],
-                               double      shear_dir[]);
-
-void
-cs_f_turbulence_bc_init_inlet_k_eps(cs_lnum_t   face_num,
-                                    double      k,
-                                    double      eps);
-
-void
-cs_f_turbulence_bc_set_uninit_inlet_k_eps(cs_lnum_t   face_num,
-                                          double      k,
-                                          double      eps,
-                                          double      vel_dir[],
-                                          double      shear_dir[]);
 
 /*============================================================================
  * Private function definitions
@@ -356,7 +322,7 @@ _inlet_bc(cs_lnum_t   face_id,
     }
     _turb_bc_id.bc_eps->rcodcl1[face_id] = eps;
 
-    if (turb_model->iturb == CS_TURB_RIJ_EPSILON_EBRSM)
+    if (turb_model->model == CS_TURB_RIJ_EPSILON_EBRSM)
       _turb_bc_id.bc_alp_bl->rcodcl1[face_id] = 1.;
 
     /* Initialization of the turbulent fluxes to 0 if DFM or
@@ -387,21 +353,21 @@ _inlet_bc(cs_lnum_t   face_id,
     _turb_bc_id.bc_eps->rcodcl1[face_id] = eps;
 
     _turb_bc_id.bc_phi->rcodcl1[face_id] = 2./3.;
-    if (turb_model->iturb == CS_TURB_V2F_PHI) {
+    if (turb_model->model == CS_TURB_V2F_PHI) {
       _turb_bc_id.bc_f_bar->rcodcl1[face_id] = 0.;
     }
-    else if (turb_model->iturb == CS_TURB_V2F_BL_V2K) {
+    else if (turb_model->model == CS_TURB_V2F_BL_V2K) {
       _turb_bc_id.bc_alp_bl->rcodcl1[face_id] = 0.;
     }
 
   }
-  else if (turb_model->iturb == CS_TURB_K_OMEGA) {
+  else if (turb_model->model == CS_TURB_K_OMEGA) {
 
     _turb_bc_id.bc_k->rcodcl1[face_id] = k;
     _turb_bc_id.bc_omg->rcodcl1[face_id] = eps/cs_turb_cmu/k;
 
   }
-  else if (turb_model->iturb == CS_TURB_SPALART_ALLMARAS) {
+  else if (turb_model->model == CS_TURB_SPALART_ALLMARAS) {
 
     _turb_bc_id.bc_nusa->rcodcl1[face_id] = cs_turb_cmu*k*k/eps;
 
@@ -424,6 +390,7 @@ _inlet_bc(cs_lnum_t   face_id,
 static inline void
 _set_uninit_inlet_bc(cs_lnum_t   face_id,
                      double      k,
+                     double      rij[],
                      double      eps,
                      double      vel_dir[],
                      double      shear_dir[])
@@ -444,35 +411,43 @@ _set_uninit_inlet_bc(cs_lnum_t   face_id,
   else if (turb_model->order == CS_TURB_SECOND_ORDER) {
 
     double d2s3 = 2./3.;
-    for (int ii = 0; ii < 3; ii++)
-      if (_turb_bc_id.bc_rij->rcodcl1[ii*n_b_faces + face_id]
-          > 0.5*cs_math_infinite_r)
-        _turb_bc_id.bc_rij->rcodcl1[ii*n_b_faces + face_id] = d2s3 * k;
-    if (vel_dir != nullptr) {
+    if (rij != nullptr) {
+      for (cs_lnum_t ij = 0; ij < 6; ij++)
+        if (_turb_bc_id.bc_rij->rcodcl1[ij * n_b_faces + face_id]
+            > 0.5*cs_math_infinite_r)
+          _turb_bc_id.bc_rij->rcodcl1[ij * n_b_faces + face_id] = rij[ij];
+    }
+    else if (vel_dir != nullptr) {
       cs_math_3_normalize(vel_dir, vel_dir);
-      if (_turb_bc_id.bc_rij->rcodcl1[3*n_b_faces + face_id]
-          > 0.5*cs_math_infinite_r)
-        _turb_bc_id.bc_rij->rcodcl1[3*n_b_faces + face_id]
-          = k * (vel_dir[0]*shear_dir[1] + vel_dir[1]*shear_dir[0]);
-      if (_turb_bc_id.bc_rij->rcodcl1[4*n_b_faces + face_id]
-          > 0.5*cs_math_infinite_r)
-        _turb_bc_id.bc_rij->rcodcl1[4*n_b_faces + face_id]
-          = k * (vel_dir[1]*shear_dir[2] + vel_dir[2]*shear_dir[1]);
-      if (_turb_bc_id.bc_rij->rcodcl1[5*n_b_faces + face_id]
-          > 0.5*cs_math_infinite_r)
-        _turb_bc_id.bc_rij->rcodcl1[5*n_b_faces + face_id]
-          = k * (vel_dir[0]*shear_dir[2] + vel_dir[2]*shear_dir[0]);
+
+      for (int ij = 0; ij < 3; ij++)
+        if (_turb_bc_id.bc_rij->rcodcl1[ij*n_b_faces + face_id]
+            > 0.5*cs_math_infinite_r)
+          _turb_bc_id.bc_rij->rcodcl1[ij*n_b_faces + face_id] = d2s3 *k;
+
+      for (cs_lnum_t ij = 3; ij < 6; ij++)
+        if (_turb_bc_id.bc_rij->rcodcl1[ij * n_b_faces + face_id]
+            > 0.5*cs_math_infinite_r)
+          _turb_bc_id.bc_rij->rcodcl1[ij * n_b_faces + face_id]
+          = k * ( vel_dir[_iv2t[ij]]*shear_dir[_jv2t[ij]]
+                + vel_dir[_jv2t[ij]]*shear_dir[_iv2t[ij]]);
+
     }
     else {
-      for (int ii = 3; ii < 6; ii++)
+      for (int ii = 0; ii < 3; ii++)
         if (_turb_bc_id.bc_rij->rcodcl1[ii*n_b_faces + face_id]
             > 0.5*cs_math_infinite_r)
-          _turb_bc_id.bc_rij->rcodcl1[ii*n_b_faces + face_id] = 0.;
+          _turb_bc_id.bc_rij->rcodcl1[ii*n_b_faces + face_id] = d2s3 * k;
+
+      for (int ij = 3; ij < 6; ij++)
+        if (_turb_bc_id.bc_rij->rcodcl1[ij*n_b_faces + face_id]
+            > 0.5*cs_math_infinite_r)
+          _turb_bc_id.bc_rij->rcodcl1[ij*n_b_faces + face_id] = 0.;
     }
     if (_turb_bc_id.bc_eps->rcodcl1[face_id] > 0.5*cs_math_infinite_r)
       _turb_bc_id.bc_eps->rcodcl1[face_id] = eps;
 
-    if (turb_model->iturb == CS_TURB_RIJ_EPSILON_EBRSM)
+    if (turb_model->model == CS_TURB_RIJ_EPSILON_EBRSM)
       if (_turb_bc_id.bc_alp_bl->rcodcl1[face_id] > 0.5*cs_math_infinite_r)
         _turb_bc_id.bc_alp_bl->rcodcl1[face_id] = 1.;
 
@@ -511,17 +486,17 @@ _set_uninit_inlet_bc(cs_lnum_t   face_id,
 
     if (_turb_bc_id.bc_phi->rcodcl1[face_id] > 0.5*cs_math_infinite_r)
       _turb_bc_id.bc_phi->rcodcl1[face_id] = 2./3.;
-    if (turb_model->iturb == CS_TURB_V2F_PHI) {
+    if (turb_model->model == CS_TURB_V2F_PHI) {
       if (_turb_bc_id.bc_f_bar->rcodcl1[face_id] > 0.5*cs_math_infinite_r)
         _turb_bc_id.bc_f_bar->rcodcl1[face_id] = 0.;
     }
-    else if (turb_model->iturb == CS_TURB_V2F_BL_V2K) {
+    else if (turb_model->model == CS_TURB_V2F_BL_V2K) {
       if (_turb_bc_id.bc_alp_bl->rcodcl1[face_id] > 0.5*cs_math_infinite_r)
         _turb_bc_id.bc_alp_bl->rcodcl1[face_id] = 0.;
     }
 
   }
-  else if (turb_model->iturb == CS_TURB_K_OMEGA) {
+  else if (turb_model->model == CS_TURB_K_OMEGA) {
 
     if (_turb_bc_id.bc_k->rcodcl1[face_id] > 0.5*cs_math_infinite_r)
       _turb_bc_id.bc_k->rcodcl1[face_id] = k;
@@ -529,7 +504,7 @@ _set_uninit_inlet_bc(cs_lnum_t   face_id,
       _turb_bc_id.bc_omg->rcodcl1[face_id] = eps/cs_turb_cmu/k;
 
   }
-  else if (turb_model->iturb == CS_TURB_SPALART_ALLMARAS) {
+  else if (turb_model->model == CS_TURB_SPALART_ALLMARAS) {
     if (_turb_bc_id.bc_nusa->rcodcl1[face_id] > 0.5*cs_math_infinite_r)
       _turb_bc_id.bc_nusa->rcodcl1[face_id] = cs_turb_cmu*k*k/eps;
 
@@ -541,97 +516,23 @@ _set_uninit_inlet_bc(cs_lnum_t   face_id,
  *============================================================================*/
 
 /*----------------------------------------------------------------------------
- * Equivalent of cs_turbulence_bc_inlet_ke_hyd_diam for Fortran calls
- * (using 1-based face number instead of id).
- *
- * parameters:
- *   face_num <-- face number
- *   uref2    <-- square of the reference flow velocity
- *   dh       <-- hydraulic diameter \f$ D_H \f$
- *   rho      <-- mass density \f$ \rho \f$
- *   mu       <-- dynamic viscosity \f$ \nu \f$
- *----------------------------------------------------------------------------*/
-
-void
-cs_f_turbulence_bc_inlet_hyd_diam(cs_lnum_t   face_num,
-                                  double      uref2,
-                                  double      dh,
-                                  double      rho,
-                                  double      mu)
-{
-  double ustar2, k, eps;
-
-  _ke_hyd_diam(uref2, dh, rho, mu, &ustar2, &k, &eps);
-
-  _inlet_bc(face_num - 1, k, eps, nullptr, nullptr);
-}
-
-/*----------------------------------------------------------------------------
- * Equivalent of cs_turbulence_bc_inlet_ke_hyd_diam for Fortran calls
- * (using 1-based face number instead of id).
- *
- * parameters:
- *   face_num    <-- face number
- *   uref2       <-- square of the reference flow velocity
- *   t_intensity <-- turbulence intensity
- *   dh          <-- hydraulic diameter \f$ D_H \f$
- *----------------------------------------------------------------------------*/
-
-void
-cs_f_turbulence_bc_inlet_turb_intensity(cs_lnum_t   face_num,
-                                        double      uref2,
-                                        double      t_intensity,
-                                        double      dh)
-{
-  double k, eps;
-
-  _ke_turb_intensity(uref2, t_intensity, dh, &k, &eps);
-
-  _inlet_bc(face_num - 1, k, eps, nullptr, nullptr);
-}
-
-/*----------------------------------------------------------------------------
- * Equivalent of cs_turbulence_bc_inlet_ke for Fortran calls
- * (using 1-based face number instead of id).
- *
- * parameters:
- *   face_num    <-- face number
- *   k           <-- turbulent kinetic energy
- *   eps         <-- turbulent dissipation
- *   vel_dir     <-- velocity direction
- *   shear_dir   <-- shear direction
- *----------------------------------------------------------------------------*/
-
-void
-cs_f_turbulence_bc_inlet_k_eps(cs_lnum_t   face_num,
-                               double      k,
-                               double      eps,
-                               double      vel_dir[],
-                               double      shear_dir[])
-{
-  _inlet_bc(face_num - 1, k, eps, vel_dir, shear_dir);
-}
-
-/*----------------------------------------------------------------------------
  * Equivalent of cs_turbulence_bc_set_uninit_inlet_ke for Fortran calls
  * (using 1-based face number instead of id).
  *
  * parameters:
- *   face_num    <-- face number
+ *   face_id     <-- face id
  *   k           <-- turbulent kinetic energy
+ *   rij         <-- reynolds stress components
  *   eps         <-- turbulent dissipation
- *   vel_dir     <-- velocity direction
- *   shear_dir   <-- shear direction
  *----------------------------------------------------------------------------*/
 
 void
-cs_f_turbulence_bc_set_uninit_inlet_k_eps(cs_lnum_t   face_num,
-                                          double      k,
-                                          double      eps,
-                                          double      vel_dir[],
-                                          double      shear_dir[])
+cs_turbulence_bc_set_uninit_inlet(cs_lnum_t   face_id,
+                                  double      k,
+                                  double      rij[],
+                                  double      eps)
 {
-  _set_uninit_inlet_bc(face_num - 1, k, eps, vel_dir, shear_dir);
+  _set_uninit_inlet_bc(face_id, k, rij, eps, nullptr, nullptr);
 }
 
 /*! (DOXYGEN_SHOULD_SKIP_THIS) \endcond */
@@ -963,7 +864,7 @@ cs_turbulence_bc_set_hmg_neumann(cs_lnum_t   face_id)
     _turb_bc_id.bc_eps->icodcl[face_id] = 3;
     _turb_bc_id.bc_eps->rcodcl3[face_id] = 0;
 
-    if (turb_model->iturb == CS_TURB_RIJ_EPSILON_EBRSM) {
+    if (turb_model->model == CS_TURB_RIJ_EPSILON_EBRSM) {
       _turb_bc_id.bc_alp_bl->icodcl[face_id] = 0.;
       _turb_bc_id.bc_alp_bl->rcodcl3[face_id] = 0.;
     }
@@ -1000,17 +901,17 @@ cs_turbulence_bc_set_hmg_neumann(cs_lnum_t   face_id)
     _turb_bc_id.bc_eps->rcodcl3[face_id] = 0;
 
     _turb_bc_id.bc_phi->rcodcl3[face_id] = 0.;
-    if (turb_model->iturb == CS_TURB_V2F_PHI) {
+    if (turb_model->model == CS_TURB_V2F_PHI) {
       _turb_bc_id.bc_f_bar->icodcl[face_id] = 3.;
       _turb_bc_id.bc_f_bar->rcodcl3[face_id] = 0.;
     }
-    else if (turb_model->iturb == CS_TURB_V2F_BL_V2K) {
+    else if (turb_model->model == CS_TURB_V2F_BL_V2K) {
       _turb_bc_id.bc_alp_bl->icodcl[face_id] = 3.;
       _turb_bc_id.bc_alp_bl->rcodcl3[face_id] = 0.;
     }
 
   }
-  else if (turb_model->iturb == CS_TURB_K_OMEGA) {
+  else if (turb_model->model == CS_TURB_K_OMEGA) {
 
     _turb_bc_id.bc_k->icodcl[face_id] = 3.;
     _turb_bc_id.bc_k->rcodcl3[face_id] = 0.;
@@ -1019,7 +920,7 @@ cs_turbulence_bc_set_hmg_neumann(cs_lnum_t   face_id)
     _turb_bc_id.bc_omg->rcodcl3[face_id] = 0.;
 
   }
-  else if (turb_model->iturb == CS_TURB_SPALART_ALLMARAS) {
+  else if (turb_model->model == CS_TURB_SPALART_ALLMARAS) {
 
     _turb_bc_id.bc_nusa->icodcl[face_id] = 3.;
     _turb_bc_id.bc_nusa->rcodcl3[face_id] = 0.;
@@ -1060,7 +961,7 @@ cs_turbulence_bc_set_uninit_inlet_hyd_diam(cs_lnum_t   face_id,
 
   _ke_hyd_diam(uref2, dh, rho, mu, &ustar2, &k, &eps);
 
-  _set_uninit_inlet_bc(face_id, k, eps, vel_dir, shear_dir);
+  _set_uninit_inlet_bc(face_id, k, nullptr, eps, vel_dir, shear_dir);
 }
 
 /*----------------------------------------------------------------------------*/
@@ -1090,7 +991,7 @@ cs_turbulence_bc_set_uninit_inlet_turb_intensity(cs_lnum_t   face_id,
 
   _ke_turb_intensity(uref2, t_intensity, dh, &k, &eps);
 
-  _set_uninit_inlet_bc(face_id, k, eps, nullptr, nullptr);
+  _set_uninit_inlet_bc(face_id, k, nullptr, eps, nullptr, nullptr);
 }
 
 /*----------------------------------------------------------------------------*/
@@ -1114,7 +1015,7 @@ cs_turbulence_bc_set_uninit_inlet_k_eps(cs_lnum_t   face_id,
                                         double      vel_dir[],
                                         double      shear_dir[])
 {
-  _set_uninit_inlet_bc(face_id, k, eps, vel_dir, shear_dir);
+  _set_uninit_inlet_bc(face_id, k, nullptr, eps, vel_dir, shear_dir);
 }
 
 /*----------------------------------------------------------------------------*/

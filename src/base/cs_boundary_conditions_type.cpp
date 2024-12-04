@@ -36,6 +36,8 @@
  * Local headers
  *----------------------------------------------------------------------------*/
 
+#include "bft_mem.h"
+
 #include "cs_array.h"
 #include "cs_atmo.h"
 #include "cs_boundary_conditions.h"
@@ -129,8 +131,7 @@ cs_boundary_conditions_type(bool  init,
   const cs_mesh_t *mesh = cs_glob_mesh;
   const cs_mesh_quantities_t *fvq = cs_glob_mesh_quantities;
   const cs_lnum_t n_b_faces = mesh->n_b_faces;
-  const cs_lnum_t *restrict b_face_cells
-    = (const cs_lnum_t *restrict)mesh->b_face_cells;
+  const cs_lnum_t *restrict b_face_cells = mesh->b_face_cells;
   const cs_lnum_t n_cells_ext = mesh->n_cells_with_ghosts;
   const cs_real_3_t *cell_cen  = (const cs_real_3_t *)fvq->cell_cen;
   const cs_real_3_t *b_face_cog = (const cs_real_3_t *)fvq->b_face_cog;
@@ -215,7 +216,7 @@ cs_boundary_conditions_type(bool  init,
   const cs_real_t *cvara_pr = (const cs_real_t *)CS_F_(p)->val_pre;
   const cs_equation_param_t *eqp_vel
     = cs_field_get_equation_param_const(CS_F_(vel));
-  const cs_nreal_3_t *nu = (const cs_nreal_3_t *)fvq->b_face_u_normal;
+  const cs_nreal_3_t *nu = fvq->b_face_u_normal;
   const cs_real_3_t *vel = (const cs_real_3_t *)CS_F_(vel)->val;
 
   cs_real_t *b_head_loss = cs_boundary_conditions_get_b_head_loss(false);
@@ -616,7 +617,7 @@ cs_boundary_conditions_type(bool  init,
        As before, we chose the face closest to xyzp0 so as to
        be mesh numbering (and partitioning) independent. */
 
-    cs_lnum_t d0min = cs_math_infinite_r;
+    cs_real_t d0min = cs_math_infinite_r;
 
     cs_lnum_t ifadir = -1;
     for (cs_lnum_t f_id = 0; f_id < n_b_faces; f_id++) {
@@ -714,8 +715,8 @@ cs_boundary_conditions_type(bool  init,
     }
 
     /* Allocate a work array for the gradient calculation */
-    cs_real_3_t *grad;
-    BFT_MALLOC(grad, n_cells_ext, cs_real_3_t);
+    cs_real_3_t *grad = nullptr;
+    CS_MALLOC_HD(grad, n_cells_ext, cs_real_3_t, cs_alloc_mode);
 
     cs_gradient_porosity_balance(1);
 
@@ -741,7 +742,7 @@ cs_boundary_conditions_type(bool  init,
 
       if (meteo_profile > 0)  {
 
-        cs_real_t vel_dir[3];
+        cs_real_t vel_dir[3] = {0, 0, 0};
         if (meteo_profile == 1) {
           const int met_1d_nlevels_t = cs_glob_atmo_option->met_1d_nlevels_t;
           const int met_1d_ntimes = cs_glob_atmo_option->met_1d_ntimes;
@@ -795,7 +796,7 @@ cs_boundary_conditions_type(bool  init,
                                                            grad[c_id]);
     }
 
-    BFT_FREE(grad);
+    CS_FREE(grad);
 
     if (cs_glob_rank_id == _irangd)
       pref = pripb[_ifrslb];
@@ -830,6 +831,9 @@ cs_boundary_conditions_type(bool  init,
     }
 
   }
+
+  /* Automatic turbulence values for open boundary conditions */
+  cs_boundary_conditions_open_turb();
 
   /* Inlet + Convective Inlet
      ------------------------ */
@@ -1227,7 +1231,7 @@ cs_boundary_conditions_type(bool  init,
           const cs_lnum_t f_id = itrifb[jj];
           if (icodcl_tf[f_id] == 0) {
             icodcl_tf[f_id] = wall_bc_code ;
-            for (cs_lnum_t k = 0; k < f->dim; k++)
+            for (cs_lnum_t k = 0; k < f_tf->dim; k++)
               rcodcl1_tf[k*n_b_faces+f_id] = 0.;
           }
         }

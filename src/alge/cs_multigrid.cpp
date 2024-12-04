@@ -323,9 +323,9 @@ struct _cs_multigrid_t {
 
   cs_multigrid_level_info_t  *lv_info;      /* Info for each level */
   cs_multigrid_t             *lv_mg[3];     /* Optional recursive multigrid
-                                               descent, ascent, or nullptr */
+                                               descent, ascent, or null */
   cs_multigrid_t             *p_mg;         /* Optional parent multigrid,
-                                               or nullptr */
+                                               or null */
 
   cs_multigrid_info_t         info;         /* Base multigrid info */
 
@@ -2575,11 +2575,6 @@ _setup_hierarchy(void             *context,
     _multigrid_setup_sles_k_cycle_bottom(mg, name, verbosity);
   else
     _multigrid_setup_sles(mg, name, verbosity);
-
-  /* Update timers */
-
-  t2 = cs_timer_time();
-  cs_timer_counter_add_diff(&(mg->info.t_tot[0]), &t0, &t2);
 }
 
 /*----------------------------------------------------------------------------*/

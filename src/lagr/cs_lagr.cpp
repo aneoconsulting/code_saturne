@@ -319,8 +319,10 @@ static cs_lagr_boundary_interactions_t _cs_glob_lagr_boundary_interactions
      .inclg = -1,
      .inclgt = -1,
      .iclogt = -1,
+     .iclogh = -1,
      .iscovc = -1,
      .ihdepm = -1,
+     .ihdepv = -1,
      .ihdiam = -1,
      .ihsum = -1,
      .tstatp = 0.,
@@ -2249,7 +2251,7 @@ cs_lagr_solve_time_step(const int         itypfb[],
 
       if (   cs_glob_lagr_time_scheme->iilagr == CS_LAGR_TWOWAY_COUPLING
           && cs_glob_lagr_time_step->nor == cs_glob_lagr_time_scheme->t_order)
-        cs_lagr_coupling(taup, tempct, tsfext, force_p, cpgd1, cpgd2, cpght);
+        cs_lagr_coupling(taup, tempct, tsfext, force_p);
 
       /* Deallocate arrays whose size is based on p_set->n_particles
          (which may change next) */

@@ -734,7 +734,7 @@ cs_param_saddle_get_schur_sles_param(const cs_param_saddle_t  *saddlep)
 /*!
  * \brief Get the pointer to the set of parameters to handle a SLES. This SLES
  *        is associated to an extra-operation specific to a saddle-point solver
- *        It returns a non nullptr pointer only for some sadlle-point solver
+ *        It returns a non-null pointer only for some sadlle-point solver
  *        relying on a more elaborated Schur complement approximation.
  *
  * \param[in] saddlep  pointer to a \ref cs_param_saddle_t structure
@@ -788,7 +788,7 @@ cs_param_saddle_get_xtra_sles_param(const cs_param_saddle_t  *saddlep)
 /*!
  * \brief Get the pointer to the set of parameters to handle a SLES. This SLES
  *        is associated to the initial saddle-point problem. It returns a non
- *        nullptr pointer only for some sadlle-point solver.
+ *        null pointer only for some sadlle-point solver.
  *
  * \param[in] saddlep  pointer to a \ref cs_param_saddle_t structure
  *
@@ -1268,7 +1268,7 @@ cs_param_saddle_set_solver(const char          *keyval,
     saddlep->solver = CS_PARAM_SADDLE_SOLVER_SIMPLE;
     saddlep->solver_class = CS_PARAM_SOLVER_CLASS_CS;
     saddlep->precond = CS_PARAM_SADDLE_PRECOND_NONE;
-    saddlep->schur_approx = CS_PARAM_SADDLE_SCHUR_DIAG_INVERSE;
+    saddlep->schur_approx = CS_PARAM_SADDLE_SCHUR_LUMPED_INVERSE;
 
     /* Context structure dedicated to this algorithm */
 
@@ -1574,6 +1574,15 @@ cs_param_saddle_log(const cs_param_saddle_t  *saddlep)
       cs_log_printf(CS_LOG_SETUP,
                     "%s Uzawa-CG parameters: dedicated_init_sles=%s\n",
                     prefix, cs_base_strtf(ctxp->dedicated_init_sles));
+    }
+    break;
+
+  case CS_PARAM_SADDLE_SOLVER_SIMPLE:
+    {
+      cs_param_saddle_context_simple_t *ctxp =
+        static_cast<cs_param_saddle_context_simple_t *>(saddlep->context);
+
+      cs_log_printf(CS_LOG_SETUP, "%s Solver: SIMPLE\n", prefix);
     }
     break;
 

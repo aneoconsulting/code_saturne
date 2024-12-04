@@ -112,24 +112,12 @@ cs_drift_boundary_mass_flux(const cs_mesh_t             *m,
                             const cs_mesh_quantities_t  *mq,
                             cs_real_t                    b_mass_flux[])
 {
-  const cs_lnum_t n_i_faces = m->n_i_faces;
   const cs_lnum_t n_b_faces = m->n_b_faces;
 
-  const cs_lnum_2_t *restrict i_face_cells
-    = (const cs_lnum_2_t *)m->i_face_cells;
   const cs_lnum_t *restrict b_face_cells
     = (const cs_lnum_t *)m->b_face_cells;
 
-  const cs_real_3_t  *restrict b_face_normal
-    = (const cs_real_3_t  *) mq->b_face_normal;
-  const cs_real_3_t *restrict i_face_normal
-    = (const cs_real_3_t *) mq->i_face_normal;
   const int *bc_type = cs_glob_bc_type;
-
-  const cs_real_3_t *restrict b_face_cog
-    = (const cs_real_3_t *)mq->b_face_cog;
-  const cs_real_3_t *restrict i_face_cog
-    = (const cs_real_3_t *)mq->i_face_cog;
 
   //TODO add a return in case no addition
   const int keydri = cs_field_key_id("drift_scalar_model");
@@ -147,9 +135,9 @@ cs_drift_boundary_mass_flux(const cs_mesh_t             *m,
     var_name[14] = '\0';
 
     cs_field_t *f_x_p_i = cs_field_by_name_try(var_name);
-    cs_real_t *x2 = NULL;
+    cs_real_t *x2 = nullptr;
 
-    if (f_x_p_i != NULL) {
+    if (f_x_p_i != nullptr) {
       x2 = f_x_p_i->val;
       const int iscdri = cs_field_get_key_int(f_x_p_i, keydri);
 
@@ -226,9 +214,8 @@ cs_drift_convective_flux(cs_field_t  *f_sc,
   class_id_max = CS_MAX(icla, class_id_max);
 
   const cs_real_t *dt = CS_F_(dt)->val;
-  const int iturb  = cs_glob_turb_model->iturb;
+  const int model  = cs_glob_turb_model->model;
   const int itytur = cs_glob_turb_model->itytur;
-  const int n_fields = cs_field_n_fields();
   const cs_real_t *gxyz = cs_get_glob_physical_constants()->gravity;
   const int idtvar = cs_glob_time_step_options->idtvar;
   const int *bc_type = cs_glob_bc_type;
@@ -420,7 +407,7 @@ cs_drift_convective_flux(cs_field_t  *f_sc,
     /* Initialized to 0 */
     cs_array_real_fill_zero(n_cells, viscce);
 
-    if ((iscdri & CS_DRIFT_SCALAR_TURBOPHORESIS) && iturb != CS_TURB_NONE) {
+    if ((iscdri & CS_DRIFT_SCALAR_TURBOPHORESIS) && model != CS_TURB_NONE) {
 
       /* The diagonal part is easy to implicit (Grad (K) . n = (K_j - K_i)/IJ)
          Compute the K=1/3*trace(R) coefficient (diffusion of Zaichik) */
@@ -438,7 +425,7 @@ cs_drift_convective_flux(cs_field_t  *f_sc,
         }
 
       }
-      else if (itytur == 2 || itytur == 5 || iturb == CS_TURB_K_OMEGA) {
+      else if (itytur == 2 || itytur == 5 || model == CS_TURB_K_OMEGA) {
 
 #       pragma omp parallel for if (n_cells > CS_THR_MIN)
         for (cs_lnum_t c_id = 0; c_id < n_cells; c_id++) {
@@ -693,25 +680,12 @@ cs_drift_convective_flux(cs_field_t  *f_sc,
 
     } /* End: not drift scalar imposed mass flux */
 
-    else if (icla == -1 && f_xc != NULL) {
+    else if (icla == -1 && f_xc != nullptr) {
 
       /* Deduce the convective flux of the continuous "class" by removing
          the flux of the current particle "class":
          (rho x1 V1)_f = (rho Vs)_f - sum_classes (rho x2 V2)_f
          ---------------------------------------------------------------- */
-
-      /* Mass fraction of gas */
-
-      cs_field_t *f_xc = cs_field_by_name_try("x_c");
-      cs_real_t *x1 = NULL, *b_x1 = NULL;
-
-      if (f_xc != NULL) {
-        x1 = f_xc->val;
-
-        /* Mass fraction of the gas at the boundary */
-        cs_field_t *f_b_xc = cs_field_by_name("b_x_c");
-        b_x1 = f_b_xc->val;
-      }
 
       /* Initialize continuous phase mass flux as mixture mass flux */
       cs_array_real_copy(n_i_faces, i_mass_flux_mix, i_mass_flux);
@@ -763,13 +737,12 @@ cs_drift_convective_flux(cs_field_t  *f_sc,
           }
         }
       }
-    }
-    /* Finalize the convective flux of the gas "class" by scaling by x1
-     (rho x1 V1)_ij = (rho Vs)_ij - sum_classes (rho x2 V2)_ij
-     Warning, x1 at the face must be computed so that it is consistent
-     with an upwind scheme on (rho V1) */
 
-    else if (icla == -1 && f_xc != nullptr) {
+      /* Finalize the convective flux of the gas "class" by scaling by x1
+         (rho x1 V1)_ij = (rho Vs)_ij - sum_classes (rho x2 V2)_ij
+         Warning, x1 at the face must be computed so that it is consistent
+         with an upwind scheme on (rho V1) */
+
 #     pragma omp parallel for if (n_i_faces > CS_THR_MIN)
       for (cs_lnum_t face_id = 0; face_id < n_i_faces; face_id++) {
 
@@ -834,7 +807,6 @@ cs_drift_convective_flux(cs_field_t  *f_sc,
                   divflu);
 
     const int iconvp = eqp_sc->iconv;
-    const cs_real_t thetap = eqp_sc->theta;
 
     /*  NB: if the porosity module is switched on, the porosity is already
      * taken into account in divflu */
