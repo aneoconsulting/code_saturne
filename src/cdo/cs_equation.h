@@ -105,11 +105,11 @@ cs_equation_get_n_equations(void);
 /*----------------------------------------------------------------------------*/
 /*!
  * \brief Find the cs_equation_t structure with name eqname
- *        Return NULL if not find
+ *        Return nullptr if not found
  *
  * \param[in] eqname    name of the equation to find
  *
- * \return a pointer to a cs_equation_t structure or NULL if not found
+ * \return a pointer to a cs_equation_t structure or null if not found
  */
 /*----------------------------------------------------------------------------*/
 
@@ -123,7 +123,7 @@ cs_equation_by_name(const char *eqname);
  *
  * \param[in] field_name       name of the field
  *
- * \return a pointer to a cs_equation_t structure or NULL if not found
+ * \return a pointer to a cs_equation_t structure or null if not found
  */
 /*----------------------------------------------------------------------------*/
 
@@ -158,7 +158,7 @@ cs_equation_has_field_name(const cs_equation_t *eq,
  *
  * \param[in] eqname       name of the equation
  *
- * \return a cs_equation_param_t structure or NULL if not found
+ * \return a cs_equation_param_t structure or null if not found
  */
 /*----------------------------------------------------------------------------*/
 
@@ -173,7 +173,7 @@ cs_equation_param_by_name(const char *eqname);
  *
  * \param[in] field_name       name of the field
  *
- * \return a cs_equation_param_t structure or NULL if not found
+ * \return a cs_equation_param_t structure or null if not found
  */
 /*----------------------------------------------------------------------------*/
 
@@ -187,7 +187,7 @@ cs_equation_param_by_field_name(const char *field_name);
  *
  * \param[in] eq       pointer to a cs_equation_t structure
  *
- * \return a cs_equation_param_t structure or NULL if not found
+ * \return a cs_equation_param_t structure or null if not found
  */
 /*----------------------------------------------------------------------------*/
 
@@ -197,11 +197,11 @@ cs_equation_get_param(const cs_equation_t *eq);
 /*----------------------------------------------------------------------------*/
 /*!
  * \brief Find the \ref cs_equation_t structure with id eq_id
- *        Return NULL if not find
+ *        Return nullptr if not found
  *
  * \param[in] eq_id    id of the equation to find
  *
- * \return a pointer to a \ref cs_equation_t structure or NULL if not found
+ * \return a pointer to a \ref cs_equation_t structure or null if not found
  */
 /*----------------------------------------------------------------------------*/
 
@@ -214,7 +214,7 @@ cs_equation_by_id(int eq_id);
  *
  * \param[in] eq       pointer to a cs_equation_t structure
  *
- * \return a name or NULL if not found
+ * \return a name or null if not found
  */
 /*----------------------------------------------------------------------------*/
 
@@ -240,7 +240,7 @@ cs_equation_get_id(const cs_equation_t *eq);
  *
  * \param[in] eq       pointer to a cs_equation_t structure
  *
- * \return a cs_field_t structure or NULL if not found
+ * \return a cs_field_t structure or null if not found
  */
 /*----------------------------------------------------------------------------*/
 
@@ -270,7 +270,7 @@ cs_equation_get_field_id(const cs_equation_t *eq);
  *
  * \param[in] eq       pointer to a cs_equation_t structure
  *
- * \return a cs_range_set_t structure or NULL if not found
+ * \return a cs_range_set_t structure or null if not found
  */
 /*----------------------------------------------------------------------------*/
 
@@ -300,7 +300,7 @@ cs_equation_get_global_n_dofs(const cs_equation_t       *eq,
  *
  * \param[in] eq       pointer to a cs_equation_t structure
  *
- * \return a cs_field_t structure or NULL
+ * \return a cs_field_t structure or null
  */
 /*----------------------------------------------------------------------------*/
 
@@ -337,7 +337,7 @@ cs_equation_set_flag(cs_equation_t *eq,
 /*!
  * \brief Add a hook function to enable an advanced control during the
  *        cellwise system building.
- *        Only for an advanced usage. The context may be set to NULL if there
+ *        Only for an advanced usage. The context may be set to null if there
  *        is no need to get additional information.
  *
  * \param[in, out] eq        pointer to the cs_equation_t stucture to update
@@ -358,7 +358,7 @@ cs_equation_add_build_hook(cs_equation_t            *eq,
  *
  * \param[in] eq       pointer to a cs_equation_t structure
  *
- * \return a cs_equation_builder_t structure or NULL if not found
+ * \return a cs_equation_builder_t structure or null if not found
  */
 /*----------------------------------------------------------------------------*/
 
@@ -372,7 +372,7 @@ cs_equation_get_builder(const cs_equation_t *eq);
  *
  * \param[in] eq       pointer to a cs_equation_t structure
  *
- * \return a pointer to a structure to cast on-the-fly or NULL if not found
+ * \return a pointer to a structure to cast on-the-fly or null if not found
  */
 /*----------------------------------------------------------------------------*/
 
@@ -478,9 +478,9 @@ cs_equation_add_user(const char         *eqname,
 /*----------------------------------------------------------------------------*/
 /*!
  * \brief Add a new user transport equation and set a first set of parameters
- *        If time_pty is NULL, then no unsteady term is added.
- *        If adv is NULL, then no advection term is added.
- *        If diff_pty is NULL, then no diffusion term is added.
+ *        If time_pty is null, then no unsteady term is added.
+ *        If adv is null, then no advection term is added.
+ *        If diff_pty is null, then no diffusion term is added.
  *
  * \param[in] eqname       name of the equation
  * \param[in] varname      name of the variable associated to this equation
@@ -769,34 +769,6 @@ cs_equation_solve(bool             cur2prev,
 
 /*----------------------------------------------------------------------------*/
 /*!
- * \brief Build and then solve the linear system for a steady-state equation.
- *        This is wrapper for the FORTRAN interface (limitation of the
- *        parameters to simple types).
- *
- * \param[in] eqname     name of the equation to solve
- */
-/*----------------------------------------------------------------------------*/
-
-void
-cs_equation_solve_steady_state_wrapper(const char *eqname);
-
-/*----------------------------------------------------------------------------*/
-/*!
- * \brief Build and then solve the linear system for an equation with an
- *        unsteady term. This is wrapper for the FORTRAN interface (limitation
- *        of the parameters to simple types)
- *
- * \param[in] cur2prev   true="current to previous" operation is performed
- * \param[in] eqname     name of the equation to solve
- */
-/*----------------------------------------------------------------------------*/
-
-void
-cs_equation_solve_wrapper(bool        cur2prev,
-                          const char *eqname);
-
-/*----------------------------------------------------------------------------*/
-/*!
  * \brief Build the linear system for this equation (deprecated). Only for HHO
  *        schemes
  *
@@ -824,7 +796,7 @@ cs_equation_solve_deprecated(cs_equation_t *eq);
 /*----------------------------------------------------------------------------*/
 /*!
  * \brief Return a pointer to the cs_property_t structure associated to the
- *        diffusion term for this equation (NULL if not activated).
+ *        diffusion term for this equation (null if not activated).
  *
  * \param[in] eq       pointer to a cs_equation_t structure
  *
@@ -838,7 +810,7 @@ cs_equation_get_diffusion_property(const cs_equation_t *eq);
 /*----------------------------------------------------------------------------*/
 /*!
  * \brief Return a pointer to the cs_property_t structure associated to the
- *        unsteady term for this equation (NULL if not activated).
+ *        unsteady term for this equation (null if not activated).
  *
  * \param[in] eq       pointer to a cs_equation_t structure
  *
@@ -858,7 +830,7 @@ cs_equation_get_time_property(const cs_equation_t *eq);
  * \param[in] eq            pointer to a cs_equation_t structure
  * \param[in] reaction_id   id related to this reaction term
  *
- * \return a pointer to a cs_property_t structure or NULL if not found
+ * \return a pointer to a cs_property_t structure or null if not found
  */
 /*----------------------------------------------------------------------------*/
 
@@ -1085,16 +1057,49 @@ cs_equation_integrate_variable(const cs_cdo_connect_t    *connect,
  *        resulting array differs.
  *        For Vb and VCb schemes, this array relies on the bf2v adjacency.
  *
- * \param[in]      t_eval     time at which one the property is evaluated
+ * If eqp is set to nullptr, then one uses eq->param. Otherwise, one checks that
+ * the given eqp structure is relevant (same space discretization as eq->param)
+ * Using a different eqp allows one to build a diffusive flux relying on
+ * another property associated to the diffusion term.
+ *
+ * If pty is set to nullptr then one considers the diffusion property related to
+ * the eqp structure which will be used. Otherwise, one considers the one
+ * given.
+ *
+ * If dof_vals is set to nullptr (and cell_values too), then one uses the
+ * current values of the variable associated to the given equation
+ * (cs_equation_get_*_values functions). The calling function has to ensure
+ * that the location of the values is relevant with the one expected with the
+ * given equation. Using dof_vals (and possibly cell_vals) allows one to
+ * compute the diffusive flux for an array of values which is not the one
+ * associated to the given equation.
+ *
+ * cell_values is not useful for CDO vertex-based schemes while it is mandatory
+ * for CDO vertex+cell-based schemes and CDO face-based schemes. For CDO
+ * cell-based schemes, the flux is a variable so that neither dof_vals nor
+ * cell_vals are used.
+ *
+ * Be aware that the boundary conditions are applied through the equation
+ * builder structure which has to be consistent with what is used in eqp
+ *
  * \param[in]      eq         pointer to a cs_equation_t structure
+ * \param[in]      eqp        set of equation parameters to use or nullptr
+ * \param[in]      diff_pty   diffusion property or nullptr
+ * \param[in]      dof_vals   values at the location of the degrees of freedom
+ * \param[in]      cell_vals  values at the cell centers or nullptr
+ * \param[in]      t_eval     time at which one the property is evaluated
  * \param[in, out] diff_flux  value of the diffusive part of the flux
  */
 /*----------------------------------------------------------------------------*/
 
 void
-cs_equation_compute_boundary_diff_flux(cs_real_t            t_eval,
-                                       const cs_equation_t *eq,
-                                       cs_real_t           *diff_flux);
+cs_equation_compute_boundary_diff_flux(const cs_equation_t       *eq,
+                                       const cs_equation_param_t *eqp,
+                                       const cs_property_t       *diff_pty,
+                                       const cs_real_t           *dof_vals,
+                                       const cs_real_t           *cell_vals,
+                                       cs_real_t                  t_eval,
+                                       cs_real_t                 *diff_flux);
 
 /*----------------------------------------------------------------------------*/
 /*!
@@ -1124,16 +1129,16 @@ cs_equation_compute_flux_across_plane(const cs_equation_t *eq,
  *        thus there is an approximation. The computation is threaded and
  *        performed cell-wise.
  *
- * If eqp is set to NULL, then one uses eq->param. Otherwise, one checks that
+ * If eqp is set to null, then one uses eq->param. Otherwise, one checks that
  * the given eqp structure is relevant (same space discretization as eq->param)
  * Using a different eqp allows one to build a diffusive flux relying on
  * another property associated to the diffusion term.
  *
- * If pty is set to NULL then one considers the diffusion property related to
+ * If pty is set to null then one considers the diffusion property related to
  * the eqp structure which will be used. Otherwise, one considers the one
  * given.
  *
- * If dof_vals is set to NULL (and cell_values too), then one uses the current
+ * If dof_vals is set to null (and cell_values too), then one uses the current
  * values of the variable associated to the given equation
  * (cs_equation_get_*_values functions). The calling function has to ensure
  * that the location of the values is relevant with the one expected with the
@@ -1148,9 +1153,9 @@ cs_equation_compute_flux_across_plane(const cs_equation_t *eq,
  *
  * \param[in]      eq         pointer to a cs_equation_t structure
  * \param[in]      eqp        pointer to a cs_equation_param_t structure
- * \param[in]      diff_pty   diffusion property or NULL
+ * \param[in]      diff_pty   diffusion property or null
  * \param[in]      dof_vals   values at the location of the degrees of freedom
- * \param[in]      cell_vals  values at the cell centers or NULL
+ * \param[in]      cell_vals  values at the cell centers or null
  * \param[in]      location   indicate where the flux has to be computed
  * \param[in]      t_eval     time at which one performs the evaluation
  * \param[in, out] diff_flux  value of the diffusive flux (must be allocated)

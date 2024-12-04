@@ -123,6 +123,7 @@ class NumericalParamEquationModel(Model):
             default['slope_test'] = 'on'
             default['nvd_limiter'] = 'gamma'
         default['flux_reconstruction'] = 'on'
+        default['boundary_diffusion_flux_reconstruction'] = 'all'
 
         default['solver_choice'] = 'automatic'
         default['preconditioning_choice'] = 'automatic'
@@ -191,9 +192,9 @@ class NumericalParamEquationModel(Model):
         """ Private method: return list of pulverized coal scalar's nodes """
         nodList = []
         node = self.node_models.xmlGetNode('solid_fuels', 'model')
-        model = node['model']
-        if model != 'off':
-            nodList = node.xmlGetNodeList('variable')
+        if node:
+            if node['model'] != 'off':
+                nodList = node.xmlGetNodeList('variable')
         return nodList
 
 
@@ -201,9 +202,9 @@ class NumericalParamEquationModel(Model):
         """ Private method: return list of gas combustion scalar's nodes """
         nodList = []
         node = self.node_models.xmlGetNode('gas_combustion', 'model')
-        model = node['model']
-        if model != 'off':
-            nodList = node.xmlGetNodeList('variable')
+        if node:
+            if  node['model'] != 'off':
+                nodList = node.xmlGetNodeList('variable')
         return nodList
 
 
@@ -211,10 +212,9 @@ class NumericalParamEquationModel(Model):
         """ Private method: return list of meteo scalar's nodes """
         nodList = []
         node = self.node_models.xmlGetNode('atmospheric_flows', 'model')
-        if not node: return []
-        model = node['model']
-        if model != 'off':
-            nodList = node.xmlGetNodeList('variable')
+        if node:
+            if  node['model'] != 'off':
+                nodList = node.xmlGetNodeList('variable')
         return nodList
 
 
@@ -222,10 +222,9 @@ class NumericalParamEquationModel(Model):
         """ Private method: return list of electric scalar's nodes """
         nodList = []
         node = self.node_models.xmlGetNode('joule_effect', 'model')
-        if not node: return []
-        model = node['model']
-        if model != 'off':
-            nodList = node.xmlGetNodeList('variable')
+        if node:
+            if  node['model'] != 'off':
+                nodList = node.xmlGetNodeList('variable')
         return nodList
 
 
@@ -233,10 +232,9 @@ class NumericalParamEquationModel(Model):
         """ Private method: return list of compressible scalar's nodes """
         nodList = []
         node = self.node_models.xmlGetNode('compressible_model', 'model')
-        if not node: return []
-        model = node['model']
-        if model != 'off':
-            nodList = node.xmlGetNodeList('variable')
+        if node:
+            if  node['model'] != 'off':
+                nodList = node.xmlGetNodeList('variable')
         return nodList
 
 
@@ -601,6 +599,27 @@ class NumericalParamEquationModel(Model):
         else:
             n = node.xmlInitNode('flux_reconstruction')
             n['status']=value
+
+
+    @Variables.noUndo
+    def getBoundaryDiffFluxReconstruction(self, name):
+        """ Return  boundary diffusion flux reconstruction mode for specified variable """
+        node = self._getSchemeNameNode(name)
+        value = self._defaultValues()['boundary_diffusion_flux_reconstruction']
+        if node.xmlGetNode('boundary_diffusion_flux_reconstruction'):
+            value = node.xmlGetNode('boundary_diffusion_flux_reconstruction')['mode']
+        return value
+
+
+    @Variables.undoLocal
+    def setBoundaryDiffFluxReconstruction(self, name, value):
+        """ Put status of flux reconstruction for specified variable """
+        node = self._getSchemeNameNode(name)
+        if value == self._defaultValues()['boundary_diffusion_flux_reconstruction']:
+            node.xmlRemoveChild('boundary_diffusion_flux_reconstruction')
+        else:
+            n = node.xmlInitNode('boundary_diffusion_flux_reconstruction')
+            n['mode']=value
 
 
     @Variables.noUndo

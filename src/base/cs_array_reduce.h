@@ -36,8 +36,6 @@
 
 /*----------------------------------------------------------------------------*/
 
-BEGIN_C_DECLS
-
 /*=============================================================================
  * Macro definitions
  *============================================================================*/
@@ -49,6 +47,31 @@ BEGIN_C_DECLS
 /*=============================================================================
  * Public function prototypes
  *============================================================================*/
+
+#ifdef __cplusplus
+
+/*----------------------------------------------------------------------------*/
+/*
+ * \brief  Compute the min./max. of a 1-dimensional array.
+ *
+ * \param[in]   n        local number of elements
+ * \param[in]   v        pointer to values (size: n)
+ * \param[out]  vmin     minimum value
+ * \param[out]  vmax     maximum value
+ */
+/*----------------------------------------------------------------------------*/
+
+void
+cs_array_reduce_minmax(cs_lnum_t          n,
+                       const cs_real_t    v[],
+                       cs_real_t         &vmin,
+                       cs_real_t         &vmax);
+
+#endif // __cplusplus
+
+/*----------------------------------------------------------------------------*/
+
+BEGIN_C_DECLS
 
 /*----------------------------------------------------------------------------
  * Compute sums of an n-dimensional cs_real_t array's components.
@@ -103,7 +126,7 @@ cs_array_reduce_sum_l(cs_lnum_t         n_elts,
  *                          are defined, or NULL
  * \param[in]   w_elt_list  optional list of parent elements on which weights
  *                          are defined, or NULL; if v_elt_list is defined
- *                          (ie. non-NULL),then w_elt_list = v_elt_list is
+ *                          (ie. non-null),then w_elt_list = v_elt_list is
  *                          assumed, so this parameter is ignored
  * \param[in]   v           pointer to array values
  * \param[in]   w           pointer to weights
@@ -143,7 +166,7 @@ cs_array_reduce_wsum_l(cs_lnum_t         n_elts,
  *                          are defined, or NULL
  * \param[in]   w_elt_list  optional list of parent elements on which weights
  *                          are defined, or NULL; if v_elt_list is defined
- *                          (ie. non-NULL),then w_elt_list = v_elt_list is
+ *                          (ie. non-null),then w_elt_list = v_elt_list is
  *                          assumed, so this parameter is ignored
  * \param[in]   v           pointer to array values
  * \param[in]   w           pointer to weights
@@ -253,7 +276,7 @@ cs_array_reduce_simple_stats_l(cs_lnum_t         n_elts,
  *                  are defined, or NULL
  *   w_elt_list <-- optional list of parent elements on which weights
  *                  are defined, or NULL; if v_elt_list is defined
- *                  (ie. non-NULL),then w_elt_list = v_elt_list is assumed,
+ *                  (ie. non-null),then w_elt_list = v_elt_list is assumed,
  *                  so this parameter is ignored
  *   v          <-- pointer to array values
  *   w          <-- pointer to weights
@@ -299,7 +322,7 @@ cs_array_reduce_simple_stats_l_w(cs_lnum_t         n_elts,
  *                  are defined, or NULL
  *   w_elt_list <-- optional list of parent elements on which weights
  *                  are defined, or NULL; if v_elt_list is defined
- *                  (ie. non-NULL),then w_elt_list = v_elt_list is assumed,
+ *                  (ie. non-null),then w_elt_list = v_elt_list is assumed,
  *                  so this parameter is ignored
  *   v          <-- pointer to array values
  *   w          <-- pointer to weights

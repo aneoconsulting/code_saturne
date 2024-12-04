@@ -110,6 +110,7 @@ typedef struct {
   cs_real_t     *i_face_cog;     /* Center of gravity of interior faces */
   cs_real_t     *b_face_cog;     /* Center of gravity of border faces */
 
+  cs_real_t     *i_f_face_cog;   /* Center of gravity of fluid interior faces */
   cs_real_t     *b_f_face_cog;   /* Center of gravity of fluid border faces */
   cs_real_t     *c_w_face_cog;   /* Center of gravity of solid face
                                     immersed in the cells */
@@ -127,11 +128,11 @@ typedef struct {
   cs_real_2_t   *i_f_face_factor;/* Fluid surface factor of interior faces. */
   cs_real_t     *b_f_face_factor;/* Fluid surface factor of boundary faces. */
 
-  cs_real_t     *dijpf;          /* Vector I'J' for interior faces */
-  cs_real_t     *diipb;          /* Vector II'  for border faces */
+  cs_real_3_t   *dijpf;          /* Vector I'J' for interior faces */
+  cs_rreal_3_t  *diipb;          /* Vector II'  for border faces */
   cs_real_t     *dofij;          /* Vector OF   for interior faces */
-  cs_real_t     *diipf;          /* Vector II'  for interior faces */
-  cs_real_t     *djjpf;          /* Vector JJ'  for interior faces */
+  cs_rreal_3_t  *diipf;          /* Vector II'  for interior faces */
+  cs_rreal_3_t  *djjpf;          /* Vector JJ'  for interior faces */
 
   cs_real_t     *i_dist;         /* Distance between the centers of the two
                                     cells sharing an interior face */

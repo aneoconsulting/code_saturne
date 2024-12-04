@@ -61,10 +61,7 @@ module sshaerosol
 
   !> Initial gaseous and particulate concentrations
   !> and aerosol number read in file
-  double precision, save, allocatable, dimension(:) :: dlconc0
-
-  !> read zone boundary conditions from file
-  integer, save :: iprofa(nozppm)
+  double precision, save, dimension(:), pointer :: dlconc0
 
   !> \}
 

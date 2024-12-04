@@ -63,6 +63,7 @@
 #include "cs_ctwr_source_terms.h"
 #include "cs_dispatch.h"
 #include "cs_divergence.h"
+#include "cs_drift_convective_flux.h"
 #include "cs_equation_iterative_solve.h"
 #include "cs_equation_param.h"
 #include "cs_face_viscosity.h"
@@ -131,27 +132,6 @@ BEGIN_C_DECLS
  *============================================================================*/
 
 extern cs_real_t *cs_glob_ckupdc;
-
-/*============================================================================
- * Prototypes for Fortran functions and variables.
- *============================================================================*/
-
-/*============================================================================
- * Prototypes for functions intended for use only by Fortran wrappers.
- * (descriptions follow, with function bodies).
- *============================================================================*/
-
-/*============================================================================
- * Fortran function prototypes for subroutines from field.f90.
- *============================================================================*/
-
-void
-cs_f_navier_stokes_total_pressure(void);
-
-/*============================================================================
- * Prototypes for functions intended for use only by Fortran wrappers.
- * (descriptions follow, with function bodies).
- *============================================================================*/
 
 /*============================================================================
  * Private function definitions
@@ -248,22 +228,22 @@ _cs_mass_flux_prediction(const cs_mesh_t       *m,
 
   /* Mass source terms */
 
-  cs_lnum_t  ncesmp;
-  const cs_lnum_t  *icetsm;
-  cs_real_t *smacel_p;
+  cs_lnum_t  n_elts;
+  const cs_lnum_t  *elt_ids;
+  cs_real_t *mst_val_p;
 
   cs_volume_mass_injection_get_arrays(CS_F_(p),
-                                      &ncesmp,
-                                      &icetsm,
+                                      &n_elts,
+                                      &elt_ids,
                                       nullptr,
-                                      &smacel_p,
+                                      &mst_val_p,
                                       nullptr);
 
-  if (ncesmp > 0) {
-    ctx.parallel_for(ncesmp, [=] CS_F_HOST_DEVICE (cs_lnum_t cidx) {
-      const cs_lnum_t cell_id = icetsm[cidx];
-      /* FIXME It should be scmacel at time n-1 */
-      divu[cell_id] -= volume[cell_id] * smacel_p[cidx];
+  if (n_elts > 0) {
+    ctx.parallel_for(n_elts, [=] CS_F_HOST_DEVICE (cs_lnum_t cidx) {
+      const cs_lnum_t cell_id = elt_ids[cidx];
+      /* FIXME It should be mst_val at time n-1 */
+      divu[cell_id] -= volume[cell_id] * mst_val_p[cidx];
     });
   }
 
@@ -316,15 +296,15 @@ _cs_mass_flux_prediction(const cs_mesh_t       *m,
     cs_arrays_set_value<cs_real_t, 1>(n_b_faces, 0., b_visc);
   }
 
-  cs_real_t *dam, *xam;
-  CS_MALLOC_HD(dam, n_cells_ext, cs_real_t, cs_alloc_mode);
-  CS_MALLOC_HD(xam, n_i_faces, cs_real_t, cs_alloc_mode);
+  cs_matrix_t *a = cs_sles_default_get_matrix(CS_F_(p)->id, nullptr, 1, 1, true);
 
-  cs_matrix_wrapper_scalar(eqp->iconv,
+  cs_matrix_compute_coeffs(a,
+                           CS_F_(p),
+                           eqp->iconv,
                            eqp->idiff,
                            0,   /* strengthen diagonal */
-                           1,   /* isym */
                            1.,  /* thetap */
+                           1.,  /* relaxp */
                            0.,  /* imucpp */
                            &bc_coeffs_pot,
                            pot,
@@ -332,9 +312,7 @@ _cs_mass_flux_prediction(const cs_mesh_t       *m,
                            bmasfl,
                            i_visc,
                            b_visc,
-                           nullptr,
-                           dam,
-                           xam);
+                           nullptr);
 
   /* Solving (Loop over the non-orthogonalities)
      ------------------------------------------- */
@@ -366,6 +344,8 @@ _cs_mass_flux_prediction(const cs_mesh_t       *m,
                   " %s: sweep = %d, RHS norm = %14.6e, relaxp = %f\n",
                   name, isweep, residual, eqp->relaxv);
 
+  cs_sles_t *sc = cs_sles_find_or_add(-1, name);
+
   while (isweep <= eqp->nswrsm && residual > tcrite) {
 
     /* Solving on the increment dpot */
@@ -374,10 +354,8 @@ _cs_mass_flux_prediction(const cs_mesh_t       *m,
 
     int n_iter = 0;
 
-    cs_sles_solve_native(-1, name,
-                         true, /* symmetric */
-                         1, 1, /* blocks sizes */
-                         dam, xam,
+    cs_sles_solve_ccc_fv(sc,
+                         a,
                          eqp->epsilo,
                          rnorm,
                          &n_iter, &residual,
@@ -385,21 +363,23 @@ _cs_mass_flux_prediction(const cs_mesh_t       *m,
 
     /* Update the increment of potential */
 
-    cs_real_t a;
+    cs_real_t ap;
     if (idtvar >= 0 && isweep <= eqp->nswrsm && residual > tcrite)
-      a = eqp->relaxv;
+      ap = eqp->relaxv;
     else
-      a = 1.; /* total increment fo last time step */
+      ap = 1.; /* total increment for last time step */
 
     ctx.parallel_for(n_cells, [=] CS_F_HOST_DEVICE (cs_lnum_t cell_id) {
       pota[cell_id] = pot[cell_id];
-      pot[cell_id]  = pota[cell_id] + a*dpot[cell_id];
+      pot[cell_id]  = pota[cell_id] + ap*dpot[cell_id];
     });
 
     isweep += 1;
 
     /* Update the right hand side if needed:
      * rhs^{k+1} = - div(rho u^n) - D(dt, pot^{k+1}) */
+
+    ctx.wait();
 
     if (isweep <= eqp->nswrsm) {
 
@@ -528,10 +508,8 @@ _cs_mass_flux_prediction(const cs_mesh_t       *m,
   /* Free solver setup
      ----------------- */
 
-  cs_sles_free_native(-1, name);
-
-  CS_FREE_HD(dam);
-  CS_FREE_HD(xam);
+  cs_sles_free(sc);
+  cs_matrix_release_coefficients(a);
 
   CS_FREE_HD(divu);
   CS_FREE_HD(rhs);
@@ -592,6 +570,8 @@ _st_exp_head_loss(cs_lnum_t          ncepdc,
     trav[c_id][2] += romvom*(cpdc13*vit1 + cpdc23*vit2 + cpdc33*vit3);
   });
 
+  ctx.wait();
+
 }
 
 /*----------------------------------------------------------------------------*/
@@ -619,19 +599,19 @@ _turbomachinery_mass_flux(const cs_mesh_t             *m,
   const cs_lnum_t n_b_faces = m->n_b_faces;
 
   const cs_lnum_2_t *restrict i_face_cells
-    = (const cs_lnum_2_t *restrict)m->i_face_cells;
+    = (const cs_lnum_2_t *)m->i_face_cells;
   const cs_lnum_t *restrict b_face_cells
-    = (const cs_lnum_t *restrict)m->b_face_cells;
+    = (const cs_lnum_t *)m->b_face_cells;
 
   const cs_real_3_t  *restrict b_face_normal
-    = (const cs_real_3_t  *restrict) mq->b_face_normal;
+    = (const cs_real_3_t  *) mq->b_face_normal;
   const cs_real_3_t *restrict i_face_normal
-    = (const cs_real_3_t *restrict) mq->i_face_normal;
+    = (const cs_real_3_t *) mq->i_face_normal;
 
   const cs_real_3_t *restrict b_face_cog
-    = (const cs_real_3_t *restrict)mq->b_face_cog;
+    = (const cs_real_3_t *)mq->b_face_cog;
   const cs_real_3_t *restrict i_face_cog
-    = (const cs_real_3_t *restrict)mq->i_face_cog;
+    = (const cs_real_3_t *)mq->i_face_cog;
 
   const int *irotce = cs_turbomachinery_get_cell_rotor_num();
 
@@ -711,12 +691,13 @@ _face_diff_vel(const cs_mesh_t             *m,
     cs_real_t *w1;
     CS_MALLOC_HD(w1, n_cells_ext, cs_real_t, cs_alloc_mode);
 
-    if (cs_glob_turb_model->itytur == 3)
+    if (cs_glob_turb_model->order == CS_TURB_SECOND_ORDER)
       cs_array_copy<cs_real_t>(n_cells, (const cs_real_t *)viscl, w1);
     else {
       ctx.parallel_for(n_cells, [=] CS_F_HOST_DEVICE (cs_lnum_t c_id) {
         w1[c_id] = viscl[c_id] + idifft*visct[c_id];
       });
+      ctx.wait();
     }
     /*  Scalar diffusivity (Default) */
     if (eqp_u->idften & CS_ISOTROPIC_DIFFUSION) {
@@ -728,11 +709,12 @@ _face_diff_vel(const cs_mesh_t             *m,
 
       /* When using Rij-epsilon model with the option irijnu=1, the face
        * viscosity for the Matrix (viscfi and viscbi) is increased */
-      if (   cs_glob_turb_model->itytur == 3
+      if (   cs_glob_turb_model->order == CS_TURB_SECOND_ORDER
           && cs_glob_turb_rans_model->irijnu == 1) {
         ctx.parallel_for(n_cells, [=] CS_F_HOST_DEVICE (cs_lnum_t c_id) {
           w1[c_id] = viscl[c_id] + idifft*visct[c_id];
         });
+        ctx.wait();
 
         cs_face_viscosity(m, mq,
                           eqp_u->imvisf,
@@ -749,6 +731,7 @@ _face_diff_vel(const cs_mesh_t             *m,
         for (cs_lnum_t ii = 3; ii < 6; ii++)
           viscce[c_id][ii] = 0;
       });
+      ctx.wait();
 
       cs_face_anisotropic_viscosity_vector(m, mq,
                                            eqp_u->imvisf,
@@ -758,7 +741,7 @@ _face_diff_vel(const cs_mesh_t             *m,
 
       /* When using Rij-epsilon model with the option irijnu=1, the face
        * viscosity for the Matrix (viscfi and viscbi) is increased */
-      if (   cs_glob_turb_model->itytur == 3
+      if (   cs_glob_turb_model->order == CS_TURB_SECOND_ORDER
           && cs_glob_turb_rans_model->irijnu == 1) {
         ctx.parallel_for(n_cells, [=] CS_F_HOST_DEVICE (cs_lnum_t c_id) {
           w1[c_id] = viscl[c_id] + idifft*visct[c_id];
@@ -768,6 +751,7 @@ _face_diff_vel(const cs_mesh_t             *m,
           for (cs_lnum_t ii = 3; ii < 6; ii++)
             viscce[c_id][ii] = 0;
         });
+        ctx.wait();
 
         cs_face_anisotropic_viscosity_vector(m, mq,
                                              eqp_u->imvisf,
@@ -783,7 +767,7 @@ _face_diff_vel(const cs_mesh_t             *m,
   /* If no diffusion, viscosity is set to 0. */
   else {
 
-    if (   cs_glob_turb_model->itytur == 3
+    if (   cs_glob_turb_model->order == CS_TURB_SECOND_ORDER
         && cs_glob_turb_rans_model->irijnu == 1) {
 
       cs_arrays_set_value<cs_real_t, 1>(n_i_faces, 0., viscf, viscfi);
@@ -808,8 +792,7 @@ _face_diff_vel(const cs_mesh_t             *m,
  * \param[in, out]   cpro_divr reynolds stress divergence
  * \param[in, out]   c_st_vel  source term of velicity
  * \param[in, out]   forbr     boundary forces
- * \param[in, out]   trava     working array for the
- *                             velocity-pressure coupling
+ * \param[in, out]   trava     work array for velocity-pressure coupling
  * \param[in, out]   trav      right hand side for the normalizing
  *                             the residual
  */
@@ -844,7 +827,7 @@ _div_rij(const cs_mesh_t     *m,
   CS_MALLOC_HD(tflmab, n_b_faces,cs_real_3_t, cs_alloc_mode);
 
   /* Reynolds Stress Models */
-  if (cs_glob_turb_model->itytur == 3) {
+  if (cs_glob_turb_model->order == CS_TURB_SECOND_ORDER) {
 
     const cs_field_t *f_rij = CS_F_(rij);
     eqp = cs_field_get_equation_param_const(f_rij);
@@ -872,7 +855,7 @@ _div_rij(const cs_mesh_t     *m,
   }
 
   /* Baglietto et al. quadratic k-epislon model */
-  else if (cs_glob_turb_model->iturb == CS_TURB_K_EPSILON_QUAD) {
+  else if (cs_glob_turb_model->model == CS_TURB_K_EPSILON_QUAD) {
 
     cs_real_6_t *rij = nullptr;
     CS_MALLOC_HD(rij, n_cells_ext, cs_real_6_t, cs_alloc_mode);
@@ -900,6 +883,7 @@ _div_rij(const cs_mesh_t     *m,
         coefbt[face_id][jj][jj] = 1.;
       }
     });
+    ctx.wait();
 
     cs_tensor_face_flux(m, mq,
                         -1, 1, 0, 1, 1,
@@ -950,6 +934,22 @@ _div_rij(const cs_mesh_t     *m,
     }
   }
 
+  /* For post processing */
+  int has_disable_flag = mq->has_disable_flag;
+  int *c_disable_flag = mq->c_disable_flag;
+  const cs_real_t *cell_f_vol = mq->cell_f_vol;
+
+  ctx.parallel_for(n_cells, [=] CS_F_HOST_DEVICE (cs_lnum_t c_id) {
+    cs_real_t dvol = 0;
+    const int ind = has_disable_flag * c_id;
+    const int c_act = (1 - (has_disable_flag * c_disable_flag[ind]));
+    if (c_act == 1)
+      dvol = 1.0/cell_f_vol[c_id];
+    for (cs_lnum_t i = 0; i < 3; i++)
+      cpro_divr[c_id][i] *= dvol;
+  });
+  ctx.wait();
+
 }
 
 /*----------------------------------------------------------------------------*/
@@ -979,9 +979,9 @@ _mesh_velocity_mass_flux(const cs_mesh_t             *m,
   const cs_lnum_t n_b_faces = m->n_b_faces;
 
   const cs_lnum_2_t *restrict i_face_cells
-    = (const cs_lnum_2_t *restrict)m->i_face_cells;
+    = (const cs_lnum_2_t *)m->i_face_cells;
   const cs_lnum_t *restrict b_face_cells
-    = (const cs_lnum_t *restrict)m->b_face_cells;
+    = (const cs_lnum_t *)m->b_face_cells;
 
   const cs_lnum_t *i_face_vtx_idx = m->i_face_vtx_idx;
   const cs_lnum_t *i_face_vtx_lst = m->i_face_vtx_lst;
@@ -1245,16 +1245,11 @@ _ext_forces(const cs_mesh_t                *m,
   }
 
   /* Add -div( rho R) as external force */
-  if (   cs_glob_turb_model->itytur == 3
+  if (   cs_glob_turb_model->order == CS_TURB_SECOND_ORDER
       && cs_glob_velocity_pressure_param->igprij == 1) {
     ctx.parallel_for(n_cells, [=] CS_F_HOST_DEVICE (cs_lnum_t c_id) {
-      cs_real_t dvol = 0;
-      const int ind = has_disable_flag * c_id;
-      const int c_act = (1 - (has_disable_flag * c_disable_flag[ind]));
-      if (c_act == 1)
-        dvol = 1.0/cell_f_vol[c_id];
       for (cs_lnum_t ii = 0; ii < 3; ii++)
-        dfrcxt[c_id][ii] -= cpro_divr[c_id][ii]*dvol;
+        dfrcxt[c_id][ii] -= cpro_divr[c_id][ii];
     });
   }
 
@@ -1282,13 +1277,14 @@ _ext_forces(const cs_mesh_t                *m,
         dvol = 1.0/cell_f_vol[c_id];
       /* FIXME we should add tsimp*vela to tsexp as for head losses */
       for (cs_lnum_t ii = 0; ii < 3; ii++)
-        dfrcxt[c_id][ii] += tsexp[c_id][ii] *dvol;
+        dfrcxt[c_id][ii] += tsexp[c_id][ii] * dvol;
     });
   }
 
   ctx.wait(); // needed for the next synchronization
 
   cs_mesh_sync_var_vect((cs_real_t *)dfrcxt);
+
 }
 
 /*----------------------------------------------------------------------------*/
@@ -1327,14 +1323,14 @@ _update_fluid_vel(const cs_mesh_t             *m,
   const cs_lnum_t n_b_faces = m->n_b_faces;
 
   const cs_lnum_2_t *restrict i_face_cells
-    = (const cs_lnum_2_t *restrict)m->i_face_cells;
+    = (const cs_lnum_2_t *)m->i_face_cells;
   const cs_lnum_t *restrict b_face_cells
-    = (const cs_lnum_t *restrict)m->b_face_cells;
+    = (const cs_lnum_t *)m->b_face_cells;
 
   const cs_real_3_t *restrict i_face_cog
-    = (const cs_real_3_t *restrict)mq->i_face_cog;
+    = (const cs_real_3_t *)mq->i_face_cog;
   const cs_real_3_t *restrict b_face_cog
-    = (const cs_real_3_t *restrict)mq->b_face_cog;
+    = (const cs_real_3_t *)mq->b_face_cog;
   const cs_real_3_t *cell_cen = (const cs_real_3_t *)mq->cell_cen;
 
   int has_disable_flag = mq->has_disable_flag;
@@ -1363,7 +1359,7 @@ _update_fluid_vel(const cs_mesh_t             *m,
     /* Pressure increment gradient */
 
     cs_real_3_t *cpro_gradp = nullptr, *gradp = nullptr;
-    cs_field_t *f_inc = cs_field_by_name_try("algo:gradient_pressure_increment");
+    cs_field_t *f_inc = cs_field_by_name_try("algo:pressure_increment_gradient");
     if (f_inc != nullptr)
       cpro_gradp = (cs_real_3_t *)f_inc->val;
     else {
@@ -1522,9 +1518,11 @@ _update_fluid_vel(const cs_mesh_t             *m,
       }
 
     } /* vp_param->iphydr */
+    ctx.wait();
 
     if (gradp != nullptr)
       CS_FREE_HD(gradp);
+
   }
 
   /* RT0 update from the mass fluxes */
@@ -1665,10 +1663,10 @@ _update_fluid_vel(const cs_mesh_t             *m,
         frcxt[c_id][ii] =   frcxt[c_id][ii]*is_active
                           + dfrcxt[c_id][ii];
     });
-
     ctx.wait(); // needed for the following synchronization
 
     cs_mesh_sync_var_vect((cs_real_t *)frcxt);
+
   }
 
 }
@@ -1707,9 +1705,9 @@ _log_norm(const cs_mesh_t                *m,
   const cs_lnum_t n_b_faces = m->n_b_faces;
 
   const cs_lnum_2_t *restrict i_face_cells
-    = (const cs_lnum_2_t *restrict)m->i_face_cells;
+    = (const cs_lnum_2_t *)m->i_face_cells;
   const cs_lnum_t *restrict b_face_cells
-    = (const cs_lnum_t *restrict)m->b_face_cells;
+    = (const cs_lnum_t *)m->b_face_cells;
 
   const cs_real_3_t *cell_cen = (const cs_real_3_t *)mq->cell_cen;
   const cs_real_t *i_face_surf = mq->i_face_surf;
@@ -1888,55 +1886,6 @@ _log_norm(const cs_mesh_t                *m,
 
 /*----------------------------------------------------------------------------*/
 /*!
- * \brief Print norms of density, velocity and pressure in listing.
- *
- * \param[in]  m         pointer to associated mesh structure
- * \param[in]  mq        pointer to associated mesh quantities structure
- * \param[in]  iterns    sub-iteration count
- * \param[in]  icvrge    convergence indicator
- * \param[in]  crom      density at cells
- * \param[in]  brom      density at boundary faces
- * \param[in]  imasfl    interior face mass flux
- * \param[in]  bmasfl    boundary face mass flux
- * \param[in]  cvar_pr   pressure
- * \param[in]  cvar_vel  velocity
- */
-/*----------------------------------------------------------------------------*/
-
-static void
-_resize_non_interleaved_cell_arrays(const cs_mesh_t    *m,
-                                    cs_lnum_t           n_sub,
-                                    cs_real_t         **array)
-{
-  const cs_lnum_t n_cells = m->n_cells;
-  const cs_lnum_t n_cells_ext = m->n_cells_with_ghosts;
-
-  cs_dispatch_context ctx;
-
-  cs_real_t *buffer = nullptr;
-
-  CS_MALLOC_HD(buffer, n_sub*n_cells, cs_real_t, cs_alloc_mode);
-  for (cs_lnum_t i = 0; i < n_sub; i++) {
-    cs_array_copy<cs_real_t>(n_cells, *array + i*n_cells_ext, buffer + i*n_cells);
-  }
-
-  ctx.wait();
-
-  CS_REALLOC_HD(*array, n_sub*n_cells_ext, cs_real_t, cs_alloc_mode);
-
-  for (cs_lnum_t i = 0; i < n_sub; i++) {
-    cs_real_t *src = buffer + i*n_cells;
-    cs_real_t *dst = *array + i*n_cells_ext;
-    cs_array_copy<cs_real_t>(n_cells, src, dst);
-    ctx.wait();
-    cs_mesh_sync_var_scal(dst);
-  }
-
-  CS_FREE_HD(buffer);
-}
-
-/*----------------------------------------------------------------------------*/
-/*!
   * \brief Velocity prediction step of the Navier-Stokes equations for
   *        incompressible or slightly compressible flows.
   *
@@ -1961,7 +1910,7 @@ _resize_non_interleaved_cell_arrays(const cs_mesh_t    *m,
   * \param[in]       bc_coeffs_v   boundary condition structure for the variable
   * \param[in]       ckupdc        head loss coefficients, if present
   * \param[in]       frcxt         external forces making hydrostatic pressure
-  * \param[in]       trava         working array for the velocity-pressure coupling
+  * \param[in, out]  trava         work array for velocity-pressure coupling
   * \param[out]      dfrcxt        variation of the external forces
   *                                making the hydrostatic pressure
   * \param[in]       grdphd        hydrostatic pressure gradient to handle the
@@ -2017,10 +1966,10 @@ _velocity_prediction(const cs_mesh_t             *m,
   const cs_lnum_t *b_face_cells = m->b_face_cells;
 
   const cs_real_t *cell_f_vol = mq->cell_f_vol;
-  const cs_real_3_t *restrict diipb = (const cs_real_3_t *restrict)mq->diipb;
+  const cs_rreal_3_t *restrict diipb = mq->diipb;
 
   const cs_real_3_t  *restrict b_face_normal
-    = (const cs_real_3_t  *restrict) mq->b_face_normal;
+    = (const cs_real_3_t  *) mq->b_face_normal;
   int has_disable_flag = mq->has_disable_flag;
   int *c_disable_flag = mq->c_disable_flag;
 
@@ -2152,6 +2101,7 @@ _velocity_prediction(const cs_mesh_t             *m,
                      + (1.0 - theta) * bmasfl_prev[f_id];
     });
   }
+  ctx.wait();
 
   cs_real_6_t *viscce = nullptr;
   if (eqp_u->idften & CS_ANISOTROPIC_LEFT_DIFFUSION)
@@ -2170,9 +2120,10 @@ _velocity_prediction(const cs_mesh_t             *m,
   if (   iterns == 1
       && iforbr != nullptr
       && cs_glob_turb_rans_model->igrhok == 1
-      && (   cs_glob_turb_model->itytur == 2
-          || cs_glob_turb_model->itytur == 5
-          || cs_glob_turb_model->iturb == CS_TURB_K_OMEGA)) {
+      /* Eddy viscosity model with k defined */
+      && ( cs_glob_turb_model->order == CS_TURB_FIRST_ORDER
+        && cs_glob_turb_model->type == CS_TURB_RANS
+        && CS_F_(k) != nullptr)) {
     if (iappel == 2)
       cvara_k = CS_F_(k)->val;
     else
@@ -2212,13 +2163,8 @@ _velocity_prediction(const cs_mesh_t             *m,
     tsimp = loctsimp;
   }
 
-  ctx.parallel_for(n_cells, [=] CS_F_HOST_DEVICE (cs_lnum_t c_id) {
-    for (cs_lnum_t i = 0; i < 3; i++) {
-      tsexp[c_id][i] = 0.;
-      for (cs_lnum_t j = 0; j < 3; j++)
-        tsimp[c_id][i][j] = 0.;
-    }
-  });
+  cs_arrays_set_value<cs_real_t, 1>(3*n_cells, 0., (cs_real_t *)tsexp);
+  cs_arrays_set_value<cs_real_t, 1>(9*n_cells, 0., (cs_real_t *)tsimp);
 
   /* The computation of explicit and implicit source terms is performed
    * at the first iteration only.
@@ -2293,7 +2239,7 @@ _velocity_prediction(const cs_mesh_t             *m,
 
   /* Pressure gradient */
   cs_real_3_t *grad = nullptr, *cpro_gradp = nullptr;
-  f = cs_field_by_name_try("algo:gradient_pressure");
+  f = cs_field_by_name_try("algo:pressure_gradient");
   if (f != nullptr)
     cpro_gradp = (cs_real_3_t *)f->val;
   else {
@@ -2324,6 +2270,7 @@ _velocity_prediction(const cs_mesh_t             *m,
           cpro_rho_tc[c_id] =          theta  * cpro_rho_mass[c_id]
                               + (1.0 - theta) * croma[c_id];
         });
+        ctx.wait();
         wgrec_crom = cpro_rho_tc;
       }
       else
@@ -2375,7 +2322,7 @@ _velocity_prediction(const cs_mesh_t             *m,
                                 cpro_gradp);
 
   const cs_real_3_t *restrict cdgfbo
-      = (const cs_real_3_t *restrict)mq->b_face_cog;
+      = (const cs_real_3_t *)mq->b_face_cog;
 
   /* Compute stress at walls (part 2/5), if required.
    * Face pressure is computed at face and computed as in gradient
@@ -2407,10 +2354,7 @@ _velocity_prediction(const cs_mesh_t             *m,
   if (iappel == 1)
     /* Initialization
      * NB: at the second call, trav contains the temporal increment */
-    ctx.parallel_for(n_cells, [=] CS_F_HOST_DEVICE (cs_lnum_t c_id) {
-      for (cs_lnum_t i = 0; i < 3; i++)
-        trav[c_id][i] = 0.;
-    });
+    cs_arrays_set_value<cs_real_t, 1>(3*n_cells, 0., (cs_real_t *) trav);
 
   /* FIXME : "rho g" will be second order only if extrapolated */
 
@@ -2482,8 +2426,6 @@ _velocity_prediction(const cs_mesh_t             *m,
     }
   }
 
-  CS_FREE_HD(grad);
-
   /* For iappel = 1 (ie standard call without estimators)
    * trav gathers the source terms which will be recalculated
    * to all iterations on navsto
@@ -2531,7 +2473,7 @@ _velocity_prediction(const cs_mesh_t             *m,
     /* If we not extrapolate the ST. */
     else {
 
-      /* If we have many iterationss: trava initialize */
+      /* If we have many iterations: trava initialize */
       /* otherwise trava should not exist */
       if (vp_param->nterup > 1)
         ctx.parallel_for(n_cells, [=] CS_F_HOST_DEVICE (cs_lnum_t c_id) {
@@ -2561,17 +2503,14 @@ _velocity_prediction(const cs_mesh_t             *m,
     });
   }
   else {
-    ctx.parallel_for(n_cells, [=] CS_F_HOST_DEVICE (cs_lnum_t c_id) {
-      for (cs_lnum_t ii = 0; ii < 3; ii++)
-        for (cs_lnum_t jj = 0; jj < 3; jj++)
-          fimp[c_id][ii][jj] = 0.;
-    });
+    cs_arrays_set_value<cs_real_t, 1>(9*n_cells, 0., (cs_real_t *)fimp);
   }
 
   ctx.wait();
   CS_FREE_HD(cproa_rho_tc);
+  CS_FREE_HD(grad);
 
-  /* 2/3 rho * grad(k) for k-epsilon ou k-omega
+  /* 2/3 rho * grad(k) for Eddy viscosity models with k defined
    * Note: we do not take the gradient of (rho k), as this would make
    *       the handling of BC's more complex...
    *
@@ -2582,12 +2521,12 @@ _velocity_prediction(const cs_mesh_t             *m,
    * in time ; it goes into trava if we do not extrapolate or iterate on
    * cs_solve_navier_stokes. */
 
-  if (  (   cs_glob_turb_model->itytur == 2
-         || cs_glob_turb_model->itytur == 5
-         || cs_glob_turb_model->iturb == CS_TURB_K_OMEGA)
+  if (( cs_glob_turb_model->order == CS_TURB_FIRST_ORDER
+        && cs_glob_turb_model->type == CS_TURB_RANS
+        && CS_F_(k) != nullptr)
       && cs_glob_turb_rans_model->igrhok == 1 && iterns == 1) {
     cs_real_3_t *grad_k = nullptr;
-    BFT_MALLOC(grad_k, n_cells_ext, cs_real_3_t);
+    CS_MALLOC_HD(grad_k, n_cells_ext, cs_real_3_t, cs_alloc_mode);
 
     cs_field_gradient_scalar(CS_F_(k), true, 1, grad_k);
 
@@ -2631,8 +2570,9 @@ _velocity_prediction(const cs_mesh_t             *m,
           forbr[f_id][isou] += xkb*b_face_normal[f_id][isou];
       });
     }
+    ctx.wait();
 
-    BFT_FREE(grad_k);
+    CS_FREE_HD(grad_k);
   }
 
   /* Transpose of velocity gradient in the diffusion term
@@ -2803,12 +2743,15 @@ _velocity_prediction(const cs_mesh_t             *m,
   cs_real_3_t *cpro_divr = nullptr, *divt = nullptr;
 
   if (   iterns == 1
-      && (   cs_glob_turb_model->itytur == 3
-          || cs_glob_turb_model->iturb == CS_TURB_K_EPSILON_QUAD)) {
+      && (   cs_glob_turb_model->order == CS_TURB_SECOND_ORDER
+          || cs_glob_turb_model->model == CS_TURB_K_EPSILON_QUAD)) {
 
-    if (cs_field_by_name_try("algo:divergence_rij") != nullptr)
+    cs_field_t *f_drij = cs_field_by_name_try("algo:rij_divergence");
+    if (f_drij != nullptr) {
+      assert(f_drij->dim == 3);
       cpro_divr
-        = (cs_real_3_t *)cs_field_by_name_try("algo:divergence_rij")->val;
+        = (cs_real_3_t *)f_drij->val;
+    }
     else {
       CS_MALLOC_HD(divt, n_cells_ext, cs_real_3_t, cs_alloc_mode);
       cpro_divr = divt;
@@ -2832,8 +2775,8 @@ _velocity_prediction(const cs_mesh_t             *m,
 
   if (cs_glob_turb_rans_model->irijnu == 2) {
 
-    const cs_real_3_t *i_face_u_normal = mq->i_face_u_normal;
-    const cs_real_3_t *b_face_u_normal = mq->b_face_u_normal;
+    const cs_nreal_3_t *i_face_u_normal = mq->i_face_u_normal;
+    const cs_nreal_3_t *b_face_u_normal = mq->b_face_u_normal;
 
     if (eqp_u->idften & CS_ISOTROPIC_DIFFUSION) {
       ctx.parallel_for(n_i_faces, [=] CS_F_HOST_DEVICE (cs_lnum_t f_id) {
@@ -2843,7 +2786,7 @@ _velocity_prediction(const cs_mesh_t             *m,
 
     else if (eqp_u->idften & CS_ANISOTROPIC_LEFT_DIFFUSION) {
       ctx.parallel_for(n_i_faces, [=] CS_F_HOST_DEVICE (cs_lnum_t f_id) {
-        const cs_real_t *n = i_face_u_normal[f_id];
+        const cs_nreal_t *n = i_face_u_normal[f_id];
         for (cs_lnum_t ii = 0; ii < 3; ii++) {
           for (cs_lnum_t jj = 0; jj < 3; jj++)
             viscf[9*f_id+3*jj+ii]
@@ -2855,7 +2798,7 @@ _velocity_prediction(const cs_mesh_t             *m,
 
     const cs_real_t *bpro_rusanov = cs_field_by_name("b_rusanov_diff")->val;
     ctx.parallel_for(n_b_faces, [=] CS_F_HOST_DEVICE (cs_lnum_t f_id) {
-      const cs_real_t *n = b_face_u_normal[f_id];
+      const cs_nreal_t *n = b_face_u_normal[f_id];
       for (cs_lnum_t ii = 0; ii < 3; ii++) {
         for (cs_lnum_t jj = 0; jj < 3; jj++)
           cofbfv[f_id][ii][jj] += bpro_rusanov[f_id]*n[ii]*n[jj];
@@ -2885,17 +2828,13 @@ _velocity_prediction(const cs_mesh_t             *m,
   cs_real_t *c_estim = nullptr;
   if (iappel == 1 && iespre != nullptr) {
     c_estim = iespre->val;
-    ctx.parallel_for(n_cells, [=] CS_F_HOST_DEVICE (cs_lnum_t c_id) {
-      c_estim[c_id] = 0.;
-    });
+    cs_arrays_set_value<cs_real_t, 1>(n_cells, 0., c_estim);
   }
 
   if (iappel == 2) {
     c_estim = cs_field_by_name_try("est_error_tot_2")->val;
     if (c_estim != nullptr) {
-      ctx.parallel_for(n_cells, [=] CS_F_HOST_DEVICE (cs_lnum_t c_id) {
-        c_estim[c_id] = 0.;
-      });
+      cs_arrays_set_value<cs_real_t, 1>(n_cells, 0., c_estim);
     }
   }
 
@@ -2968,18 +2907,18 @@ _velocity_prediction(const cs_mesh_t             *m,
 
   if (eqp_u->n_volume_mass_injections > 0) {
 
-    cs_lnum_t ncetsm = 0;
-    int *itypsm = nullptr;
-    const cs_lnum_t *icetsm = nullptr;
-    cs_real_t *smacel_p = nullptr;
-    cs_real_t *smacel_vel = nullptr;
+    cs_lnum_t n_elts = 0;
+    int *mst_type = nullptr;
+    const cs_lnum_t *elt_ids = nullptr;
+    cs_real_t *mst_val_p = nullptr;
+    cs_real_t *mst_val_vel = nullptr;
 
     cs_volume_mass_injection_get_arrays(CS_F_(vel),
-                                        &ncetsm,
-                                        &icetsm,
-                                        &itypsm,
-                                        &smacel_vel,
-                                        &smacel_p);
+                                        &n_elts,
+                                        &elt_ids,
+                                        &mst_type,
+                                        &mst_val_vel,
+                                        &mst_val_p);
 
     cs_real_3_t *gavinj = nullptr;
     if (iterns == 1) {
@@ -2998,13 +2937,13 @@ _velocity_prediction(const cs_mesh_t             *m,
 
     cs_mass_source_terms(iterns,
                          3,
-                         ncetsm,
-                         icetsm,
-                         itypsm,
+                         n_elts,
+                         elt_ids,
+                         mst_type,
                          cell_f_vol,
                          (cs_real_t*)vela,
-                         smacel_vel,
-                         smacel_p,
+                         mst_val_vel,
+                         mst_val_p,
                          (cs_real_t*)trav_p,
                          (cs_real_t*)fimp,
                          (cs_real_t*)gavinj);
@@ -3053,8 +2992,6 @@ _velocity_prediction(const cs_mesh_t             *m,
     }
   }
 
-  ctx.wait();
-
   /* Lagrangian: coupling feedback
      -----------------------------
 
@@ -3069,21 +3006,22 @@ _velocity_prediction(const cs_mesh_t             *m,
       && cs_glob_lagr_time_scheme->iilagr == CS_LAGR_TWOWAY_COUPLING) {
 
     const cs_real_3_t *lagr_st_vel
-      = (const cs_real_3_t *)cs_field_by_name_try("velocity_st_lagr")->val;
+      = (const cs_real_3_t *)cs_field_by_name("lagr_st_velocity")->val;
 
-    cs_axpy(n_cells*3, 1, (const cs_real_t *)lagr_st_vel, (cs_real_t *)smbr);
+    ctx.parallel_for(n_cells, [=] CS_F_HOST_DEVICE (cs_lnum_t c_id) {
+      for (cs_lnum_t i = 0; i < 3; i++)
+        smbr[c_id][i] += cell_f_vol[c_id] * lagr_st_vel[c_id][i] ;
+    });
 
     if (iappel == 1) {
-      const cs_lnum_t itsli = cs_glob_lagr_source_terms->itsli;
-      cs_real_t *st_val =   cs_glob_lagr_source_terms->st_val
-                          + (itsli-1)*n_cells_ext;
+      const cs_real_t *lagr_st_imp_vel
+        = cs_field_by_name("lagr_st_imp_velocity")->val;
 
-#     pragma omp parallel for if (n_cells > CS_THR_MIN)
-      for (cs_lnum_t c_id = 0; c_id < n_cells; c_id++) {
-        cs_real_t st = cs_math_fmax(-st_val[c_id], 0.0);
-        for (cs_lnum_t ii = 0; ii < 3; ii++)
-          fimp[c_id][ii][ii] += st;
-      }
+      ctx.parallel_for(n_cells, [=] CS_F_HOST_DEVICE (cs_lnum_t c_id) {
+        cs_real_t st = cell_f_vol[c_id] * cs_math_fmax(-lagr_st_imp_vel[c_id], 0.0);
+        for (cs_lnum_t i = 0; i < 3; i++)
+          fimp[c_id][i][i] += st;
+      });
     }
 
   }
@@ -3095,11 +3033,10 @@ _velocity_prediction(const cs_mesh_t             *m,
     const cs_real_3_t *lapla
       = (const cs_real_3_t *)cs_field_by_name("laplace_force")->val;
 
-#   pragma omp parallel for if (n_cells > CS_THR_MIN)
-    for (cs_lnum_t c_id = 0; c_id < n_cells; c_id++) {
+    ctx.parallel_for(n_cells, [=] CS_F_HOST_DEVICE (cs_lnum_t c_id) {
       for (cs_lnum_t ii = 0; ii < 3; ii++)
         smbr[c_id][ii] += cell_f_vol[c_id] * lapla[c_id][ii];
-    }
+    });
   }
 
   /* Solver parameters
@@ -3124,6 +3061,8 @@ _velocity_prediction(const cs_mesh_t             *m,
         for (cs_lnum_t jj = 0; jj < 3; jj++)
           fimpcp[c_id][ii][jj] = fimp[c_id][ii][jj];
     });
+
+    ctx.wait();
 
     int iescap = 0;
     if (iespre != nullptr)
@@ -3225,6 +3164,8 @@ _velocity_prediction(const cs_mesh_t             *m,
 
       eqp_loc.nswrsm = -1;
 
+      ctx.wait();
+
       cs_equation_iterative_solve_vector(cs_glob_time_step_options->idtvar,
                                          iterns,
                                          CS_F_(vel)->id,
@@ -3260,6 +3201,8 @@ _velocity_prediction(const cs_mesh_t             *m,
         for (cs_lnum_t ii = 3; ii < 6; ii++)
           dttens[c_id][ii] = 0;
       });
+
+      ctx.wait();
 
       CS_FREE_HD(vect);
     }
@@ -3332,6 +3275,8 @@ _velocity_prediction(const cs_mesh_t             *m,
     });
   }
 
+  ctx.wait();
+
   CS_FREE_HD(fimp);
   CS_FREE_HD(smbr);
   CS_FREE_HD(eswork);
@@ -3355,10 +3300,10 @@ _velocity_prediction(const cs_mesh_t             *m,
      * square root (norm) or square root of the sum times the volume (L2 norm) */
     if (iespre != nullptr) {
       c_estim = iespre->val;
+
       ctx.parallel_for(n_cells, [=] CS_F_HOST_DEVICE (cs_lnum_t c_id) {
         c_estim[c_id] = sqrt(c_estim[c_id] * cell_f_vol[c_id]);
       });
-      ctx.wait();
     }
 
     /* Norm logging */
@@ -3390,9 +3335,9 @@ _velocity_prediction(const cs_mesh_t             *m,
       ctx.parallel_for(n_cells, [=] CS_F_HOST_DEVICE (cs_lnum_t c_id) {
         c_estim[c_id] = sqrt(c_estim[c_id]*cell_f_vol[c_id]);
       });
-      ctx.wait();
     }
   }
+  ctx.wait();
 }
 
 /*----------------------------------------------------------------------------*/
@@ -3483,7 +3428,7 @@ _hydrostatic_pressure_prediction(cs_real_t        grdphd[][3],
   /* Neumann boundary condition for the pressure increment */
 
   const cs_real_t *distb = mq->b_dist;
-  const cs_real_3_t *b_face_u_normal = (const cs_real_3_t *)mq->b_face_u_normal;
+  const cs_nreal_3_t *b_face_u_normal = mq->b_face_u_normal;
 
   ctx.parallel_for(n_b_faces, [=] CS_F_HOST_DEVICE (cs_lnum_t f_id) {
     const cs_lnum_t c_id = b_face_cells[f_id];
@@ -3601,47 +3546,6 @@ _hydrostatic_pressure_prediction(cs_real_t        grdphd[][3],
   CS_FREE_HD(bc_coeffs_dp.bf);
 }
 
-/*============================================================================
- * Fortran wrapper function definitions
- *============================================================================*/
-
-void
-cs_f_navier_stokes_total_pressure(void)
-{
-  const cs_fluid_properties_t *fp = cs_glob_fluid_properties;
-  const cs_real_t *gxyz = cs_glob_physical_constants->gravity;
-  const cs_real_t *xyzp0 = fp->xyzp0;
-#if defined(HAVE_ACCEL)
-  cs_real_t *_gxyz = nullptr, *_xyzp0 = nullptr;
-  if (cs_get_device_id() > -1) {
-    CS_MALLOC_HD(_gxyz, 3, cs_real_t, cs_alloc_mode);
-    CS_MALLOC_HD(_xyzp0, 3, cs_real_t, cs_alloc_mode);
-    for (int i = 0; i < 3; i++) {
-      _gxyz[i] = cs_glob_physical_constants->gravity[i];
-      _xyzp0[i] = fp->xyzp0[i];
-    }
-
-    cs_mem_advise_set_read_mostly(_gxyz);
-    cs_mem_advise_set_read_mostly(_xyzp0);
-
-    xyzp0 = _xyzp0;
-    gxyz = _gxyz;
-  }
-#endif
-
-  cs_solve_navier_stokes_update_total_pressure(cs_glob_mesh,
-                                               cs_glob_mesh_quantities,
-                                               cs_glob_fluid_properties,
-                                               gxyz,
-                                               xyzp0);
-
-#if defined(HAVE_ACCEL)
-  CS_FREE_HD(_gxyz);
-  CS_FREE_HD(_xyzp0);
-#endif
-
-}
-
 /*! (DOXYGEN_SHOULD_SKIP_THIS) \endcond */
 
 /*============================================================================
@@ -3662,8 +3566,6 @@ cs_f_navier_stokes_total_pressure(void)
  * \param[in]     mq     pointer to mesh quantities structure
  * \param[in]     fp     pointer to fluid properties structure
  * \param[in]     gxyz   gravity
- * \param[in]     xyzp0  indicator for filling of reference point for
- *                       total pressure
  */
 /*----------------------------------------------------------------------------*/
 
@@ -3672,8 +3574,7 @@ cs_solve_navier_stokes_update_total_pressure
   (const cs_mesh_t              *m,
    const cs_mesh_quantities_t   *mq,
    const cs_fluid_properties_t  *fp,
-   const cs_real_t               gxyz[3],
-   const cs_real_t               xyzp0[3])
+   const cs_real_t               gxyz[3])
 {
   /* TODO: use a function pointer here to adapt to different cases */
 
@@ -3685,6 +3586,7 @@ cs_solve_navier_stokes_update_total_pressure
   const cs_lnum_t n_cells = m->n_cells;
 
   const cs_real_3_t *cell_cen = (const cs_real_3_t *)mq->cell_cen;
+
   const cs_real_t p0 = fp->p0, pred0 = fp->pred0, ro0 = fp->ro0;
 
   cs_real_t *cpro_prtot = f->val;
@@ -3700,23 +3602,25 @@ cs_solve_navier_stokes_update_total_pressure
     cpro_momst
       = (const cs_real_3_t *)cs_field_by_name("momentum_source_terms")->val;
 
+  /* Copy global arrays to local ones to enable lambda capture for dispatch */
+  const cs_real_t g[3] = {gxyz[0], gxyz[1], gxyz[2]};
+  const cs_real_t xyzp0[3] = {fp->xyzp0[0], fp->xyzp0[1], fp->xyzp0[1]};
+
   cs_dispatch_context ctx;
 
   /* Update cell values */
 
   bool is_eddy_model
-    =  (  (   cs_glob_turb_model->itytur == 2
-           || cs_glob_turb_model->itytur == 5
-           || cs_glob_turb_model->iturb == CS_TURB_K_OMEGA)
-        && cs_glob_turb_rans_model->igrhok != 1);
-
+    = cs_glob_turb_model->order == CS_TURB_FIRST_ORDER
+    && CS_F_(k) != nullptr
+    && cs_glob_turb_rans_model->igrhok != 1;
 
   if (cpro_momst == nullptr) {
     ctx.parallel_for(n_cells, [=] CS_F_HOST_DEVICE (cs_lnum_t c_id) {
       cpro_prtot[c_id] =   cvar_pr[c_id]
                          + ro0 * cs_math_3_distance_dot_product(xyzp0,
                                                                 cell_cen[c_id],
-                                                                gxyz)
+                                                                g)
                          + p0 - pred0;
 
       /* For Eddy Viscosity Models, "2/3 rho k"
@@ -3730,7 +3634,7 @@ cs_solve_navier_stokes_update_total_pressure
       cpro_prtot[c_id] =   cvar_pr[c_id]
                          + ro0 * cs_math_3_distance_dot_product(xyzp0,
                                                                 cell_cen[c_id],
-                                                                gxyz)
+                                                                g)
                          + p0 - pred0
                          - cs_math_3_distance_dot_product(xyzp0,
                                                           cell_cen[c_id],
@@ -3750,12 +3654,13 @@ cs_solve_navier_stokes_update_total_pressure
  *        compressible flows for one time step. Both convection-diffusion
  *        and continuity steps are performed.
  *
- * \param[in]     iterns        index of the iteration on Navier-Stokes
- * \param[in]     icvrge        convergence indicator
- * \param[in]     itrale        number of the current ALE iteration
- * \param[in]     isostd        indicator of standard outlet
- *                              + index of the reference face
- * \param[in]     ckupdc        head loss coefficients, if present
+ * \param[in]       iterns     index of the iteration on Navier-Stokes
+ * \param[in]       icvrge     convergence indicator
+ * \param[in]       itrale     number of the current ALE iteration
+ * \param[in]       isostd     indicator of standard outlet
+ *                           + index of the reference face
+ * \param[in]       ckupdc     head loss coefficients, if present
+ * \param[in, out]  trava      work array for velocity-pressure coupling
  */
 /*----------------------------------------------------------------------------*/
 
@@ -3764,7 +3669,8 @@ cs_solve_navier_stokes(const int        iterns,
                        int             *icvrge,
                        const int        itrale,
                        const int        isostd[],
-                       const cs_real_t  ckupdc[][6])
+                       const cs_real_t  ckupdc[][6],
+                       cs_real_3_t     *trava)
 
 {
   cs_mesh_t *m = cs_glob_mesh;
@@ -3776,7 +3682,7 @@ cs_solve_navier_stokes(const int        iterns,
   cs_lnum_t n_b_faces = m->n_b_faces;
 
   const cs_lnum_t *restrict b_face_cells
-    = (const cs_lnum_t *restrict)m->b_face_cells;
+    = (const cs_lnum_t *)m->b_face_cells;
 
   const cs_time_step_t *ts = cs_glob_time_step;
   const cs_wall_condensation_t *w_condensation = cs_glob_wall_condensation;
@@ -3999,7 +3905,7 @@ cs_solve_navier_stokes(const int        iterns,
      ------------------------ */
 
   bool irijnu_1 = false;
-  if (   cs_glob_turb_model->itytur == 3
+  if (   cs_glob_turb_model->order == CS_TURB_SECOND_ORDER
       && cs_glob_turb_rans_model->irijnu == 1)
     irijnu_1 = true;
 
@@ -4011,14 +3917,6 @@ cs_solve_navier_stokes(const int        iterns,
   cs_real_t *viscfi = nullptr, *viscbi = nullptr;
   cs_real_t *wvisbi = nullptr, *wvisfi = nullptr;
   cs_real_3_t *frcxt = nullptr;
-
-  static cs_real_3_t *trava = nullptr;  /* TODO: pass this as argument to calling
-                                        function when that is moved to C,
-                                        so as to avoid requiring a static
-                                        variable. */
-
-  if (vp_param->nterup > 1 && trava == nullptr)
-    CS_MALLOC_HD(trava, n_cells_ext, cs_real_3_t, cs_alloc_mode);
 
   if (vp_model->ivisse == 1) {
     CS_MALLOC_HD(secvif, n_i_faces, cs_real_t, cs_alloc_mode);
@@ -4171,6 +4069,12 @@ cs_solve_navier_stokes(const int        iterns,
                                 crom, brom,
                                 imasfl, bmasfl);
 
+    /* In case of scalars with drift for particle classes
+     * boundary mass flux of the mixture may be updated */
+    cs_drift_boundary_mass_flux(m,
+                                mq,
+                                bmasfl);
+
     CS_FREE_HD(trav);
     CS_FREE_HD(da_uu);
     CS_FREE_HD(dfrcxt);
@@ -4222,7 +4126,7 @@ cs_solve_navier_stokes(const int        iterns,
     n_i_faces = m->n_i_faces;
     n_b_faces = m->n_b_faces;
 
-    b_face_cells = (const cs_lnum_t *restrict)m->b_face_cells;
+    b_face_cells = (const cs_lnum_t *)m->b_face_cells;
 
     if (cs_turbomachinery_get_n_couplings() < 1) {
 
@@ -4287,9 +4191,6 @@ cs_solve_navier_stokes(const int        iterns,
 
         dt = cs_field_by_name("dt")->val;
 
-        /* Resize auxiliary arrays (pointe module) */
-        cs_fortran_resize_aux_arrays();
-
         /* Resize other arrays related to the velocity-pressure resolution */
         CS_REALLOC_HD(da_uu, n_cells_ext, cs_real_6_t, cs_alloc_mode);
         cs_mesh_sync_var_sym_tens(da_uu);
@@ -4301,14 +4202,6 @@ cs_solve_navier_stokes(const int        iterns,
         cs_mesh_sync_var_vect((cs_real_t *)dfrcxt);
 
         /* Resize other arrays, depending on user options */
-
-        if (   cs_glob_lagr_time_scheme->iilagr != CS_LAGR_OFF
-            && cs_glob_lagr_dim->ntersl > 0) {
-          _resize_non_interleaved_cell_arrays
-            (m,
-             cs_glob_lagr_dim->ntersl,
-             &(cs_glob_lagr_source_terms->st_val));
-        }
 
         if (vp_param->iphydr == 1)
           frcxt = (cs_real_3_t *)cs_field_by_name("volume_forces")->val;
@@ -4394,10 +4287,9 @@ cs_solve_navier_stokes(const int        iterns,
     cs_turbomachinery_get_wall_bc_coeffs(&coftur, &hfltur);
     const int *irotce = cs_turbomachinery_get_cell_rotor_num();
 
-    const cs_real_3_t *restrict b_face_u_normal
-      = (const cs_real_3_t *restrict )mq->b_face_u_normal;
+    const cs_nreal_3_t *restrict b_face_u_normal = mq->b_face_u_normal;
     const cs_real_3_t *restrict b_face_cog
-      = (const cs_real_3_t *restrict)mq->b_face_cog;
+      = (const cs_real_3_t *)mq->b_face_cog;
 
     for (cs_lnum_t face_id = 0; face_id < n_b_faces; face_id++) {
 
@@ -4414,10 +4306,10 @@ cs_solve_navier_stokes(const int        iterns,
       const cs_real_t distbf = mq->b_dist[face_id];
 
       /* Unit normal */
-      const cs_real_t *ufn = b_face_u_normal[face_id];
+      const cs_nreal_t *ufn = b_face_u_normal[face_id];
 
       cs_real_t hint;
-      if (cs_glob_turb_model->itytur == 3)
+      if (cs_glob_turb_model->order == CS_TURB_SECOND_ORDER)
         hint = visclc / distbf;
       else
         hint = (visclc+visctc) / distbf;
@@ -4578,6 +4470,12 @@ cs_solve_navier_stokes(const int        iterns,
     rs_ell[1] += cs_timer_wtime() - t3;
   }
 
+  /* In case of scalars with drift for particle classes
+   * boundary mass flux of the mixture may be updated */
+  cs_drift_boundary_mass_flux(m,
+                              mq,
+                              bmasfl);
+
   /* VoF: void fraction solving and update the mixture density/viscosity and
    *      mass flux (cs_pressure_correction solved the convective flux of
    *      void fraction, divU)
@@ -4663,17 +4561,17 @@ cs_solve_navier_stokes(const int        iterns,
       cs_real_t *c_estim = iescor->val;
       cs_divergence(m, 1, esflum, esflub, c_estim);
 
-      cs_lnum_t ncetsm = 0;
-      const cs_lnum_t *icetsm = nullptr;
-      cs_real_t *smacel = nullptr;
-      cs_volume_mass_injection_get_arrays(CS_F_(p), &ncetsm, &icetsm, nullptr,
-                                          &smacel, nullptr);
+      cs_lnum_t n_elts = 0;
+      const cs_lnum_t *elt_ids = nullptr;
+      cs_real_t *mst_val = nullptr;
+      cs_volume_mass_injection_get_arrays(CS_F_(p), &n_elts, &elt_ids, nullptr,
+                                          &mst_val, nullptr);
 
-      if (ncetsm > 0) {
+      if (n_elts > 0) {
 
-        ctx.parallel_for(ncetsm, [=] CS_F_HOST_DEVICE (cs_lnum_t c_idx) {
-          cs_lnum_t c_id = icetsm[c_idx];
-          c_estim[c_id] -= cell_f_vol[c_id] * smacel[c_idx];
+        ctx.parallel_for(n_elts, [=] CS_F_HOST_DEVICE (cs_lnum_t c_idx) {
+          cs_lnum_t c_id = elt_ids[c_idx];
+          c_estim[c_id] -= cell_f_vol[c_id] * mst_val[c_idx];
         });
       }
 
@@ -4690,6 +4588,7 @@ cs_solve_navier_stokes(const int        iterns,
         for (cs_lnum_t isou = 0; isou < 3; isou++)
           trav[c_id][isou] = rovolsdt * (vela[c_id][isou] - vel[c_id][isou]);
       });
+      ctx.wait();
 
       if (vp_param->staggered == 0) {
         _velocity_prediction(m,
@@ -4785,8 +4684,7 @@ cs_solve_navier_stokes(const int        iterns,
    *         TKE might be included in the solved pressure. */
 
   if (cs_glob_physical_model_flag[CS_COMPRESSIBLE] < 0)
-    cs_solve_navier_stokes_update_total_pressure(m, mq, fluid_props,
-                                                 gxyz, xyzp0);
+    cs_solve_navier_stokes_update_total_pressure(m, mq, fluid_props, gxyz);
 
   if (eqp_u->verbosity > 0)
     _log_norm(m, mq,
@@ -4809,9 +4707,6 @@ cs_solve_navier_stokes(const int        iterns,
   CS_FREE_HD(trav);
   CS_FREE_HD(da_uu);
   CS_FREE_HD(dfrcxt);
-
-  if (iterns == vp_param->nterup)
-    CS_FREE_HD(trava);
 
   CS_FREE_HD(secvib);
   CS_FREE_HD(secvif);

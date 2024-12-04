@@ -66,7 +66,7 @@ BEGIN_C_DECLS
  *============================================================================*/
 
 /*!
-  \file cs_multigrid_smoother.c
+  \file cs_multigrid_smoother.cpp
         Iterative linear solvers used as multigrid smoothers only.
 
   These smoothers are based on iterative solvers, but are simplified so
@@ -154,7 +154,7 @@ _conjugate_gradient(cs_sles_it_t              *c,
   /* Allocate or map work arrays */
   /*-----------------------------*/
 
-  assert(c->setup_data != NULL);
+  assert(c->setup_data != nullptr);
 
   const cs_lnum_t n_rows = c->setup_data->n_rows;
 
@@ -163,7 +163,7 @@ _conjugate_gradient(cs_sles_it_t              *c,
     const size_t n_wa = 4;
     const size_t wa_size = CS_SIMD_SIZE(n_cols);
 
-    if (aux_vectors == NULL || aux_size/sizeof(cs_real_t) < (wa_size * n_wa))
+    if (aux_vectors == nullptr || aux_size/sizeof(cs_real_t) < (wa_size * n_wa))
       BFT_MALLOC(_aux_vectors, wa_size * n_wa, cs_real_t);
     else
       _aux_vectors = (cs_real_t *)aux_vectors;
@@ -326,7 +326,7 @@ _conjugate_gradient_sr(cs_sles_it_t              *c,
   /* Allocate or map work arrays */
   /*-----------------------------*/
 
-  assert(c->setup_data != NULL);
+  assert(c->setup_data != nullptr);
 
   const cs_lnum_t n_rows = c->setup_data->n_rows;
 
@@ -335,7 +335,7 @@ _conjugate_gradient_sr(cs_sles_it_t              *c,
     const size_t n_wa = 5;
     const size_t wa_size = CS_SIMD_SIZE(n_cols);
 
-    if (aux_vectors == NULL || aux_size/sizeof(cs_real_t) < (wa_size * n_wa))
+    if (aux_vectors == nullptr || aux_size/sizeof(cs_real_t) < (wa_size * n_wa))
       BFT_MALLOC(_aux_vectors, wa_size * n_wa, cs_real_t);
     else
       _aux_vectors = (cs_real_t *)aux_vectors;
@@ -502,7 +502,7 @@ _conjugate_gradient_npc(cs_sles_it_t              *c,
   /* Allocate or map work arrays */
   /*-----------------------------*/
 
-  assert(c->setup_data != NULL);
+  assert(c->setup_data != nullptr);
 
   const cs_lnum_t n_rows = c->setup_data->n_rows;
 
@@ -511,7 +511,7 @@ _conjugate_gradient_npc(cs_sles_it_t              *c,
     const size_t n_wa = 3;
     const size_t wa_size = CS_SIMD_SIZE(n_cols);
 
-    if (aux_vectors == NULL || aux_size/sizeof(cs_real_t) < (wa_size * n_wa))
+    if (aux_vectors == nullptr || aux_size/sizeof(cs_real_t) < (wa_size * n_wa))
       BFT_MALLOC(_aux_vectors, wa_size * n_wa, cs_real_t);
     else
       _aux_vectors = (cs_real_t *)aux_vectors;
@@ -671,7 +671,7 @@ _conjugate_gradient_npc_sr(cs_sles_it_t              *c,
   /* Allocate or map work arrays */
   /*-----------------------------*/
 
-  assert(c->setup_data != NULL);
+  assert(c->setup_data != nullptr);
 
   const cs_lnum_t n_rows = c->setup_data->n_rows;
 
@@ -680,7 +680,7 @@ _conjugate_gradient_npc_sr(cs_sles_it_t              *c,
     const size_t n_wa = 4;
     const size_t wa_size = CS_SIMD_SIZE(n_cols);
 
-    if (aux_vectors == NULL || aux_size/sizeof(cs_real_t) < (wa_size * n_wa))
+    if (aux_vectors == nullptr || aux_size/sizeof(cs_real_t) < (wa_size * n_wa))
       BFT_MALLOC(_aux_vectors, wa_size * n_wa, cs_real_t);
     else
       _aux_vectors = (cs_real_t *)aux_vectors;
@@ -837,7 +837,7 @@ _conjugate_residual_3(cs_sles_it_t              *c,
   /* Allocate or map work arrays */
   /*-----------------------------*/
 
-  assert(c->setup_data != NULL);
+  assert(c->setup_data != nullptr);
 
   const cs_lnum_t n_rows = c->setup_data->n_rows;
 
@@ -846,7 +846,7 @@ _conjugate_residual_3(cs_sles_it_t              *c,
     const size_t n_wa = 6;
     const size_t wa_size = CS_SIMD_SIZE(n_cols);
 
-    if (aux_vectors == NULL || aux_size/sizeof(cs_real_t) < (wa_size * n_wa))
+    if (aux_vectors == nullptr || aux_size/sizeof(cs_real_t) < (wa_size * n_wa))
       BFT_MALLOC(_aux_vectors, wa_size * n_wa, cs_real_t);
     else
       _aux_vectors = (cs_real_t *)aux_vectors;
@@ -1008,7 +1008,7 @@ _jacobi(cs_sles_it_t              *c,
   /* Allocate or map work arrays */
   /*-----------------------------*/
 
-  assert(c->setup_data != NULL);
+  assert(c->setup_data != nullptr);
 
   const cs_real_t  *restrict ad_inv = c->setup_data->ad_inv;
 
@@ -1019,7 +1019,7 @@ _jacobi(cs_sles_it_t              *c,
     const size_t n_wa = 1;
     const size_t wa_size = CS_SIMD_SIZE(n_cols);
 
-    if (aux_vectors == NULL || aux_size/sizeof(cs_real_t) < (wa_size * n_wa))
+    if (aux_vectors == nullptr || aux_size/sizeof(cs_real_t) < (wa_size * n_wa))
       BFT_MALLOC(_aux_vectors, wa_size * n_wa, cs_real_t);
     else
       _aux_vectors = (cs_real_t *)aux_vectors;
@@ -1115,7 +1115,7 @@ _block_3_jacobi(cs_sles_it_t              *c,
   /* Allocate or map work arrays */
   /*-----------------------------*/
 
-  assert(c->setup_data != NULL);
+  assert(c->setup_data != nullptr);
 
   const cs_real_t  *restrict ad_inv = c->setup_data->ad_inv;
 
@@ -1127,7 +1127,7 @@ _block_3_jacobi(cs_sles_it_t              *c,
     const size_t n_wa = 2;
     const size_t wa_size = CS_SIMD_SIZE(n_cols);
 
-    if (aux_vectors == NULL || aux_size/sizeof(cs_real_t) < (wa_size * n_wa))
+    if (aux_vectors == nullptr || aux_size/sizeof(cs_real_t) < (wa_size * n_wa))
       BFT_MALLOC(_aux_vectors, wa_size * n_wa, cs_real_t);
     else
       _aux_vectors = (cs_real_t *)aux_vectors;
@@ -1230,7 +1230,7 @@ _block_jacobi(cs_sles_it_t              *c,
 
   /* Call setup if not already done, allocate or map work arrays */
   /*-------------------------------------------------------------*/
-  assert(c->setup_data != NULL);
+  assert(c->setup_data != nullptr);
 
   const cs_lnum_t db_size = cs_matrix_get_diag_block_size(a);
   const cs_lnum_t db_size_2 = db_size * db_size;
@@ -1245,7 +1245,7 @@ _block_jacobi(cs_sles_it_t              *c,
     const size_t n_wa = 2;
     const size_t wa_size = CS_SIMD_SIZE(n_cols);
 
-    if (aux_vectors == NULL || aux_size/sizeof(cs_real_t) < (wa_size * n_wa))
+    if (aux_vectors == nullptr || aux_size/sizeof(cs_real_t) < (wa_size * n_wa))
       BFT_MALLOC(_aux_vectors, wa_size * n_wa, cs_real_t);
     else
       _aux_vectors = (cs_real_t *)aux_vectors;
@@ -1365,7 +1365,7 @@ _p_ordered_gauss_seidel_msr(cs_sles_it_t              *c,
         vx[ii] = 0;
       }
     }
-    else if (halo != NULL) {
+    else if (halo != nullptr) {
       /* Synchronize ghost cells first */
       cs_matrix_pre_vector_multiply_sync(a, vx);
     }
@@ -1487,7 +1487,7 @@ _p_gauss_seidel_msr(cs_sles_it_t              *c,
         vx[ii] = 0;
       }
     }
-    else if (halo != NULL) {
+    else if (halo != nullptr) {
       /* Synchronize ghost cells first */
       cs_matrix_pre_vector_multiply_sync(a, vx);
     }
@@ -1622,7 +1622,7 @@ _p_sym_gauss_seidel_msr(cs_sles_it_t              *c,
         vx[ii] = 0;
       }
     }
-    else if (halo != NULL) {
+    else if (halo != nullptr) {
       /* Synchronize ghost cells first */
       cs_matrix_pre_vector_multiply_sync(a, vx);
     }
@@ -1683,7 +1683,7 @@ _p_sym_gauss_seidel_msr(cs_sles_it_t              *c,
 
     /* Synchronize ghost cells again */
 
-    if (halo != NULL)
+    if (halo != nullptr)
       cs_matrix_pre_vector_multiply_sync(a, vx);
 
     /* Compute Vx <- Vx - (A-diag).Rk and residual: backward step */
@@ -2043,16 +2043,16 @@ _p_gauss_seidel(cs_sles_it_t              *c,
   /* Allocate or map work arrays */
   /*-----------------------------*/
 
-  assert(c->setup_data != NULL);
+  assert(c->setup_data != nullptr);
 
   /* Check for ordered variant */
 
-  const cs_lnum_t  *order = NULL;
+  const cs_lnum_t  *order = nullptr;
 
-  if (c->add_data != NULL)
+  if (c->add_data != nullptr)
     order = c->add_data->order;
 
-  if (order != NULL)
+  if (order != nullptr)
     cvg = _p_ordered_gauss_seidel_msr(c,
                                       a,
                                       diag_block_size,
@@ -2091,7 +2091,8 @@ _p_gauss_seidel(cs_sles_it_t              *c,
  *                             see \ref sles_it for details)
  * \param[in]  n_iter          number of iterations to perform
  *
- * \return a pointer to newly created smoother info object.
+ * \return a pointer to newly created smoother info object, or nullptr
+ *         if not available for this solver type.
  */
 /*----------------------------------------------------------------------------*/
 
@@ -2104,8 +2105,8 @@ cs_multigrid_smoother_create(cs_sles_it_type_t    smoother_type,
 
   BFT_MALLOC(c, 1, cs_sles_it_t);
 
-  c->solve = NULL;
-  c->_pc = NULL;
+  c->solve = nullptr;
+  c->_pc = nullptr;
 
   /* Predefined settings */
   c->type = smoother_type;
@@ -2115,7 +2116,7 @@ cs_multigrid_smoother_create(cs_sles_it_type_t    smoother_type,
 
   c->fallback_cvg = CS_SLES_DIVERGED;
   c->fallback_n_max_iter = 0;
-  c->fallback = NULL;
+  c->fallback = nullptr;
 
   switch (smoother_type) {      /* Valid choices */
 
@@ -2150,7 +2151,7 @@ cs_multigrid_smoother_create(cs_sles_it_type_t    smoother_type,
     break;
 
   default: /* Other iterative solvers are not tuned for smoothing */
-    bft_error(__FILE__, __LINE__, 0, "%s: Invalid smoother.", __func__);
+    return nullptr;
     break;
 
   } /* Smoother type */
@@ -2172,8 +2173,8 @@ cs_multigrid_smoother_create(cs_sles_it_type_t    smoother_type,
   CS_TIMER_COUNTER_INIT(c->t_solve);
 
   c->plot_time_stamp = 0;
-  c->plot = NULL;
-  c->_plot = NULL;
+  c->plot = nullptr;
+  c->_plot = nullptr;
 
 #if defined(HAVE_MPI)
   c->comm = cs_glob_mpi_comm;
@@ -2185,9 +2186,9 @@ cs_multigrid_smoother_create(cs_sles_it_type_t    smoother_type,
   }
 #endif
 
-  c->setup_data = NULL;
-  c->add_data = NULL;
-  c->shared = NULL;
+  c->setup_data = nullptr;
+  c->add_data = nullptr;
+  c->shared = nullptr;
 
   return c;
 }
@@ -2226,15 +2227,16 @@ cs_multigrid_smoother_setup(void               *context,
     cs_matrix_log_info(a, verbosity);
   }
 
-  if (c->type == CS_SLES_JACOBI)
-    cs_sles_it_setup_priv(c, name, a, verbosity, diag_block_size, true);
+  bool block_nn_inverse = false;
 
-  else if (   c->type == CS_SLES_P_GAUSS_SEIDEL
-           || c->type == CS_SLES_P_SYM_GAUSS_SEIDEL) {
-    /* Force to Jacobi type in case matrix type is not adapted */
-    if (cs_matrix_get_type(a) != CS_MATRIX_MSR)
+  if (   c->type == CS_SLES_JACOBI
+      || (   c->type >= CS_SLES_P_GAUSS_SEIDEL
+          && c->type <= CS_SLES_P_SYM_GAUSS_SEIDEL)) {
+    /* Force to Jacobi in case matrix type is not adapted */
+    if (cs_matrix_get_type(a) != CS_MATRIX_MSR) {
       c->type = CS_SLES_JACOBI;
-    cs_sles_it_setup_priv(c, name, a, verbosity, diag_block_size, true);
+    }
+    block_nn_inverse = true;
   }
 
   else if (   c->type == CS_SLES_TS_F_GAUSS_SEIDEL
@@ -2244,11 +2246,8 @@ cs_multigrid_smoother_setup(void               *context,
       c->type = CS_SLES_JACOBI;
       c->n_max_iter = 2;
     }
-    cs_sles_it_setup_priv(c, name, a, verbosity, diag_block_size, true);
+    block_nn_inverse = true;
   }
-
-  else
-    cs_sles_it_setup_priv(c, name, a, verbosity, diag_block_size, false);
 
   switch (c->type) {
 
@@ -2257,7 +2256,7 @@ cs_multigrid_smoother_setup(void               *context,
     {
       bool single_reduce = false;
 #if defined(HAVE_MPI)
-      cs_gnum_t n_m_rows = c->setup_data->n_rows;
+      cs_gnum_t n_m_rows = cs_matrix_get_n_rows(a) * diag_block_size;
       if (c->comm != MPI_COMM_NULL) {
         int size;
         cs_gnum_t _n_m_rows;
@@ -2271,14 +2270,14 @@ cs_multigrid_smoother_setup(void               *context,
         single_reduce = true;
 #endif
       if (!single_reduce) {
-        if (c->pc != NULL)
+        if (c->pc != nullptr)
           c->solve = _conjugate_gradient;
         else
           c->solve = _conjugate_gradient_npc;
         break;
       }
       else {
-        if (c->pc != NULL)
+        if (c->pc != nullptr)
           c->solve = _conjugate_gradient_sr;
         else
           c->solve = _conjugate_gradient_npc_sr;
@@ -2350,6 +2349,11 @@ cs_multigrid_smoother_setup(void               *context,
     break;
   }
 
+  /* Setup preconditioner and/or auxiliary data */
+
+  cs_sles_it_setup_priv(c, name, a, verbosity, diag_block_size,
+                        block_nn_inverse);
+
   /* Now finish */
   assert(c->update_stats == false);
 }
@@ -2373,7 +2377,7 @@ cs_multigrid_smoother_setup(void               *context,
  * \param[in, out]  vx             system solution
  * \param[in]       aux_size       number of elements in aux_vectors (in bytes)
  * \param           aux_vectors    optional working area
- *                                 (internal allocation if NULL)
+ *                                 (internal allocation if nullptr)
  *
  * \return  convergence state
  */
@@ -2410,10 +2414,10 @@ cs_multigrid_smoother_solve(void                *context,
 
   /* Setup if not already done */
 
-  if (c->setup_data == NULL)
+  if (c->setup_data == nullptr)
     cs_sles_it_setup(c, name, a, verbosity);
 
-  if (c->pc != NULL)
+  if (c->pc != nullptr)
     cs_sles_pc_set_tolerance(c->pc, precision, r_norm);
 
   /* Solve sparse linear system */

@@ -54,7 +54,7 @@ m4_define([cs_version_string],
           [m4_normalize(esyscmd([build-aux/cs_version.py]))])
 
 AC_INIT([code_saturne],[cs_version_string],[saturne-support@edf.fr],[],[https://code-saturne.org])
-AC_CONFIG_SRCDIR([src/apps/cs_solver.c])
+AC_CONFIG_SRCDIR([src/apps/cs_solver.cpp])
 
 AC_CONFIG_AUX_DIR(build-aux)
 AC_CONFIG_MACRO_DIR(m4)
@@ -220,7 +220,7 @@ if test "x$auto_flags" = "xyes" ; then
   CPPFLAGS="$cppflags_default $user_CPPFLAGS"
   CFLAGS="$cflags_default $user_CFLAGS"
   CXXFLAGS="$cxxflags_default $user_CXXFLAGS"
-  CXXFLAGS_STD="$cxxflags_default_std"
+  CXXFLAGS_STD="$cxxflags_default_std $user_CXXFLAGS"
   FCFLAGS="$fcflags_default $user_FCFLAGS"
   LDFLAGS="$ldflags_default $user_LDFLAGS"
   LIBS="$libs_default $user_LIBS"
@@ -1260,6 +1260,7 @@ AC_CONFIG_FILES([Makefile
                  preprocessor/Makefile
                  preprocessor/appli/Makefile preprocessor/base/Makefile
                  preprocessor/pre-post/Makefile preprocessor/util/Makefile
+                 external/Makefile external/atmo/Makefile
                  src/Makefile      src/apps/Makefile src/gui/Makefile
                  src/bft/Makefile  src/fvm/Makefile
                  src/base/Makefile src/atmo/Makefile src/cdo/Makefile
@@ -1269,13 +1270,7 @@ AC_CONFIG_FILES([Makefile
                  src/turb/Makefile src/alge/Makefile src/mesh/Makefile
                  src/user/Makefile src/user_examples/Makefile
                  src/meg/Makefile
-                 python/Makefile python/code_saturne/Makefile python/code_saturne/base/Makefile
-                 python/code_saturne/studymanager/Makefile
-                 python/code_saturne/model/Makefile
-                 python/code_saturne/gui/Makefile python/code_saturne/gui/base/Makefile
-                 python/code_saturne/gui/case/Makefile
-                 python/code_saturne/gui/trackcvg/Makefile
-                 python/code_saturne/gui/studymanager_gui/Makefile
+                 python/Makefile
                  docs/Makefile docs/doxygen/Makefile docs/style/csvers.tex
                  docs/refcard/Makefile docs/theory/Makefile
                  tests/Makefile

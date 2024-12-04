@@ -113,7 +113,7 @@ main (int argc, char *argv[])
   cs_gnum_t block_start, block_end;
   cs_gnum_t block_start_2, block_end_2;
   cs_file_off_t off1 = -1, off2 = -1;
-  cs_file_t *f = NULL;
+  cs_file_t *f = nullptr;
 
 #if defined(HAVE_MPI_IO)
   const int n_pos = 2;
@@ -170,7 +170,7 @@ main (int argc, char *argv[])
     sprintf(mem_trace_name, "cs_file_test_mem.%d", rank);
   else
     strcpy(mem_trace_name, "cs_file_test_mem");
-  bft_mem_init(mem_trace_name);
+  cs_mem_init(mem_trace_name);
 
   _create_test_data();
 
@@ -384,7 +384,7 @@ main (int argc, char *argv[])
 
   /* We are finished */
 
-  bft_mem_end();
+  cs_mem_end();
 
 #if defined(HAVE_MPI)
 

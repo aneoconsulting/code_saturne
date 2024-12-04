@@ -54,7 +54,7 @@
  * Local headers
  *----------------------------------------------------------------------------*/
 
-#include "bft_mem.h"
+#include "cs_mem.h"
 #include "bft_error.h"
 #include "bft_printf.h"
 
@@ -65,6 +65,7 @@
 #include "cs_halo.h"
 #include "cs_halo_perio.h"
 #include "cs_log.h"
+#include "cs_mem.h"
 #include "cs_mesh.h"
 #include "cs_mesh_adjacencies.h"
 #include "cs_mesh_quantities.h"
@@ -240,7 +241,7 @@ _mat_vec_exdiag_native(cs_lnum_t            n_faces,
   cs_lnum_t  ii, jj, face_id;
 
   const cs_lnum_t *restrict face_cel_p
-    = (const cs_lnum_t *restrict)face_cell;
+    = (const cs_lnum_t *)face_cell;
 
   for (face_id = 0; face_id < n_faces; face_id++) {
     ii = *face_cel_p++;
@@ -284,7 +285,7 @@ _mat_vec_exdiag_native_v1(cs_lnum_t            n_faces,
    */
 
   const cs_lnum_t *restrict face_cel_p
-    = (const cs_lnum_t *restrict)face_cell;
+    = (const cs_lnum_t *)face_cell;
 
   for (face_id = 0;
        face_id < n_faces;
@@ -343,7 +344,7 @@ _mat_vec_exdiag_native_v2(bool                 accel,
   const cs_mesh_t *m = cs_glob_mesh;
 
   const cs_lnum_2_t *restrict i_face_cells
-    = (const cs_lnum_2_t *restrict)m->i_face_cells;
+    = (const cs_lnum_2_t *)m->i_face_cells;
 
   cs_dispatch_context ctx;
   if (accel == false)
@@ -386,7 +387,7 @@ _mat_vec_exdiag_part_p1(cs_lnum_t            n_faces,
                         cs_real_t           *restrict ya)
 {
   const cs_lnum_t *restrict face_cel_p
-    = (const cs_lnum_t *restrict)face_cell;
+    = (const cs_lnum_t *)face_cell;
 
   for (cs_lnum_t face_id = 0; face_id < n_faces; face_id++) {
     cs_lnum_t ii = *face_cel_p++;
@@ -424,7 +425,7 @@ _sub_matrix_vector_test(int                  n_time_runs,
   std::chrono::microseconds wt_r0_m;
 
   long   n_ops, n_ops_glob;
-  double *ya = NULL;
+  double *ya = nullptr;
 
   double test_sum = 0.0;
   double test_sum_mult = 1.0/n_time_runs;
@@ -453,7 +454,7 @@ _sub_matrix_vector_test(int                  n_time_runs,
   wt1 = std::chrono::high_resolution_clock::now();
   wt_r0_m =  std::chrono::duration_cast
             <std::chrono::microseconds>(wt1 - wt0);
-  double wt_r0 = wt_r0_m.count() * 1.e-6 / n_time_runs;
+  double wt_r0 = wt_r0_m.count() * 1.e-6;
 
   cs_log_printf(CS_LOG_PERFORMANCE,
                 "\n"
@@ -480,7 +481,7 @@ _sub_matrix_vector_test(int                  n_time_runs,
   wt1 = std::chrono::high_resolution_clock::now();
   wt_r0_m =  std::chrono::duration_cast
             <std::chrono::microseconds>(wt1 - wt0);
-  wt_r0 = wt_r0_m.count() * 1.e-6 / n_time_runs;
+  wt_r0 = wt_r0_m.count() * 1.e-6;
 
   cs_log_printf(CS_LOG_PERFORMANCE,
                 "\n"
@@ -554,7 +555,7 @@ _sub_matrix_vector_test(int                  n_time_runs,
   wt1 = std::chrono::high_resolution_clock::now();
   wt_r0_m =  std::chrono::duration_cast
             <std::chrono::microseconds>(wt1 - wt0);
-  wt_r0 = wt_r0_m.count() * 1.e-6 / n_time_runs;
+  wt_r0 = wt_r0_m.count() * 1.e-6;
 
   cs_log_printf
     (CS_LOG_PERFORMANCE,
@@ -582,7 +583,7 @@ _sub_matrix_vector_test(int                  n_time_runs,
   wt1 = std::chrono::high_resolution_clock::now();
   wt_r0_m =  std::chrono::duration_cast
             <std::chrono::microseconds>(wt1 - wt0);
-  wt_r0 = wt_r0_m.count() * 1.e-6 / n_time_runs;
+  wt_r0 = wt_r0_m.count() * 1.e-6;
 
   cs_log_printf(CS_LOG_PERFORMANCE,
                 "\n"
@@ -696,7 +697,7 @@ _sub_matrix_vector_check(cs_lnum_t            n_cells,
                          cs_real_t           *restrict x,
                          cs_real_t           *restrict y)
 {
-  cs_real_t *yc = NULL;
+  cs_real_t *yc = nullptr;
 
   for (cs_lnum_t jj = 0; jj < n_cells_ext; jj++) {
     y[jj] = 0.0;
@@ -756,7 +757,7 @@ _sub_matrix_vector_check(cs_lnum_t            n_cells,
  *   n_rows      <-- local number of rows
  *   n_cols_ext  <-- number of local + ghost columns
  *   n_edges     <-- local number of (undirected) graph edges
- *   cell_num    <-- optional global cell numbers (1 to n), or NULL
+ *   cell_num    <-- optional global cell numbers (1 to n), or nullptr
  *   edges       <-- edges (symmetric row <-> column) connectivity
  *   halo        <-- cell halo structure
  *----------------------------------------------------------------------------*/
@@ -768,8 +769,8 @@ _matrix_check_asmb(cs_lnum_t              n_rows,
                    const cs_lnum_2_t     *edges,
                    const cs_halo_t       *halo)
 {
-  cs_real_t  *da = NULL, *xa = NULL, *x = NULL, *y = NULL;
-  cs_real_t  *yr0 = NULL;
+  cs_real_t  *da = nullptr, *xa = nullptr, *x = nullptr, *y = nullptr;
+  cs_real_t  *yr0 = nullptr;
   cs_lnum_t a_block_size = 3;
   cs_lnum_t a_block_stride = a_block_size*a_block_size;
 
@@ -784,22 +785,22 @@ _matrix_check_asmb(cs_lnum_t              n_rows,
   /* Allocate and initialize  working arrays */
 
   if (CS_MEM_ALIGN > 0) {
-    BFT_MEMALIGN(x, CS_MEM_ALIGN, n_cols_ext*a_block_size, cs_real_t);
-    BFT_MEMALIGN(y, CS_MEM_ALIGN, n_cols_ext*a_block_size, cs_real_t);
-    BFT_MEMALIGN(yr0, CS_MEM_ALIGN, n_cols_ext*a_block_size, cs_real_t);
+    CS_MEMALIGN(x, CS_MEM_ALIGN, n_cols_ext*a_block_size, cs_real_t);
+    CS_MEMALIGN(y, CS_MEM_ALIGN, n_cols_ext*a_block_size, cs_real_t);
+    CS_MEMALIGN(yr0, CS_MEM_ALIGN, n_cols_ext*a_block_size, cs_real_t);
   }
   else {
-    BFT_MALLOC(x, n_cols_ext*a_block_size, cs_real_t);
-    BFT_MALLOC(y, n_cols_ext*a_block_size, cs_real_t);
-    BFT_MALLOC(yr0, n_cols_ext*a_block_size, cs_real_t);
+    CS_MALLOC(x, n_cols_ext*a_block_size, cs_real_t);
+    CS_MALLOC(y, n_cols_ext*a_block_size, cs_real_t);
+    CS_MALLOC(yr0, n_cols_ext*a_block_size, cs_real_t);
   }
 
-  BFT_MALLOC(da, n_cols_ext*a_block_stride, cs_real_t);
-  BFT_MALLOC(xa, n_edges*2*a_block_stride, cs_real_t);
+  CS_MALLOC(da, n_cols_ext*a_block_stride, cs_real_t);
+  CS_MALLOC(xa, n_edges*2*a_block_stride, cs_real_t);
 
-  cs_gnum_t *cell_gnum = NULL;
-  BFT_MALLOC(cell_gnum, n_cols_ext, cs_gnum_t);
-  if (cs_glob_mesh->global_cell_num != NULL) {
+  cs_gnum_t *cell_gnum = nullptr;
+  CS_MALLOC(cell_gnum, n_cols_ext, cs_gnum_t);
+  if (cs_glob_mesh->global_cell_num != nullptr) {
     for (cs_lnum_t ii = 0; ii < n_rows; ii++)
       cell_gnum[ii] = cs_glob_mesh->global_cell_num[ii];
   }
@@ -807,7 +808,7 @@ _matrix_check_asmb(cs_lnum_t              n_rows,
     for (cs_lnum_t ii = 0; ii < n_rows; ii++)
       cell_gnum[ii] = ii+1;
   }
-  if (halo != NULL)
+  if (halo != nullptr)
     cs_halo_sync_untyped(halo,
                          CS_HALO_STANDARD,
                          sizeof(cs_gnum_t),
@@ -831,10 +832,10 @@ _matrix_check_asmb(cs_lnum_t              n_rows,
 #endif
 
   cs_gnum_t *r_g_id;
-  BFT_MALLOC(r_g_id, n_cols_ext, cs_gnum_t);
+  CS_MALLOC(r_g_id, n_cols_ext, cs_gnum_t);
   for (cs_lnum_t ii = 0; ii < n_rows; ii++)
     r_g_id[ii] = ii + l_range[0];
-  if (halo != NULL)
+  if (halo != nullptr)
     cs_halo_sync_untyped(halo,
                          CS_HALO_STANDARD,
                          sizeof(cs_gnum_t),
@@ -901,7 +902,7 @@ _matrix_check_asmb(cs_lnum_t              n_rows,
     cs_gnum_t g_col_id[800];
     cs_real_t val[1600];
 
-    cs_matrix_assembler_t *ma = NULL;
+    cs_matrix_assembler_t *ma = nullptr;
 
     /* 3 variant construction methods, 2 coefficient methods */
 
@@ -914,7 +915,7 @@ _matrix_check_asmb(cs_lnum_t              n_rows,
       /* Matrix created from shared index may not always handle
          periodic elements in the same manner */
 
-      if (halo != NULL) {
+      if (halo != nullptr) {
         if (halo->n_transforms > 0 && c_id == 2)
           continue;
       }
@@ -987,7 +988,7 @@ _matrix_check_asmb(cs_lnum_t              n_rows,
 
       for (int m_type_idx = 0; m_type_idx < 3; m_type_idx++) {
 
-        cs_matrix_t  *m = NULL;
+        cs_matrix_t  *m = nullptr;
 
         switch (m_type_idx) {
         case 0:
@@ -1019,7 +1020,7 @@ _matrix_check_asmb(cs_lnum_t              n_rows,
           continue;
         }
 
-        cs_matrix_assembler_values_t *mav = NULL;
+        cs_matrix_assembler_values_t *mav = nullptr;
 
         if (f_type[f_id] == CS_MATRIX_SCALAR)
           mav = cs_matrix_assembler_values_init(m, 1, 1);
@@ -1112,16 +1113,16 @@ _matrix_check_asmb(cs_lnum_t              n_rows,
 
   } /* end of loop on fill types */
 
-  BFT_FREE(r_g_id);
-  BFT_FREE(cell_gnum);
+  CS_FREE(r_g_id);
+  CS_FREE(cell_gnum);
 
-  BFT_FREE(yr0);
+  CS_FREE(yr0);
 
-  BFT_FREE(y);
-  BFT_FREE(x);
+  CS_FREE(y);
+  CS_FREE(x);
 
-  BFT_FREE(xa);
-  BFT_FREE(da);
+  CS_FREE(xa);
+  CS_FREE(da);
 }
 
 /*! (DOXYGEN_SHOULD_SKIP_THIS) \endcond */
@@ -1148,8 +1149,8 @@ cs_benchmark(int  mpi_trace_mode)
 
   int n_time_runs = (mpi_trace_mode) ? 1 : 30;
 
-  cs_real_t *x = NULL, *y = NULL;
-  cs_real_t *da = NULL, *xa = NULL;
+  cs_real_t *x = nullptr, *y = nullptr;
+  cs_real_t *da = nullptr, *xa = nullptr;
 
   const cs_mesh_t *mesh = cs_glob_mesh;
   const cs_mesh_quantities_t *mesh_v = cs_glob_mesh_quantities;
@@ -1178,7 +1179,7 @@ cs_benchmark(int  mpi_trace_mode)
 #if defined(HAVE_HYPRE)
   /* Force HYPRE initialization */
   void *hypre_sles
-    = cs_sles_hypre_create(CS_SLES_HYPRE_NONE, CS_SLES_HYPRE_NONE, NULL, NULL);
+    = cs_sles_hypre_create(CS_SLES_HYPRE_NONE, CS_SLES_HYPRE_NONE, nullptr, nullptr);
 #endif
 
   /* Run some feature tests */
@@ -1224,7 +1225,7 @@ cs_benchmark(int  mpi_trace_mode)
   cs_benchmark_matrix(n_time_runs,
                       0,
                       n_fill_types_nsym,
-                      NULL,
+                      nullptr,
                       fill_types_nsym,
                       n_cells,
                       n_cells_ext,
@@ -1241,7 +1242,7 @@ cs_benchmark(int  mpi_trace_mode)
   cs_benchmark_matrix(n_time_runs,
                       0,
                       n_fill_types_sym,
-                      NULL,
+                      nullptr,
                       fill_types_sym,
                       n_cells,
                       n_cells_ext,

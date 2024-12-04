@@ -35,6 +35,7 @@ import time
 import logging
 import fnmatch
 import math
+import configparser
 from collections import OrderedDict
 
 #-------------------------------------------------------------------------------
@@ -1221,6 +1222,7 @@ class Studies(object):
         resource_config = cs_run_conf.get_install_config_info(pkg)
         if self.__resource_name:
             resource_config['resource_name'] = self.__resource_name
+        self.__resource_name = resource_config['resource_name']
 
         exec_env = cs_exec_environment.exec_environment(pkg,
                                                         wdir=None,
@@ -1265,7 +1267,7 @@ class Studies(object):
             if error:
                 msg = "Error: can not create smgr xml file\n"
                 self.reporting(msg, report=False, exit=False)
-                self.reporting(error, report=False, exit=True)
+                self.reporting(error, stdout=False, report=False, exit=True)
             else:
                 init_xml_file_with_study(smgr, studyp, pkg)
                 self.reporting(" ", report=False)
@@ -1279,7 +1281,7 @@ class Studies(object):
                 + " for studymanager to run.\n" \
                 + "See help message and use '--file' or '--create-xml'" \
                 + " option."
-            self.reporting(msg, report=False, exit=True)
+            self.reporting(msg, stdout=False, report=False, exit=True)
 
         # create a first smgr parser only for
         #   the repository verification and
@@ -1288,7 +1290,7 @@ class Studies(object):
         if not os.path.isfile(filename):
             msg = "Error: specified XML parameter file for studymanager does" \
                 + " not exist."
-            self.reporting(msg, report=False, exit=True)
+            self.reporting(msg, stdout=False, report=False, exit=True)
 
         # call smgr xml backward compatibility
 
@@ -1324,7 +1326,7 @@ class Studies(object):
         if self.__repo:
             if not os.path.isdir(self.__repo):
                 msg = "Error: repository path is not valid: " + self.__repo
-                self.reporting(msg, report=False, exit=True)
+                self.reporting(msg, stdout=False, report=False, exit=True)
         else: # default value
             # if current directory is a study
             # set repository as directory containing the study
@@ -1332,13 +1334,22 @@ class Studies(object):
                 studyd = os.path.basename(studyp)
                 self.__parser.setRepository(os.path.join(studyp,".."))
                 self.__repo = self.__parser.getRepository()
+
+                # check consistency of the study name
+                label = self.__parser.getStudiesLabel()
+                if (len(label) == 1) and (studyd != label[0]):
+                    msg = "The name of the current repository directory " \
+                        + "differs from the name in the smgr xml file.\n" \
+                        + "Please check consistency.\n"
+                    self.reporting(msg, stdout=False, report=False, exit=True)
+
             else:
                 msg = "Can not set a default repository directory:\n" \
                     + "current directory is apparently not a study (no smgr" \
                     + " xml file).\n" \
                     + "Add a repository path to the parameter file or use" \
                     + " the command line option (--repo=..)."
-                self.reporting(msg, report=False, exit=True)
+                self.reporting(msg, stdout=False, report=False, exit=True)
 
         # set destination
         self.__dest = None
@@ -1358,7 +1369,7 @@ class Studies(object):
                     + " xml file).\n" \
                     + "Add a destination path to the parameter file or use" \
                     + " the command line option (--dest=..).\n"
-                self.reporting(msg, report=False, exit=True)
+                self.reporting(msg, stdout=False, report=False, exit=True)
 
         if options.runcase or options.compare or options.post or options.sheet:
 
@@ -1417,6 +1428,7 @@ class Studies(object):
         # build the list of the studies
 
         self.labels  = self.__parser.getStudiesLabel()
+        self.n_study = len(self.labels)
         self.studies = []
         for l in self.labels:
             self.studies.append( [l, Study(self.__pkg, self.__parser, l, \
@@ -1522,7 +1534,7 @@ class Studies(object):
                                report=False)
                 error = case.update()
                 if error:
-                   self.reporting(error, report=False, exit=True)
+                   self.reporting(error, stdout=False, report=False, exit=True)
 
         self.reporting('',report=False)
 
@@ -1859,7 +1871,7 @@ class Studies(object):
                     if self.__mem_log and mem_log_leak:
                         self.reporting('    - run %s --> Leaks in memory logs' \
                                        % (case.title))
-                        self.reporting('      * see cs_mem.log(.N) in ' \
+                        self.reporting('      * see cs_mem.log(.N) in %s' \
                                        % (case.run_dir))
                     self.__log_file.flush()
 
@@ -1901,7 +1913,7 @@ class Studies(object):
 
     #---------------------------------------------------------------------------
 
-    def run_slurm_batches(self):
+    def run_slurm_batches(self, state_file_name):
         """
         Run all cases in slurm batch mode.
         The number of case per batch is limited by a maximum number and a maximum
@@ -2097,13 +2109,26 @@ class Studies(object):
         slurm_batch_file = open(slurm_batch_name, mode='w')
 
         # fill file with template
-        cmd = slurm_batch_template.format(1, 0, 10, cur_batch_id)
+        # we consider 5 minutes per study
+        hh, mm = divmod(self.n_study*5, 60)
+        cmd = slurm_batch_template.format(1,
+                                          math.ceil(hh),
+                                          math.ceil(mm), 
+                                          cur_batch_id)
+
+        # add user defined options if needed
+        if self.__slurm_batch_args:
+            for _p in self.__slurm_batch_args:
+                cmd += "#SBATCH " + _p + "\n"
 
         cmd += "\n"
         slurm_batch_file.write(cmd)
 
         # fill file with batch command for state analysis
-        batch_cmd += self.build_final_batch(self.__postpro, self.__compare)
+        batch_cmd += self.build_final_batch(self.__postpro,
+                                            self.__compare,
+                                            self.__sheet,
+                                            state_file_name)
         slurm_batch_file.write(batch_cmd)
         slurm_batch_file.flush()
 
@@ -2127,24 +2152,37 @@ class Studies(object):
 
     #---------------------------------------------------------------------------
 
-    def build_final_batch(self, postpro, compare):
+    def build_final_batch(self, postpro, compare, report, state_file_name):
         """
         Launch state option in DESTINATION
         """
 
+        final_cmd = "cd " + self.__dest + os.linesep
+
         e = os.path.join(self.__pkg.get_dir('bindir'), self.__exe)
 
-        final_cmd = "cd " + self.__dest + os.linesep
+        # To handle possible back-end issues for reports generation
+        # such as unavailable packages, we allow to define a specific
+        # back-end executable for postprocessing, which may be different from
+        # the main executable (such as one in a container with required
+        # prerequisites)
+        config = configparser.ConfigParser()
+        config.read(self.__pkg.get_configfiles())
+        if config.has_option('studymanager', 'postprocessing_exec'):
+            e = config.get('studymanager', 'postprocessing_exec')
 
         # final analysis after all run_cases are finished
         final_cmd += e + " smgr --state" \
                        + " -f " + self.__filename \
                        + " --repo " + self.__repo \
-                       + " --dest " + self.__dest
+                       + " --dest " + self.__dest \
+                       + " --state-file " + state_file_name
         if postpro:
-           final_cmd += " --post"
+            final_cmd += " --post"
         if compare:
-           final_cmd += " --compare"
+            final_cmd += " --compare"
+        if report:
+            final_cmd += " --report"
 
         # add tags options
         if self.__with_tags:
@@ -2158,7 +2196,7 @@ class Studies(object):
 
     #---------------------------------------------------------------------------
 
-    def report_state(self):
+    def report_state(self, state_file_name):
         """
         Report state of all cases.
         Warning, if the markup of the case is repeated in the xml file of parameters,
@@ -2172,7 +2210,6 @@ class Studies(object):
         s_prev = ""
         c_prev = ""
 
-        detailed_file_name = "state_detailed"
         add_header_and_footer = True
 
         colors = {case_state.UNKNOWN: "rgb(227,218,201)",
@@ -2197,7 +2234,7 @@ class Studies(object):
                     case_state.EXCEEDED_TIME_LIMIT: "Time limit",
                     case_state.FAILED: "FAILED"}
 
-        fd = open(detailed_file_name, 'w')
+        fd = open(state_file_name, 'w')
 
         if add_header_and_footer:
             fd.write("<html>\n")
@@ -2251,20 +2288,40 @@ class Studies(object):
             except Exception:
                 pass
 
+            n_leaks = None
+            try:
+                n_leaks = int(info['memory_leaks'])
+                if n_leaks > 0:
+                    colors[case_state.COMPUTED] = "rgb(0,106,62)"
+                    colors[case_state.FINALIZING] = "rgb(4,128,0)"
+                    colors[case_state.FINALIZED] = "rgb(0,106,62)"
+                    m += " (memory leaks)"
+
+            except Exception:
+                pass
+
+            prepro_time = ""
+            try:
+                prepro_time = '{:g}'.format(float(info['preprocess_time']))
+            except Exception:
+                pass
+
             t = ""
             if s != s_prev:
                 t += "<tr class=\"top\"><td>" + s + "</td>"
-            else:
-                t += "<tr><td> </td>\n"
-            if c != c_prev:
                 t += "<td>" + c + "</td>"
             else:
-                t += "<td> </td>\n"
+                t += "<tr><td> </td>\n"
+                if c != c_prev:
+                    t += "<td>" + c + "</td>"
+                else:
+                    t += "<td> </td>\n"
+
             t += "<td>" + case.run_id + "</td>"
             t += "<td style=\"background-color:" + colors[state] + "\">" + m + "</td>"
             t += "<td align=\"right\">" + str(info['compute_time']) + "</td>"
             t += "<td align=\"right\">" + str(info['compute_time_usage']) + "</td>"
-            t += "<td align=\"right\">" + str(info['preprocess_time']) + "</td>"
+            t += "<td align=\"right\">" + prepro_time + "</td>"
             t += "<td align=\"right\">" + mem_s + "</td>"
             t += "<td align=\"right\">" + str(info['mpi_ranks']) + "</td>"
             t += "<td align=\"right\">" + str(info['omp_threads']) + "</td>"
@@ -2715,22 +2772,29 @@ class Studies(object):
         """
         Copy input in POST for later description report generation
         """
+
+        # list of accepted formats
+        input_format = ['.png', '.jpg', '.pdf', '.tex', '.jpeg']
+
         for i_node in i_nodes:
-            fig_name, run_id, repo, tex = self.__parser.getInput(i_node)
-            fig = os.path.join(self.__dest, s_label, c_label, r_label, run_id,
-                               fig_name)
+            file_name, run_id, repo, tex = self.__parser.getInput(i_node)
+            input_file = os.path.join(self.__dest, s_label, c_label, r_label,
+                                      run_id, file_name)
 
-            # Figure copied in POST/"CURRENT"/CASE/run_id folder
-            # fig_name can include another folder (ex: datasets/fig.png)
-            fig_dest = os.path.join(self.__dest, s_label, 'POST', 'CURRENT',
-                                    c_label, run_id, fig_name)
-            dest_folder = os.path.dirname(fig_dest)
+            # Input copied in POST/"CURRENT"/CASE/run_id folder
+            # file_name can include another folder (ex: datasets/fig.png)
+            file_dest = os.path.join(self.__dest, s_label, 'POST', 'CURRENT',
+                                     c_label, run_id, file_name)
+            dest_folder = os.path.dirname(file_dest)
 
-            if os.path.isfile(fig):
-                if fig[-4:] in ('.png', '.jpg', '.pdf') or fig[-5:] == '.jpeg':
+            if os.path.isfile(input_file):
+                file_format = input_file[-4:]
+                if input_file[-5] == ".":
+                    file_format = input_file[-5:]
+                if file_format in input_format:
                     if not os.path.exists(dest_folder):
                         os.makedirs(dest_folder)
-                    shutil.copyfile(fig, fig_dest)
+                    shutil.copyfile(input_file, file_dest)
 
     #---------------------------------------------------------------------------
 

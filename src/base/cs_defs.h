@@ -35,6 +35,10 @@
 #  include "cs_config.h"
 #endif
 
+#ifdef __cplusplus
+#include <type_traits>
+#endif
+
 /*============================================================================
  * Internationalization
  *============================================================================*/
@@ -223,6 +227,12 @@ extern "C" {
 #  define __bool_true_false_are_defined 1
 #endif
 
+/* C++ assert necessary for template */
+#if defined(__cplusplus)
+#include <typeinfo>
+#include "assert.h"
+#endif
+
 /* int32_t type */
 
 #if !defined(HAVE_INT32_T)
@@ -315,13 +325,7 @@ typedef enum {
 /* Global integer index or number */
 
 #if defined(HAVE_LONG_GNUM)
-  #if (SIZEOF_LONG == 8)
-    typedef unsigned long       cs_gnum_t;
-  #elif (SIZEOF_LONG_LONG == 8)
-    typedef unsigned long long  cs_gnum_t;
-  #else
-    #error
-  #endif
+  typedef uint64_t  cs_gnum_t;
 #else
   typedef unsigned  cs_gnum_t;
 #endif
@@ -329,14 +333,14 @@ typedef enum {
 /* Local integer index or number */
 
 #if defined(HAVE_LONG_LNUM)
-  typedef long  cs_lnum_t;
+  typedef int64_t  cs_lnum_t;
 #else
-  typedef int   cs_lnum_t;
+  typedef int  cs_lnum_t;
 #endif
 
 /* Other types */
 
-typedef double            cs_coord_t;  /* Real number (coordinate value) */
+typedef double             cs_coord_t;   /* Real number (coordinate value) */
 
 typedef float               cs_float_m;  /* Float by Mohammed*/
 typedef cs_float_m          cs_float_33_m[3][3]; /* Float by Mohammed*/
@@ -346,6 +350,8 @@ typedef char                cs_byte_t;   /* Byte (untyped memory unit) */
 typedef unsigned short int  cs_flag_t;   /* Flag storing metadata */
 
 typedef double              cs_nreal_t;  /* Real number (normalized value) */
+typedef double              cs_dreal_t;  /* Local distance */
+typedef double              cs_rreal_t;  /* Reconstruction distance */
 
 /* Vector or array block types */
 
@@ -384,6 +390,8 @@ typedef cs_real_66_t  cs_real_662_t[2];     /* vector of 2 6x6 matrices
 
 typedef cs_nreal_t  cs_nreal_3_t[3];        /* Vector of normalized real values
                                                (i.e. unit vector) */
+typedef cs_dreal_t  cs_dreal_3_t[3];        /* Vector joining 2 local coordinates */
+typedef cs_rreal_t  cs_rreal_3_t[3];        /* Reconstruction distance Vector */
 
 typedef struct {
 
@@ -550,12 +558,14 @@ typedef enum {
 #define CS_F_HOST __host__
 #define CS_F_DEVICE __device__
 #define CS_F_HOST_DEVICE __host__ __device__
+#define CS_V_CONSTANT __constant__
 
 #else
 
 #define CS_F_HOST
 #define CS_F_DEVICE
 #define CS_F_HOST_DEVICE
+#define CS_V_CONSTANT static const
 
 #endif
 
@@ -574,20 +584,11 @@ typedef enum {
 #define CS_PROCF(x, y) x
 #endif
 
-/*
- * Macro used to handle automatic "Fortran string length" arguments
- * (not used by code_saturne calls, but set by many compilers).
- * Some compilers may not
- * support the variable length lists in mixed C/Fortran calls.
- */
-
-#define CS_ARGF_SUPP_CHAINE , ...
-
 /*=============================================================================
  * Global variables
  *============================================================================*/
 
-/* Empty but non-NULL string */
+/* Empty but non-null string */
 
 extern const char     cs_empty_string[];
 
@@ -631,7 +632,7 @@ extern MPI_Comm       cs_glob_mpi_comm;      /* Main MPI intra-communicator */
  *
  * \param[in, out]  s  pointer to a structure cast on-the-fly
  *
- * \return a NULL pointer
+ * \return a null pointer
  */
 /*----------------------------------------------------------------------------*/
 
@@ -684,5 +685,110 @@ cs_get_thread_id(void)
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */
+
+#ifdef __cplusplus
+
+/*=============================================================================
+ * Public C++ templates
+ *============================================================================*/
+
+/*----------------------------------------------------------------------------*/
+/*!
+ * \brief Get the cs_datatype_t from a typename
+ *
+ * \tparam T : datatype
+ */
+/*----------------------------------------------------------------------------*/
+
+template <typename T>
+struct dependent_false : std::false_type {};
+
+template <typename T>
+static inline cs_datatype_t
+cs_datatype_from_type()
+{
+  static_assert(dependent_false<T>::value, "Unknown datatype");
+  return CS_DATATYPE_NULL;
+}
+
+/*----------------------------------------------------------------------------*/
+/* Specialized versions of the templated function                             */
+/*----------------------------------------------------------------------------*/
+
+template <>
+constexpr inline cs_datatype_t
+cs_datatype_from_type<char>()
+{
+  return CS_CHAR;
+}
+
+/*----------------------------------------------------------------------------*/
+
+template <>
+constexpr inline cs_datatype_t
+cs_datatype_from_type<float>()
+{
+  return CS_FLOAT;
+}
+
+/*----------------------------------------------------------------------------*/
+
+template <>
+constexpr inline cs_datatype_t
+cs_datatype_from_type<double>()
+{
+  return CS_DOUBLE;
+}
+
+/*----------------------------------------------------------------------------*/
+
+template <>
+constexpr inline cs_datatype_t
+cs_datatype_from_type<uint16_t>()
+{
+  return CS_UINT16;
+}
+
+/*----------------------------------------------------------------------------*/
+
+template <>
+constexpr inline cs_datatype_t
+cs_datatype_from_type<uint32_t>()
+{
+  return CS_UINT32;
+}
+
+/*----------------------------------------------------------------------------*/
+
+template <>
+constexpr inline cs_datatype_t
+cs_datatype_from_type<uint64_t>()
+{
+  return CS_UINT64;
+}
+
+/*----------------------------------------------------------------------------*/
+
+template <>
+constexpr inline cs_datatype_t
+cs_datatype_from_type<int32_t>()
+{
+  return CS_INT32;
+}
+
+/*----------------------------------------------------------------------------*/
+
+template <>
+constexpr inline cs_datatype_t
+cs_datatype_from_type<int64_t>()
+{
+  return CS_INT64;
+}
+
+/*----------------------------------------------------------------------------*/
+
+#endif /* __cplusplus */
+
+/*----------------------------------------------------------------------------*/
 
 #endif /* __CS_DEFS_H__ */

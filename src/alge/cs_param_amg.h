@@ -64,18 +64,19 @@ BEGIN_C_DECLS
 typedef enum {
 
   CS_PARAM_AMG_NONE,            /*!< No specified algorithm */
+
   CS_PARAM_AMG_HYPRE_BOOMER_V,  /*!< V-cycle Boomer algorithm (Hypre lib.) */
   CS_PARAM_AMG_HYPRE_BOOMER_W,  /*!< W-cycle Boomer algorithm (Hypre lib.) */
+  CS_PARAM_AMG_INHOUSE_K,       /*!< In-house algorithm with K-cycle */
+  CS_PARAM_AMG_INHOUSE_V,       /*!< In-house algorithm with V-cycle */
   CS_PARAM_AMG_PETSC_GAMG_V,    /*!< V-cycle GAMG algorithm (PETSc lib.) */
   CS_PARAM_AMG_PETSC_GAMG_W,    /*!< W-cycle GAMG algorithm (PETSc lib.) */
-  CS_PARAM_AMG_PETSC_PCMG,      /*!< preconditioned MG algorithm from PETSc */
-  CS_PARAM_AMG_INHOUSE_V,       /*!< In-house algorithm with V-cycle */
-  CS_PARAM_AMG_INHOUSE_K,       /*!< In-house algorithm with K-cycle */
+  CS_PARAM_AMG_PETSC_HMG_V,     /*!< V-cycle HMG (hybrid AMG) from PETSc */
+  CS_PARAM_AMG_PETSC_HMG_W,     /*!< W-cycle HMG (hybrid AMG) from PETSc */
 
   CS_PARAM_N_AMG_TYPES
 
 } cs_param_amg_type_t;
-
 
 /*! \enum cs_param_amg_boomer_coarsen_algo_t
  *  \brief Type of algorithm used in boomerAMG to coarsen a level. Only a
@@ -147,7 +148,7 @@ typedef enum {
 
 typedef struct {
 
-  /* Read the function \ref _petsc_pchypre_hook or \ref _hypre_boomeramg_hook
+  /* Read the function \ref _petsc_boomeramg_hook or \ref _hypre_boomeramg_hook
      for more details and read the HYPRE user guide */
 
   double                               strong_threshold;
@@ -165,6 +166,98 @@ typedef struct {
   int                                  n_up_iter;
 
 } cs_param_amg_boomer_t;
+
+/* GAMG AMG algorithms in PETSc */
+/* ---------------------------- */
+
+/* List of predefined common smoothers for PETSc (GAMG and HMG) */
+
+typedef enum {
+
+  CS_PARAM_AMG_GAMG_BACKWARD_GS,
+  CS_PARAM_AMG_GAMG_BILU0,
+  CS_PARAM_AMG_GAMG_CHEBYSHEV,
+  CS_PARAM_AMG_GAMG_FORWARD_GS,
+  CS_PARAM_AMG_GAMG_HYBRID_SSOR, // SGS on local rank / Jacobi at interfaces
+  CS_PARAM_AMG_GAMG_JACOBI,
+  CS_PARAM_AMG_GAMG_L1_JACOBI,
+
+  CS_PARAM_AMG_GAMG_N_SMOOTHERS
+
+} cs_param_amg_gamg_smoother_t;
+
+/* List of predefined common coarse solver for PETSc (GAMG and HMG) */
+
+typedef enum {
+
+  CS_PARAM_AMG_GAMG_BJACOBI_LU,
+  CS_PARAM_AMG_GAMG_CG,
+  CS_PARAM_AMG_GAMG_GMRES,
+  CS_PARAM_AMG_GAMG_LU,
+  CS_PARAM_AMG_GAMG_TFS,
+
+  CS_PARAM_AMG_GAMG_N_COARSE_SOLVERS
+
+} cs_param_amg_gamg_coarse_solver_t;
+
+/*! \struct cs_param_amg_gamg_t
+ *  \brief Set of the main parameters to setup the algebraic multigrid GAMG
+ *         belonging to the PETSc library. These parameters are used to define
+ *         this AMG directly in the PETSc library according to the settings.
+ *         Please refer to the PETSc documentation for more details.
+ */
+
+typedef struct {
+
+  // Parameters related to the way to build the different levels
+
+  double                             threshold;
+  bool                               use_square_graph;
+  int                                n_agg_levels;
+  int                                n_smooth_agg;
+
+  // Parameters related to solvers associated to each level (level 0 is the
+  // coarse grid)
+
+  int                                n_down_iter;
+  cs_param_amg_gamg_smoother_t       down_smoother;
+
+  cs_param_amg_gamg_coarse_solver_t  coarse_solver;
+
+  int                                n_up_iter;
+  cs_param_amg_gamg_smoother_t       up_smoother;
+
+} cs_param_amg_gamg_t;
+
+/*! \struct cs_param_amg_hmg_t
+ *  \brief Set of the main parameters used to setup the algebraic multigrid HMG
+ *         belonging to the PETSc library. HMG means Hybrid MultiGrid since it
+ *         can rely on the coarsening of HYPRE and use solvers (smoother and
+ *         coarse solver) of PETSc. These parameters are used to define this
+ *         AMG directly in the PETSc library according to the settings.  Please
+ *         refer to the PETSc documentation for more details.
+ */
+
+typedef struct {
+
+  // Parameters related to the way to build the different levels
+
+  bool                               use_boomer_coarsening;
+  bool                               reuse_interpolation;
+  bool                               use_subspace_coarsening;
+
+  // Parameters related to solvers associated to each level (level 0 is the
+  // coarse grid). This relies on PETSc solvers.
+
+  int                                n_down_iter;
+  cs_param_amg_gamg_smoother_t       down_smoother;
+
+  cs_param_amg_gamg_coarse_solver_t  coarse_solver;
+
+  int                                n_up_iter;
+  cs_param_amg_gamg_smoother_t       up_smoother;
+
+} cs_param_amg_hmg_t;
 
 /* In-house AMG algorithms */
 /* ----------------------- */
@@ -289,6 +382,56 @@ cs_param_amg_boomer_is_needed(cs_param_solver_type_t   solver,
 
 /*----------------------------------------------------------------------------*/
 /*!
+ * \brief Return true if the settings rely on gamg, otherwise false
+ *
+ * \param[in] solver   type of SLES solver
+ * \param[in] precond  type of preconditioner
+ * \param[in] amg      type of AMG
+ *
+ * \return true or false
+ */
+/*----------------------------------------------------------------------------*/
+
+static inline bool
+cs_param_amg_gamg_is_needed(cs_param_solver_type_t   solver,
+                            cs_param_precond_type_t  precond,
+                            cs_param_amg_type_t      amg)
+{
+  if (precond == CS_PARAM_PRECOND_AMG || solver == CS_PARAM_SOLVER_AMG)
+    if (amg == CS_PARAM_AMG_PETSC_GAMG_V ||
+        amg == CS_PARAM_AMG_PETSC_GAMG_W)
+      return true;
+
+  return false;
+}
+
+/*----------------------------------------------------------------------------*/
+/*!
+ * \brief Return true if the settings rely on hmg, otherwise false
+ *
+ * \param[in] solver   type of SLES solver
+ * \param[in] precond  type of preconditioner
+ * \param[in] amg      type of AMG
+ *
+ * \return true or false
+ */
+/*----------------------------------------------------------------------------*/
+
+static inline bool
+cs_param_amg_hmg_is_needed(cs_param_solver_type_t   solver,
+                           cs_param_precond_type_t  precond,
+                           cs_param_amg_type_t      amg)
+{
+  if (precond == CS_PARAM_PRECOND_AMG || solver == CS_PARAM_SOLVER_AMG)
+    if (amg == CS_PARAM_AMG_PETSC_HMG_V ||
+        amg == CS_PARAM_AMG_PETSC_HMG_W)
+      return true;
+
+  return false;
+}
+
+/*----------------------------------------------------------------------------*/
+/*!
  * \brief Return true if the settings rely on the in-house implementation,
  *        otherwise false
  *
@@ -393,6 +536,113 @@ cs_param_amg_get_boomer_smoother_name(cs_param_amg_boomer_smoother_t  smoother);
 void
 cs_param_amg_boomer_log(const char                  *name,
                        const cs_param_amg_boomer_t  *bamgp);
+
+/*----------------------------------------------------------------------------*/
+/*!
+ * \brief Create a new structure storing a set of parameters used when calling
+ *        GAMG. Set default values for all parameters.
+ *
+ * \return a pointer to a new set of GAMG parameters
+ */
+/*----------------------------------------------------------------------------*/
+
+cs_param_amg_gamg_t *
+cs_param_amg_gamg_create(void);
+
+/*----------------------------------------------------------------------------*/
+/*!
+ * \brief Copy the given set of parameters used when calling GAMG into a
+ *        new structure
+ *
+ * \param[in] gamgp  reference set of GAMG parameters
+ *
+ * \return a pointer to a new set of GAMG parameters
+ */
+/*----------------------------------------------------------------------------*/
+
+cs_param_amg_gamg_t *
+cs_param_amg_gamg_copy(const cs_param_amg_gamg_t  *gamgp);
+
+/*----------------------------------------------------------------------------*/
+/*!
+ * \brief Get the name of the smoother used with GAMG (PETSc library)
+ *
+ * \param[in] smoother  smoother type
+ *
+ * \return name of the given smoother type
+ */
+/*----------------------------------------------------------------------------*/
+
+const char *
+cs_param_amg_get_gamg_smoother_name(cs_param_amg_gamg_smoother_t smoother);
+
+/*----------------------------------------------------------------------------*/
+/*!
+ * \brief Get the name of the smoother used with GAMG (PETSc library)
+ *
+ * \param[in] coarse  type of predefined coarse solver
+ *
+ * \return name of the given type of coarse solver
+ */
+/*----------------------------------------------------------------------------*/
+
+const char *
+cs_param_amg_get_gamg_coarse_solver_name
+(
+ cs_param_amg_gamg_coarse_solver_t  coarse
+ );
+
+/*----------------------------------------------------------------------------*/
+/*!
+ * \brief Log the set of parameters used for setting GAMG
+ *
+ * \param[in] name   name related to the current SLES
+ * \param[in] gamgp  set of gamgAMG parameters
+ */
+/*----------------------------------------------------------------------------*/
+
+void
+cs_param_amg_gamg_log(const char                 *name,
+                      const cs_param_amg_gamg_t  *gamgp);
+
+/*----------------------------------------------------------------------------*/
+/*!
+ * \brief Create a new structure storing a set of parameters used when calling
+ *        HMG. Set all parameters at their default value.
+ *
+ * \return a pointer to a new set of HMG parameters
+ */
+/*----------------------------------------------------------------------------*/
+
+cs_param_amg_hmg_t *
+cs_param_amg_hmg_create(void);
+
+/*----------------------------------------------------------------------------*/
+/*!
+ * \brief Copy the given set of parameters used when calling HMG into a new
+ *        structure
+ *
+ * \param[in] hmgp  reference set of HMG parameters
+ *
+ * \return a pointer to a new set of HMG parameters
+ */
+/*----------------------------------------------------------------------------*/
+
+cs_param_amg_hmg_t *
+cs_param_amg_hmg_copy(const cs_param_amg_hmg_t  *hmgp);
+
+/*----------------------------------------------------------------------------*/
+/*!
+ * \brief Log the set of parameters used for setting HMG
+ *
+ * \param[in] name  name related to the current SLES
+ * \param[in] hmgp  set of hmgAMG parameters
+ */
+/*----------------------------------------------------------------------------*/
+
+void
+cs_param_amg_hmg_log(const char                *name,
+                     const cs_param_amg_hmg_t  *hmgp);
 
 /*----------------------------------------------------------------------------*/
 /*!

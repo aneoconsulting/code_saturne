@@ -72,19 +72,6 @@ cs_ast_coupling_n_couplings(void);
 
 /*----------------------------------------------------------------------------*/
 /*!
- * \brief Define coupling with code_aster.
- *
- * Currently, a single coupling with code_aster is handled.
- * In case of multiple calls to the function, subsequent calls are ignored,
- * unless cs_ast_coupling_finalize has been called.
- */
-/*----------------------------------------------------------------------------*/
-
-void
-cs_ast_coupling_add(void);
-
-/*----------------------------------------------------------------------------*/
-/*!
  * \brief Initial exchange with code_aster.
  *
  * \param[in]  nalimx  maximum number of implicitation iterations of
@@ -109,6 +96,17 @@ cs_ast_coupling_finalize(void);
 
 /*----------------------------------------------------------------------------*/
 /*!
+ * \brief Set coefficient for prediction
+ */
+/*----------------------------------------------------------------------------*/
+
+void
+cs_ast_coupling_set_coefficients(cs_real_t aexxst,
+                                 cs_real_t bexxst,
+                                 cs_real_t cfopre);
+
+/*----------------------------------------------------------------------------*/
+/*!
  * \brief Extract and exchange mesh information for surfaces coupled with
  *        code_aster.
  *
@@ -119,9 +117,9 @@ cs_ast_coupling_finalize(void);
 /*----------------------------------------------------------------------------*/
 
 void
-cs_ast_coupling_geometry(cs_lnum_t         n_faces,
-                         const cs_lnum_t  *face_ids,
-                         cs_real_t         almax);
+cs_ast_coupling_geometry(cs_lnum_t        n_faces,
+                         const cs_lnum_t *face_ids,
+                         cs_real_t        almax);
 
 /*----------------------------------------------------------------------------*/
 /*!
@@ -148,13 +146,39 @@ cs_ast_coupling_get_fluid_forces_pointer(void);
 
 /*----------------------------------------------------------------------------*/
 /*!
- * \brief Send stresses acting on the fluid/structure interface
- *        and receive displacements.
+ * \brief Send stresses acting on the fluid/structure interface.
  */
 /*----------------------------------------------------------------------------*/
 
 void
-cs_ast_coupling_exchange_fields(void);
+cs_ast_coupling_send_fluid_forces(void);
+
+/*----------------------------------------------------------------------------*/
+/*!
+ * \brief Receive displacements of the fluid/structure interface.
+ */
+/*----------------------------------------------------------------------------*/
+
+void
+cs_ast_coupling_recv_displacement(void);
+
+/*----------------------------------------------------------------------------*/
+/*!
+ * \brief Evaluate convergence of the coupling
+ */
+/*----------------------------------------------------------------------------*/
+
+void
+cs_ast_coupling_evaluate_cvg(void);
+
+/*----------------------------------------------------------------------------*/
+/*!
+ * \brief Save previous values
+ */
+/*----------------------------------------------------------------------------*/
+
+void
+cs_ast_coupling_save_values(void);
 
 /*----------------------------------------------------------------------------*/
 /*!
@@ -178,7 +202,18 @@ cs_ast_coupling_compute_displacement(cs_real_t  disp[][3]);
 /*----------------------------------------------------------------------------*/
 
 int
-cs_ast_coupling_get_ext_cvg(void);
+cs_ast_coupling_get_current_cvg(void);
+
+/*----------------------------------------------------------------------------*/
+/*!
+ * \brief Receive convergence value of code_saturne/code_aster coupling
+ *
+ * \return  residual of the convergence
+ */
+/*----------------------------------------------------------------------------*/
+
+cs_real_t
+cs_ast_coupling_get_current_residual(void);
 
 /*----------------------------------------------------------------------------*/
 /*!
@@ -189,7 +224,7 @@ cs_ast_coupling_get_ext_cvg(void);
 /*----------------------------------------------------------------------------*/
 
 void
-cs_ast_coupling_send_cvg(int  icved);
+cs_ast_coupling_set_final_cvg(int icved);
 
 /*----------------------------------------------------------------------------*/
 /*!

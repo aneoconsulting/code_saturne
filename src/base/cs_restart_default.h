@@ -64,7 +64,8 @@ typedef enum {
   CS_RESTART_1D_WALL_THERMAL = 5, /*!< save values in 1D wall thermal restart
                                        file */
   CS_RESTART_LES_INFLOW = 6,      /*!< save values in LES inflow restart file */
-  CS_RESTART_N_RESTART_FILES = 7  /*!< Number of types of restart file */
+  CS_RESTART_IBM = 7,             /*!< save values in porous restart file */
+  CS_RESTART_N_RESTART_FILES = 8  /*!< Number of types of restart file */
 
 } cs_restart_file_t ;
 
@@ -106,7 +107,7 @@ cs_restart_write_field_info(cs_restart_t  *r);
  *   old_field_map <-- name to id map of fields in restart file
  *   t_id_flag     <-- -1: all time values; 0: current values;
  *                      > 0: previous values
- *   read_flag     <-- optional flag to track fields read, or NULL;
+ *   read_flag     <-- optional flag to track fields read, or null;
  *                     set to sum of 2^time_id for fields read (size: n_fields)
  *----------------------------------------------------------------------------*/
 
@@ -123,7 +124,7 @@ cs_restart_read_variables(cs_restart_t               *r,
  *   r          <-> associated restart file pointer
  *   t_id_flag  <-- -1: all time values; 0: current values;
  *                  > 0: previous values
- *   write_flag <-- optional flag to track fields written, or NULL;
+ *   write_flag <-- optional flag to track fields written, or null;
  *                  set to sum of 2^time_id for fields written (size: n_fields)
 *----------------------------------------------------------------------------*/
 
@@ -165,7 +166,7 @@ cs_restart_write_notebook_variables(cs_restart_t  *r);
  *   r             <-> associated restart file pointer
  *   old_field_map <-- name to id map of fields in restart file
  *   key           <-- key for field association
- *   read_flag     <-- optional flag to track fields read, or NULL;
+ *   read_flag     <-- optional flag to track fields read, or null;
  *                     set to sum of 2^time_id for fields read, -1 for fields
  *                     failed to read (size: n_fields)
  *----------------------------------------------------------------------------*/
@@ -184,7 +185,7 @@ cs_restart_read_linked_fields(cs_restart_t               *r,
  * parameters:
  *   r          <-> associated restart file pointer
  *   key        <-- key for field association
- *   write_flag <-- optional flag to track fields written, or NULL;
+ *   write_flag <-- optional flag to track fields written, or null;
  *                  set to sum of 2^time_id for fields written (size: n_fields)
  *
  * returns:

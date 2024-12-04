@@ -65,6 +65,8 @@ typedef enum {
   CS_ENUMF_(dt),           /*!< local time step */
 
   CS_ENUMF_(p),            /*!< pressure */
+  CS_ENUMF_(pgr),          /*!< granular pressure */
+  CS_ENUMF_(pfr),          /*!< frictional pressure */
   CS_ENUMF_(vel),          /*!< velocity */
 
   CS_ENUMF_(k),            /*!< turbulent kinetic energy \f$ k \f$ */
@@ -363,13 +365,6 @@ cs_field_pointer_map_coal_combustion(int  n_coals,
                                      int  n_classes);
 
 /*----------------------------------------------------------------------------*
- * Map base fields to enumerated pointers for compressible model
- *----------------------------------------------------------------------------*/
-
-void
-cs_field_pointer_map_compressible(void);
-
-/*----------------------------------------------------------------------------*
  * Map base fields to enumerated pointers for gas mix model
  *----------------------------------------------------------------------------*/
 
@@ -382,14 +377,6 @@ cs_field_pointer_map_gas_mix(void);
 
 void
 cs_field_pointer_map_gas_combustion(void);
-
-/*----------------------------------------------------------------------------*/
-/*
- * Map base fields to enumerated pointers for groundwater flows
- *----------------------------------------------------------------------------*/
-
-void
-cs_field_pointer_map_groundwater(void);
 
 /*----------------------------------------------------------------------------*/
 

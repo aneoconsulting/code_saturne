@@ -2,7 +2,7 @@
 #define __CS__ATMO_VARIABLES_H__
 
 /*============================================================================
- * Functions relative to fields atmospheric
+ * Functions relative to atmospheric model fields.
  *============================================================================*/
 
 /*
@@ -38,7 +38,7 @@
 BEGIN_C_DECLS
 
 /*----------------------------------------------------------------------------
- * Add atmospheric variables fields
+ * Add atmospheric variable fields
  *----------------------------------------------------------------------------*/
 
 void
@@ -50,6 +50,18 @@ cs_atmo_add_variable_fields(void);
 
 void
 cs_atmo_add_property_fields(void);
+
+/*----------------------------------------------------------------------------*/
+/*!
+ * \brief Update the thermo physical properties fields for the humid air and
+ *        the liquid \n
+ *        Remarques :
+ *        This function  is called at the beginning of each time step
+ */
+/*----------------------------------------------------------------------------*/
+
+void
+cs_atmo_physical_properties_update(void);
 
 /*----------------------------------------------------------------------------*/
 

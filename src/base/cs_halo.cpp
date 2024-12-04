@@ -66,8 +66,6 @@
 
 /*----------------------------------------------------------------------------*/
 
-BEGIN_C_DECLS
-
 /*! \cond DOXYGEN_SHOULD_SKIP_THIS */
 
 /* Remarks:
@@ -162,20 +160,16 @@ static cs_halo_state_t *_halo_state = nullptr;
 /* Halo communications mode */
 static cs_halo_comm_mode_t _halo_comm_mode = CS_HALO_COMM_P2P;
 
-END_C_DECLS
-
 /*============================================================================
  * Private function definitions
  *============================================================================*/
-
-BEGIN_C_DECLS
 
 /*----------------------------------------------------------------------------*/
 /*!
  * \brief Test if an array of global numbers is ordered.
  *
  * \param[in]  list    optional list (1 to n numbering) of selected entities
- *                     (or nullptr if all nb_ent are selected). This list may
+ *                     (or null if all nb_ent are selected). This list may
  *                     contain element numbers in any order
  * \param[in]  nb_ent  number of entities considered
  *
@@ -361,7 +355,7 @@ _sync_local(const cs_halo_t  *halo,
  *
  * \param[in]       halo        pointer to halo structure
  * \param[in]       val         pointer to variable value array
- * \param[in, out]  hs          pointer to halo state, nullptr for global state
+ * \param[in, out]  hs          pointer to halo state, null for global state
  */
 /*----------------------------------------------------------------------------*/
 
@@ -443,7 +437,7 @@ _halo_sync_start_one_sided(const cs_halo_t  *halo,
  *
  * \param[in]       halo        pointer to halo structure
  * \param[in]       val         pointer to variable value array
- * \param[in, out]  hs          pointer to halo state, nullptr for global state
+ * \param[in, out]  hs          pointer to halo state, null for global state
  */
 /*----------------------------------------------------------------------------*/
 
@@ -479,8 +473,10 @@ _halo_sync_complete_one_sided(const cs_halo_t  *halo,
 
 /*! (DOXYGEN_SHOULD_SKIP_THIS) \endcond */
 
+BEGIN_C_DECLS
+
 /*============================================================================
- * Public function definitions
+ * Public C function definitions
  *============================================================================*/
 
 /*----------------------------------------------------------------------------*/
@@ -1388,8 +1384,8 @@ cs_halo_renumber_ghost_cells(cs_halo_t        *halo,
  * \param[in]       sync_mode   synchronization mode (standard or extended)
  * \param[in]       data_type   data type
  * \param[in]       stride      number of (interlaced) values by entity
- * \param[out]      send_buf    pointer to send buffer, nullptr for global buffer
- * \param[in, out]  hs          pointer to halo state, nullptr for global state
+ * \param[out]      send_buf    pointer to send buffer, null for global buffer
+ * \param[in, out]  hs          pointer to halo state, null for global state
  *
  * \return  pointer to halo send buffer
  */
@@ -1481,8 +1477,8 @@ cs_halo_sync_pack_init_state(const cs_halo_t  *halo,
  * \param[in]       data_type   data type
  * \param[in]       stride      number of (interlaced) values by entity
  * \param[in]       val         pointer to variable value array
- * \param[out]      send_buf    pointer to send buffer, nullptr for global buffer
- * \param[in, out]  hs          pointer to halo state, nullptr for global state
+ * \param[out]      send_buf    pointer to send buffer, null for global buffer
+ * \param[in, out]  hs          pointer to halo state, null for global state
  */
 /*----------------------------------------------------------------------------*/
 
@@ -1604,8 +1600,8 @@ cs_halo_sync_pack(const cs_halo_t  *halo,
  * \param[in]       stride      number of (interlaced) values by entity
  * \param[in]       val         pointer to variable value array (on device)
  * \param[out]      send_buf    pointer to send buffer (on device),
- *                              nullptr for global buffer
- * \param[in, out]  hs          pointer to halo state, nullptr for global state
+ *                              null for global buffer
+ * \param[in, out]  hs          pointer to halo state, null for global state
  */
 /*----------------------------------------------------------------------------*/
 
@@ -1695,7 +1691,7 @@ cs_halo_sync_pack_d(const cs_halo_t  *halo,
  *
  * \param[in]       halo        pointer to halo structure
  * \param[in]       val         pointer to variable value array
- * \param[in, out]  hs          pointer to halo state, nullptr for global state
+ * \param[in, out]  hs          pointer to halo state, null for global state
  */
 /*----------------------------------------------------------------------------*/
 
@@ -1737,7 +1733,7 @@ cs_halo_sync_start(const cs_halo_t  *halo,
 
     /* For host-based MPI, copy or prefetch buffer */
 
-    else {
+    else if (cs_glob_n_ranks > 1) {
       size_t pack_size = halo->n_send_elts[CS_HALO_EXTENDED] * elt_size;
       size_t recv_size = halo->n_elts[_hs->sync_mode] * elt_size;
 
@@ -1857,7 +1853,7 @@ cs_halo_sync_start(const cs_halo_t  *halo,
  *
  * \param[in]       halo        pointer to halo structure
  * \param[in]       val         pointer to variable value array
- * \param[in, out]  hs          pointer to halo state, nullptr for global state
+ * \param[in, out]  hs          pointer to halo state, null for global state
  */
 /*----------------------------------------------------------------------------*/
 
@@ -2329,3 +2325,123 @@ cs_halo_dump(const cs_halo_t  *halo,
 /*----------------------------------------------------------------------------*/
 
 END_C_DECLS
+
+/*============================================================================
+ * Public C++ function definitions
+ *============================================================================*/
+
+/*----------------------------------------------------------------------------*/
+/*!
+ * \brief Update array of values in case of parallelism or periodicity.
+ *
+ * This function aims at copying main values from local elements
+ * (id between 1 and n_local_elements) to ghost elements on distant ranks
+ * (id between n_local_elements + 1 to n_local_elements_with_halo).
+ *
+ * \tparam[in]      T           value type
+ *
+ * \param[in]       halo        pointer to halo structure
+ * \param[in]       sync_mode   synchronization mode (standard or extended)
+ * \param[in]       on_device   run on accelerated device if possible
+ * \param[in, out]  val         pointer to variable value array
+ */
+/*----------------------------------------------------------------------------*/
+
+template <typename T>
+void
+cs_halo_sync(const cs_halo_t        *halo,
+             cs_halo_type_t          sync_mode,
+             [[maybe_unused]] bool   on_device,
+             T                       val[])
+{
+  if (halo == nullptr)
+    return;
+
+  cs_datatype_t datatype = cs_datatype_from_type<T>();
+
+#if defined(HAVE_ACCEL)
+  if (on_device)
+    cs_halo_sync_pack_d(halo,
+                        sync_mode,
+                        datatype,
+                        1,
+                        val,
+                        nullptr,
+                        nullptr);
+  else
+#endif
+    cs_halo_sync_pack(halo,
+                      sync_mode,
+                      datatype,
+                      1,
+                      val,
+                      nullptr,
+                      nullptr);
+
+  cs_halo_sync_start(halo, val, nullptr);
+
+  cs_halo_sync_wait(halo, val, nullptr);
+}
+
+// Force instanciation
+
+template void
+cs_halo_sync(const cs_halo_t  *halo,
+             cs_halo_type_t    sync_mode,
+             bool              on_device,
+             cs_real_t         val[]);
+
+/*----------------------------------------------------------------------------*/
+
+template <int Stride, typename T>
+void
+cs_halo_sync(const cs_halo_t       *halo,
+             cs_halo_type_t         sync_mode,
+             [[maybe_unused]] bool  on_device,
+             T                      val[][Stride])
+{
+  if (halo == nullptr)
+    return;
+
+  cs_datatype_t datatype = cs_datatype_from_type<T>();
+
+#if defined(HAVE_ACCEL)
+  if (on_device)
+    cs_halo_sync_pack_d(halo,
+                        sync_mode,
+                        datatype,
+                        Stride,
+                        val,
+                        nullptr,
+                        nullptr);
+  else
+#endif
+    cs_halo_sync_pack(halo,
+                      sync_mode,
+                      datatype,
+                      Stride,
+                      val,
+                      nullptr,
+                      nullptr);
+
+  cs_halo_sync_start(halo, val, nullptr);
+
+  cs_halo_sync_wait(halo, val, nullptr);
+}
+
+// Force instanciation
+
+template void
+cs_halo_sync(const cs_halo_t  *halo,
+             cs_halo_type_t    sync_mode,
+             bool              on_device,
+             cs_real_t         val[][3]);
+
+template void
+cs_halo_sync(const cs_halo_t  *halo,
+             cs_halo_type_t    sync_mode,
+             bool              on_device,
+             cs_real_t         val[][6]);
+
+/*----------------------------------------------------------------------------*/
+

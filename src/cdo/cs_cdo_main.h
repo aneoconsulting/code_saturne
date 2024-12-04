@@ -49,17 +49,26 @@ BEGIN_C_DECLS
  *============================================================================*/
 
 /*============================================================================
- * Prototypes for functions intended for use only by Fortran wrappers.
- * (descriptions follow, with function bodies).
- *============================================================================*/
-
-void cs_f_cdo_solve_steady_state_domain(void);
-
-/*============================================================================
  * Public function prototypes
  *============================================================================*/
 
-void cs_cdo_solve_unsteady_state_domain(void);
+/*----------------------------------------------------------------------------*/
+/*!
+ * \brief  Solve only steady-state equations
+ */
+/*----------------------------------------------------------------------------*/
+
+void
+cs_cdo_solve_steady_state_domain(void);
+
+/*----------------------------------------------------------------------------*/
+/*!
+ * \brief  Solve all the equations of a computational domain for one time step
+ */
+/*----------------------------------------------------------------------------*/
+
+void
+cs_cdo_solve_unsteady_state_domain(void);
 
 /*----------------------------------------------------------------------------*/
 /*!
@@ -111,9 +120,9 @@ cs_cdo_finalize(cs_domain_t    *domain);
  * \brief Check if CDO has been initialized.
  *
  * \param[in, out] setup       indicator if setup has been initialized,
- *                             or NULL if not queried
+ *                             or null if not queried
  * \param[in, out] structures  indicator if structures have been initialized,
- *                             or NULL if not queried
+ *                             or null if not queried
  */
 /*----------------------------------------------------------------------------*/
 

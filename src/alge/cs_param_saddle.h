@@ -191,6 +191,7 @@ typedef enum {
   CS_PARAM_SADDLE_SOLVER_MINRES,
   CS_PARAM_SADDLE_SOLVER_MUMPS,
   CS_PARAM_SADDLE_SOLVER_NOTAY_TRANSFORM,
+  CS_PARAM_SADDLE_SOLVER_SIMPLE,
   CS_PARAM_SADDLE_SOLVER_UZAWA_CG,
 
   CS_PARAM_SADDLE_N_SOLVERS
@@ -406,6 +407,14 @@ typedef struct {
 
 typedef struct {
 
+  /*! \var augmentation_scaling
+   *  Value of the scaling coefficient in front of the augmented system.
+   *  This is only useful when a GKB algorithm is used. By default, there is
+   *  no augmentation.
+   */
+
+  double            augmentation_scaling;
+
   /*! \var n_stored_directions
    *  Number of iterations to perform before restarting the solver. This
    *  quantity is useful when a GCR or FMGRES is used.
@@ -512,6 +521,37 @@ typedef struct {
 
 } cs_param_saddle_context_uzacg_t;
 
+/* SIMPLE-like algorithm */
+/* --------------------- */
+
+typedef struct {
+
+  /* \var dedicated_init_sles
+   * Define an additional SLES to perform the initial resolution. By default,
+   * this is false in order to not compute two setup steps in one call. */
+
+  bool              dedicated_init_sles;
+
+  /*! \var init_sles_param
+   * The initial linear system requires a more accurate resolution. Thus, one
+   * adds a dedicated \ref cs_param_sles_t structure for this purpose)
+   */
+
+  cs_param_sles_t  *init_sles_param;
+
+  /*! \var xtra_sles_param
+   * Set of parameters only used in some situations such as the need to solve
+   * approximately the A.x = 1 linear system (A is the (1,1)-block
+   * matrix). This is a complementary step in the approximation of the Schur
+   * complement.
+   *
+   * By default, this is a copy of the \ref block11_sles_param with less
+   * restrictive convergence criteria
+   */
+
+  cs_param_sles_t  *xtra_sles_param;
+
+} cs_param_saddle_context_simple_t;
 
 /*============================================================================
  * Global variables
@@ -553,8 +593,8 @@ cs_param_saddle_set_notay_scaling(cs_param_saddle_t  *saddlep,
 
 /*----------------------------------------------------------------------------*/
 /*!
- * \brief Set the scaling in front of the augmentation term when an ALU or a
- *        GKB algorithm is considered
+ * \brief Set the scaling in front of the augmentation term when an ALU, a GKB
+ *        or a block Krylov algorithm is considered
  *
  * \param[in, out] saddlep  set of parameters for solving a saddle-point
  * \param[in]      coef     value of the scaling coefficient
@@ -568,7 +608,7 @@ cs_param_saddle_set_augmentation_coef(cs_param_saddle_t  *saddlep,
 /*----------------------------------------------------------------------------*/
 /*!
  * \brief Get the scaling coefficient in front of the augmentation term when an
- *        ALU or a GKB algorithm is considered.
+ *        ALU, GKB or block Krylov algorithm is considered.
  *
  * \param[in] saddlep  set of parameters for solving a saddle-point
  *
@@ -752,7 +792,7 @@ cs_param_saddle_get_schur_sles_param(const cs_param_saddle_t  *saddlep);
 /*!
  * \brief Get the pointer to the set of parameters to handle a SLES. This SLES
  *        is associated to an extra-operation specific to a saddle-point solver
- *        It returns a non NULL pointer only for some sadlle-point solver
+ *        It returns a non-null pointer only for some sadlle-point solver
  *        relying on a more elaborated Schur complement approximation.
  *
  * \param[in] saddlep  pointer to a \ref cs_param_saddle_t structure
@@ -768,7 +808,7 @@ cs_param_saddle_get_xtra_sles_param(const cs_param_saddle_t  *saddlep);
 /*!
  * \brief Get the pointer to the set of parameters to handle a SLES. This SLES
  *        is associated to the initial saddle-point problem. It returns a non
- *        NULL pointer only for some sadlle-point solver.
+ *        null pointer only for some sadlle-point solver.
  *
  * \param[in] saddlep  pointer to a \ref cs_param_saddle_t structure
  *

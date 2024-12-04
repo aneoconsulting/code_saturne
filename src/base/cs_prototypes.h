@@ -153,36 +153,7 @@ void
 cs_summon_cressman(cs_real_t the_time);
 
 /*----------------------------------------------------------------------------*/
-/*! \brief Compute the vaporization source term
-  * \f$ \Gamma_V \left(\alpha, p\right) = m^+ + m^- \f$ using the
-  * Merkle model:
-  * \f[
-  * m^+ = -\dfrac{C_{prod} \rho_l \min \left( p-p_V,0 \right)\alpha(1-\alpha)}
-  *              {0.5\rho_lu_\infty^2t_\infty},
-  * \f]
-  * \f[
-  * m^- = -\dfrac{C_{dest} \rho_v \max \left( p-p_V,0 \right)\alpha(1-\alpha)}
-  *              {0.5\rho_lu_\infty^2t_\infty},
-  * \f]
-  * with \f$ C_{prod}, C_{dest} \f$ empirical constants,
-  * \f$ t_\infty=l_\infty/u_\infty \f$ a reference time scale and \f$p_V\f$
-  * the reference saturation pressure.
-  * \f$ l_\infty \f$, \f$ u_\infty \f$ and \f$p_V\f$ may be provided by
-  * the user (user function).
-  * Note that the r.h.s. of the void fraction transport equation is
-  * \f$ \Gamma_V/\rho_v \f$.
-  *
-  * \param[in]  pressure  pressure array
-  * \param[in]  voidf     void fraction array
- */
-/*----------------------------------------------------------------------------*/
-
-void
-cs_cavitation_compute_source_term(const cs_real_t  pressure[],
-                                  const cs_real_t  voidf[]);
-
-/*----------------------------------------------------------------------------*/
-/*!
+/*
  * \brief Convert temperature to enthalpy at boundary for coal combustion.
  *
  * \param[in]   n_faces   number of faces in list
@@ -228,28 +199,6 @@ cs_gas_combustion_h_to_t(const cs_real_t   x_sp[],
 cs_real_t
 cs_gas_combustion_t_to_h(const cs_real_t   x_sp[],
                          cs_real_t         t);
-
-/*----------------------------------------------------------------------------*/
-/*!
- * \brief Return pointer to cavitation "dgdpca" array.
- *
- * \return  pointer to "dgdpca" array.
- */
-/*----------------------------------------------------------------------------*/
-
-cs_real_t *
-cs_get_cavitation_dgdp_st(void);
-
-/*----------------------------------------------------------------------------*/
-/*!
- * \brief Return pointer to cavitation "gamcav" array.
- *
- * \return  pointer to "gamcav" array.
- */
-/*----------------------------------------------------------------------------*/
-
-cs_real_t *
-cs_get_cavitation_gam(void);
 
 /*----------------------------------------------------------------------------
  * Return Lagrangian model status.
@@ -335,15 +284,6 @@ cs_prediction_mass_flux(cs_lnum_t  ncesmp,
                         cs_lnum_t  icetsm[],
                         cs_real_t  dt[]);
 
-/*----------------------------------------------------------------------------*/
-/*!
- * \brief resize some Fortran auxiliary arrays
- */
-/*----------------------------------------------------------------------------*/
-
-void
-cs_fortran_resize_aux_arrays(void);
-
 /*============================================================================
  *  User function prototypes
  *============================================================================*/
@@ -354,6 +294,20 @@ cs_fortran_resize_aux_arrays(void);
 
 void
 cs_user_1d_wall_thermal(int iappel);
+
+/*----------------------------------------------------------------------------
+ * Fill in vertical profiles of atmospheric properties prior to solving
+ * 1D radiative transfers.
+ *----------------------------------------------------------------------------*/
+
+void
+cs_user_atmo_1d_rad_prf(cs_real_t   preray[],
+                        cs_real_t   temray[],
+                        cs_real_t   romray[],
+                        cs_real_t   qvray[],
+                        cs_real_t   qlray[],
+                        cs_real_t   ncray[],
+                        cs_real_t   aeroso[]);
 
 /*----------------------------------------------------------------------------
  * Data Entry of the wall condensation module

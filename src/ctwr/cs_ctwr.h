@@ -152,6 +152,9 @@ typedef struct {
 
   cs_ctwr_model_t  evap_model;
   bool             has_rain;
+  bool             rain_evap; /*!< Activate air / rain thermal transfer >!*/
+  bool             mixture_model; /*!< Activate multiphase mixture model
+                                       for rain + air (not functioning yet) >!*/
   bool             solve_rain_velocity; /*!< Activate drift velocity
                                           resolution */
   bool             air_rain_friction; /*!< Activate interfacial friction */

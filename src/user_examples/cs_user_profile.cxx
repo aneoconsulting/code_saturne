@@ -97,7 +97,7 @@ using namespace MEDCoupling;
  * Private functions and global variables
  */
 
-static user_profile_info_t _profile_list = { NULL, 0 };
+static user_profile_info_t _profile_list = { nullptr, 0 };
 
 /*----------------------------------------------------------------------------
  *  Intersector structure for MedCoupling
@@ -162,9 +162,9 @@ _compute_min_max(cs_lnum_t       n_vals,
  *----------------------------------------------------------------------------*/
 
 static user_profile_med_t *
-_allocate_med_mesh_struct(cs_lnum_t n_layers)
+_allocate_med_mesh_struct([[maybe_unused]] cs_lnum_t n_layers)
 {
-  user_profile_med_t *med_t = NULL;
+  user_profile_med_t *med_t = nullptr;
   BFT_MALLOC(med_t, 1, user_profile_med_t);
 #if defined(HAVE_MEDCOUPLING)
   BFT_MALLOC(med_t->layer_mesh, n_layers, MEDCouplingUMesh *);
@@ -225,7 +225,7 @@ _create_1d_sample_(user_profile_t  *profile,
   /* Reset n_elts_sample */
   *n_elts_sample = 0;
 
-  if (f == NULL) {
+  if (f == nullptr) {
     bft_printf("Warning field %s set for profile calc does not exist\n",
                field);
     return;
@@ -234,7 +234,7 @@ _create_1d_sample_(user_profile_t  *profile,
 
   // Define pointer and variable for cs_selector
   cs_lnum_t  n_selected_cells = 0;
-  cs_lnum_t *selected_cells   = NULL;
+  cs_lnum_t *selected_cells   = nullptr;
 
   // Allocate memory for the cells list which will be populated by cs_selector
   BFT_MALLOC(selected_cells, n_cells, cs_lnum_t);
@@ -252,7 +252,7 @@ _create_1d_sample_(user_profile_t  *profile,
     cs_real_t weight_cell        = 0.0;
 
     if (strcmp(weighted, "MASS") == 0) {
-      if (density != NULL)
+      if (density != nullptr)
         weight_cell = cell_vol[c_id] * density->val[c_id];
       else
         weight_cell = cell_vol[c_id] * ro0;
@@ -639,8 +639,8 @@ _compute_histogram(user_histogram_t  *histogram,
  *----------------------------------------------------------------------------*/
 
 static void
-_output_histogram_ot(user_histogram_t  *histogram,
-                     const char        *dirname)
+_output_histogram_ot([[maybe_unused]]user_histogram_t  *histogram,
+                     [[maybe_unused]]const char        *dirname)
 {
 #if HAVE_OT == 1
 
@@ -736,7 +736,7 @@ _calculate_min_max_dir(user_profile_t  *profile)
 
   // Define pointer and variable for cs_selector
   cs_lnum_t  n_selected_cells = 0;
-  cs_lnum_t *selected_cells   = NULL;
+  cs_lnum_t *selected_cells   = nullptr;
 
   // Allocate memory for the cells list which will be populated by cs_selector
   BFT_MALLOC(selected_cells, m->n_cells, cs_lnum_t);
@@ -746,7 +746,7 @@ _calculate_min_max_dir(user_profile_t  *profile)
                             selected_cells);
 
   cs_lnum_t  n_selected_vertices = 0;
-  cs_lnum_t *selected_vertices   = NULL;
+  cs_lnum_t *selected_vertices   = nullptr;
 
   BFT_MALLOC(selected_vertices, n_vertices, cs_lnum_t);
   cs_selector_get_cell_vertices_list_by_ids(n_selected_cells,
@@ -800,7 +800,7 @@ _calculate_min_max_dir(user_profile_t  *profile)
   cs_real_t min_mesh_ijn[3] = { 0.0, 0.0, 0.0 };
   cs_real_t max_mesh_ijn[3] = { 0.0, 0.0, 0.0 };
 
-  cs_real_t **vtx_dist = NULL;
+  cs_real_t **vtx_dist = nullptr;
 
   BFT_MALLOC(vtx_dist, 3, cs_real_t *);
   for (int k = 0; k < 3; k++)
@@ -1043,7 +1043,7 @@ _set_stl_layers_seeds(user_profile_t  *profile,
 
   // define pointer and variable for cs_selector
   cs_lnum_t  n_selected_cells = 0;
-  cs_lnum_t *selected_cells   = NULL;
+  cs_lnum_t *selected_cells   = nullptr;
   // Allocate memory for the cells list which will be populated by cs_selector
   BFT_MALLOC(selected_cells, cs_glob_mesh->n_cells_with_ghosts, cs_lnum_t);
 
@@ -1337,8 +1337,8 @@ _set_layers_stl_mesh(user_profile_t  *profile,
  *----------------------------------------------------------------------------*/
 
 static void
-_set_med_layer_mesh(user_profile_t  *profile,
-                    cs_lnum_t        layer_id)
+_set_med_layer_mesh([[maybe_unused]]user_profile_t  *profile,
+                    [[maybe_unused]]cs_lnum_t        layer_id)
 {
 #if defined(HAVE_MEDCOUPLING)
   // Get mesh quantities
@@ -1628,7 +1628,7 @@ _compute_cell_volume_per_layer_basic(user_profile_t  *profile)
 
   // Define pointer and variable for cs_selector
   cs_lnum_t  n_selected_cells = 0;
-  cs_lnum_t *selected_cells   = NULL;
+  cs_lnum_t *selected_cells   = nullptr;
   // Allocate memory for the cells list which will be populated by cs_selector
   BFT_MALLOC(selected_cells, n_cells_with_ghosts, cs_lnum_t);
 
@@ -1697,12 +1697,12 @@ _compute_cell_volume_per_layer_stl(user_profile_t  *profile)
   // Profile shorter variables
   cs_lnum_t n_layers = profile->n_layers;
 
-  cs_real_t *cells_l_id_vol = NULL;
+  cs_real_t *cells_l_id_vol = nullptr;
   BFT_MALLOC(cells_l_id_vol, n_cells_with_ghosts, cs_real_t);
 
   // Define pointer and variable for cs_selector
   cs_lnum_t  n_selected_cells = 0;
-  cs_lnum_t *selected_cells   = NULL;
+  cs_lnum_t *selected_cells   = nullptr;
   // Allocate memory for the cells list which will be populated by cs_selector
   BFT_MALLOC(selected_cells, n_cells_with_ghosts, cs_lnum_t);
 
@@ -1724,7 +1724,7 @@ _compute_cell_volume_per_layer_stl(user_profile_t  *profile)
 
     cs_stl_mesh_t *stl_mesh = profile->mesh_list[s_id];
     /* Compute porisity associated to each layer using cs_stl_mesh features */
-    cs_stl_compute_porosity(stl_mesh, cells_l_id_vol, NULL);
+    cs_stl_compute_porosity(stl_mesh, cells_l_id_vol, nullptr);
 
     for (cs_lnum_t ii = 0; ii < n_selected_cells; ii++) {
       cs_lnum_t c_id = selected_cells[ii];
@@ -1748,9 +1748,12 @@ _compute_cell_volume_per_layer_stl(user_profile_t  *profile)
  *----------------------------------------------------------------------------*/
 
 static void
-_compute_intersection_volume_med(user_profile_med_t *med_t,
-                                 cs_real_t          *vol_intersect,
-                                 cs_lnum_t           layer_id)
+_compute_intersection_volume_med
+(
+ [[maybe_unused]]user_profile_med_t *med_t,
+ [[maybe_unused]]cs_real_t          *vol_intersect,
+ [[maybe_unused]]cs_lnum_t           layer_id
+)
 {
 #if defined(HAVE_MEDCOUPLING)
   cs_lnum_t n_elts = med_t->local_mesh->n_elts;
@@ -1810,7 +1813,7 @@ _compute_intersection_volume_med(user_profile_med_t *med_t,
  *----------------------------------------------------------------------------*/
 
 static void
-_compute_cell_vol_per_layer_med(user_profile_t *profile)
+_compute_cell_vol_per_layer_med([[maybe_unused]] user_profile_t *profile)
 {
 #if defined(HAVE_MEDCOUPLING)
 
@@ -1822,12 +1825,12 @@ _compute_cell_vol_per_layer_med(user_profile_t *profile)
   // profile shorter variables
   cs_lnum_t n_layers = profile->n_layers;
 
-  cs_real_t *cells_l_id_vol = NULL;
+  cs_real_t *cells_l_id_vol = nullptr;
   BFT_MALLOC(cells_l_id_vol, n_cells_with_ghosts, cs_real_t);
 
   // define pointer and variable for cs_selector
   cs_lnum_t  n_selected_cells = 0;
-  cs_lnum_t *selected_cells   = NULL;
+  cs_lnum_t *selected_cells   = nullptr;
   // Allocate memory for the cells list which will be populated by cs_selector
   BFT_MALLOC(selected_cells, n_cells_with_ghosts, cs_lnum_t);
 
@@ -1895,7 +1898,7 @@ _free_profile_all(user_profile_t *profile)
     }
     BFT_FREE(med_t->layer_mesh);
     // Mesh will deallocated afterwards since it can be shared
-    med_t->local_mesh = NULL;
+    med_t->local_mesh = nullptr;
     BFT_FREE(profile->med_mesh_struct);
   }
 
@@ -1941,7 +1944,7 @@ _output_profile_setup_log(user_profile_t  *profile,
   char filename[80];
 
   sprintf(filename, "%s/profile.log", dirname);
-  FILE *ptrSetupLog = NULL;
+  FILE *ptrSetupLog = nullptr;
 
   ptrSetupLog = fopen(filename,
                       "w+"); /* create the file (should not exist
@@ -2037,7 +2040,7 @@ _output_profile_log(user_profile_t  *profile,
 
   char filename[80];
   sprintf(filename, "%s/profile.log", dirname);
-  FILE *ptrLog = NULL;
+  FILE *ptrLog = nullptr;
 
   ptrLog = fopen(filename,
                  "a+"); // File already created when this function is called
@@ -2131,13 +2134,13 @@ _output_profile_values_csv(user_profile_t  *profile,
   char filename[80];
 
   sprintf(filename, "%s/results_profile.csv", dirname);
-  FILE *ptrResults = NULL;
+  FILE *ptrResults = nullptr;
 
   /* Check if the file exist*/
   ptrResults = fopen(filename, "r+"); /* Create the file (should not exist
                                          when this function is called) */
 
-  if (ptrResults == NULL) {
+  if (ptrResults == nullptr) {
     /* Create a file and write header*/
     ptrResults = fopen(filename, "w+");
     fprintf(ptrResults, "time_step, time");
@@ -2202,8 +2205,8 @@ _user_output_profile_stl_mesh(user_profile_t  *profile,
  *----------------------------------------------------------------------------*/
 
 static void
-_output_profile_med_mesh(user_profile_t  *profile,
-                         const char      *dirname)
+_output_profile_med_mesh([[maybe_unused]] user_profile_t  *profile,
+                         [[maybe_unused]] const char      *dirname)
 {
 #if defined(HAVE_MEDCOUPLING_LOADER)
   if (cs_glob_rank_id <= 0) {
@@ -2237,7 +2240,7 @@ BEGIN_C_DECLS
 user_profile_t *
 user_profile_get_by_name(const char  *name)
 {
-  user_profile_t *ptr = NULL;
+  user_profile_t *ptr = nullptr;
   for (int p_id = 0; p_id < _profile_list.n_profiles; p_id++) {
     user_profile_t *profile = _profile_list.profile_list[p_id];
     int             test      = strcmp(profile->name, name);
@@ -2281,7 +2284,7 @@ user_create_profile(const char  *name,
 
   user_profile_t *profile = user_profile_get_by_name(name);
 
-  if (profile != NULL) {
+  if (profile != nullptr) {
     bft_printf("profile %s already exist - profile not created \n", name);
     return profile;
   }
@@ -2296,23 +2299,23 @@ user_create_profile(const char  *name,
   // Initialize and allocate memory for profile
   BFT_MALLOC(profile, 1, user_profile_t);
 
-  char *_dummy = (char *)profile->name;
-  strncpy(_dummy, name, strlen(name));
-  _dummy[strlen(name)] = '\0';
+  char *_dummy = const_cast<char *>(profile->name);
+  strncpy(_dummy, name, 511);
+  _dummy[511] = '\0';
 
-  _dummy = (char *)profile->field;
-  strncpy(_dummy, field, strlen(field));
-  _dummy[strlen(field)] = '\0';
+  _dummy = const_cast<char *>(profile->field);
+  strncpy(_dummy, field, 511);
+  _dummy[511] = '\0';
 
-  _dummy = (char *)profile->criteria;
-  strncpy(_dummy, criteria, strlen(criteria));
-  _dummy[strlen(criteria)] = '\0';
+  _dummy = const_cast<char *>(profile->criteria);
+  strncpy(_dummy, criteria, 511);
+  _dummy[511] = '\0';
 
   profile->n_layers        = n_layers;
 
-  _dummy = (char *)profile->progression_law;
-  strncpy(_dummy, progression_law, strlen(progression_law));
-  _dummy[strlen(progression_law)] = '\0';
+  _dummy = const_cast<char *>(profile->progression_law);
+  strncpy(_dummy, progression_law, 511);
+  _dummy[511] = '\0';
 
   profile->progression     = progression;
 
@@ -2328,9 +2331,9 @@ user_create_profile(const char  *name,
               __func__);
 
 
-  _dummy = (char *)profile->weighted;
-  strncpy(_dummy, weighted, strlen(weighted));
-  _dummy[strlen(weighted)] = '\0';
+  _dummy = const_cast<char *>(profile->weighted);
+  strncpy(_dummy, weighted, 511);
+  _dummy[511] = '\0';
 
   /* In case of Medcoupling method, check CS has been compiled with
    * MEDCouppling*/
@@ -2344,9 +2347,9 @@ user_create_profile(const char  *name,
                 "MEDCoupling support.\n"));
 #endif
   }
-  _dummy = (char *)profile->intersect_method;
-  strncpy(_dummy, intersect_method, strlen(intersect_method));
-  _dummy[strlen(intersect_method)] = '\0';
+  _dummy = const_cast<char *>(profile->intersect_method);
+  strncpy(_dummy, intersect_method, 511);
+  _dummy[511] = '\0';
 
   BFT_MALLOC(profile->l_thick, n_layers, cs_real_t);
   BFT_MALLOC(profile->pos, n_layers, cs_real_t);
@@ -2399,11 +2402,11 @@ user_create_profile(const char  *name,
 
     memset(stl_mesh->header, 0, 80);
     stl_mesh->n_faces     = 0;
-    stl_mesh->coords      = NULL;
+    stl_mesh->coords      = nullptr;
     stl_mesh->n_seeds     = 0;
-    stl_mesh->seed_coords = NULL;
+    stl_mesh->seed_coords = nullptr;
     stl_mesh->is_porous   = false;
-    stl_mesh->ext_mesh    = NULL;
+    stl_mesh->ext_mesh    = nullptr;
 
     for (cs_lnum_t c_id = 0; c_id < n_cells; c_id++)
       profile->cells_layer_vol[layer_id][c_id] = 0.0;
@@ -2556,7 +2559,6 @@ user_destroy_histogram(user_histogram_t  *histogram)
 void
 user_compute_cell_volume_per_layer(user_profile_t *profile)
 {
-  user_profile_med_t *med_t = profile->med_mesh_struct;
   if (strcmp(profile->intersect_method, "MEDCOUPLING") == 0) {
 #if !defined(HAVE_MEDCOUPLING)
     bft_error(__FILE__,
@@ -2565,9 +2567,7 @@ user_compute_cell_volume_per_layer(user_profile_t *profile)
               _("Error: This intersection method cannot be called without "
                 "MEDCoupling support.\n"));
 #else
-
     _compute_cell_vol_per_layer_med(profile);
-
 #endif
   }
   else if (strcmp(profile->intersect_method, "STL") == 0) {
@@ -2829,12 +2829,12 @@ user_output_histogram_csv(user_histogram_t  *histogram,
 
   n_l_header = sizeof(histogram_header) / sizeof(char *);
 
-  FILE *ptrResults = NULL;
+  FILE *ptrResults = nullptr;
 
   /* Check if the file exist*/
   ptrResults = fopen(filename, "r+");
 
-  if (ptrResults == NULL) {
+  if (ptrResults == nullptr) {
     /* Create a file and write header*/
     ptrResults = fopen(filename, "w+");
 
@@ -2900,8 +2900,8 @@ user_histogram_ot_output(user_histogram_t  *histogram,
  *----------------------------------------------------------------------------*/
 
 void
-user_profile_histogram_ot_output(user_profile_t  *profile,
-                                 int              interval)
+user_profile_histogram_ot_output([[maybe_unused]] user_profile_t  *profile,
+                                 [[maybe_unused]] int              interval)
 {
 #if HAVE_OT == 1
   /*Output the PDF historgam thks to OT lib features*/

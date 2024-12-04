@@ -57,10 +57,8 @@ use ppthch
 use coincl
 use cpincl
 use ppincl
-use cfpoin
 use atincl
 use pointe, only: izfppp
-use dimens, only: nvar
 use cs_c_bindings
 use mesh
 
@@ -72,7 +70,7 @@ implicit none
 
 ! Local variables
 
-integer          ifac, izone, ivar
+integer          ifac, izone
 
 integer, pointer, dimension(:,:) :: icodcl
 double precision, pointer, dimension(:,:,:) :: rcodcl
@@ -133,31 +131,6 @@ elseif (ippmod(icompf).ge.0) then
 !      Conduction ionique
 
 elseif (ippmod(ieljou).ge.1 .or. ippmod(ielarc).ge.1) then
-
-  do ifac = 1, nfabor
-    izfppp(ifac) = 0
-  enddo
-
-! ---> Version ecoulements atmospheriques
-
-elseif ( ippmod(iatmos).ge.0  ) then
-
-  do ifac = 1, nfabor
-    izfppp(ifac) = 0
-  enddo
-
-!     Initialisation des RCODCL(IFAC,.,1) à RINFIN
-!       pour savoir si l'utilisateur les a modifies (ils sont
-!       initialises par defaut à 0)
-  do ivar = 1, nvar
-    do ifac = 1, nfabor
-      rcodcl(ifac,ivar,1) = rinfin
-    enddo
-  enddo
-
-! ---> Version aerorefrigerants
-
-elseif (ippmod(iaeros).ge.0) then
 
   do ifac = 1, nfabor
     izfppp(ifac) = 0

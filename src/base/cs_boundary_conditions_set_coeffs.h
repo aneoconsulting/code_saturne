@@ -620,7 +620,7 @@ cs_boundary_conditions_set_generalized_sym_vector
    const cs_real_t        pimpv[3],
    const cs_real_t        qimpv[3],
    cs_real_t              hint,
-   const cs_real_t        normal[3])
+   const cs_nreal_t       normal[3])
 {
   cs_real_3_t  *a = (cs_real_3_t *)bc_coeffs->a;
   cs_real_33_t *b = (cs_real_33_t *)bc_coeffs->b;
@@ -677,7 +677,7 @@ cs_boundary_conditions_set_generalized_sym_vector_aniso
    const cs_real_t        pimpv[3],
    const cs_real_t        qimpv[3],
    const cs_real_t        hint[6],
-   const cs_real_t        normal[3]);
+   const cs_nreal_t       normal[3]);
 
 /*----------------------------------------------------------------------------*/
 /*!
@@ -700,7 +700,7 @@ cs_boundary_conditions_set_generalized_dirichlet_vector
    const cs_real_t        pimpv[3],
    const cs_real_t        qimpv[3],
    cs_real_t              hint,
-   const cs_real_t        normal[3])
+   const cs_nreal_t       normal[3])
 {
   cs_real_3_t  *a = (cs_real_3_t *)bc_coeffs->a;
   cs_real_33_t *b = (cs_real_33_t *)bc_coeffs->b;
@@ -758,7 +758,7 @@ cs_boundary_conditions_set_generalized_dirichlet_vector_aniso
    const cs_real_t        pimpv[3],
    const cs_real_t        qimpv[3],
    const cs_real_t        hint[6],
-   const cs_real_t        normal[3]);
+   const cs_nreal_t       normal[3]);
 
 /*----------------------------------------------------------------------------*/
 /*!
@@ -1132,7 +1132,7 @@ cs_boundary_conditions_set_dirichlet_conv_neumann_diff_tensor
 {
   for (int isou = 0; isou < 6; isou++) {
 
-    /* BS test sur hextv ? if (abs(hextv[isou])>rinfin*0.5d0) then */
+    /* BS test on hextv ? if (abs(hextv[isou]) > cs_math_infinite_r * 0.5) */
 
     /* Gradient BCs */
     a[isou] = pimpts[isou];

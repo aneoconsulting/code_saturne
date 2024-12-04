@@ -58,7 +58,7 @@ implicit none
 
 ! Local variables
 
-integer         igg, it, ir, ih, if, izone
+integer         igg, it, ir, ih, if
 integer         idirac
 
 !===============================================================================
@@ -121,10 +121,6 @@ ifsm = 0
 ! Standard compressible module scalars
 ienerg = 0
 itempk = 0
-! Compressible homogeneous two-phase flow scalars
-ifracv = 0
-ifracm = 0
-ifrace = 0
 
 !===============================================================================
 ! 2. REMPLISSAGE INCLUDE ppthch.h
@@ -203,14 +199,6 @@ vref  = zero
 lref  = zero
 ta    = zero
 tstar = zero
-!frmel = zero
-!tgf   = 300.d0
-!do izone = 1, nozppm
-!  ientgf(izone) = 0
-!  ientgb(izone) = 0
-!  fment(izone)  = zero
-!  tkent(izone)  = zero
-!enddo
 hgf   = zero
 tgbad = zero
 
@@ -227,34 +215,14 @@ coeff3 = zero
 !===============================================================================
 
 ! Space and time reference of the run:
+
 ! ------------------------------------
-
-! Option for the meteo profile computation
-!ihpm   --> flag to compute the hydrostastic pressure by Laplace integration
-!           in the meteo profiles
-!       = 0 : bottom to top Laplace integration, based on P(sea level) (default)
-!       = 1 : top to bottom Laplace integration based on P computed for
-!            the standard atmosphere at z(nbmaxt)
-ihpm = 0
-
 ! 1d radiative transfer model:
 ! ----------------------------
 
 ! iatra1 -->  flag for the use of the 1d atmo radiative model
-! nfatr1 --> 1d radiative model pass frequency
-! iqv0   --> flag for humidity above the domain (0 : no humidity; 1 : decreasing)
 
 iatra1 = 0
-nfatr1 = 1
-iqv0 = 0
-
-!  -------------------------------------------------------------------------------
-!  Microphysics parameterization options
-!  -------------------------------------------------------------------------------
-
-! logaritmic standard deviation of the log-normal law of the droplet spectrum
-! adimensional
-sigc = 0.53 ! other referenced values are 0.28, 0.15
 
 call atmo_init_imbrication()
 
@@ -262,28 +230,15 @@ call atmo_init_imbrication()
 
 call field_get_key_id("opt_interp_id", kopint)
 
-! initmeteo --> use meteo profile for variables initialization
-!               (0: not used; 1: used )
-! NB : should eventually be set by interface and by zone (as BCs)
-
-initmeteo = 1
-
 ! --> Initialisation for the chemistry models:
 
 init_at_chem = 1
 
 ! --> Initialisation for the gaseous chemistry model:
 
-nbchim = 0
-nbchmz = 0
-nespgi = 0
 dtchemmax = 10.d0
 
 ! --> Initialisation for the aerosol chemistry model:
-
-do izone = 1, nozppm
-  iprofa(izone) = 0
-enddo
 
 ! Default values (climatic ones) for radiative transfer and
 ! aerosols

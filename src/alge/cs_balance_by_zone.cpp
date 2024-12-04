@@ -87,7 +87,7 @@ BEGIN_C_DECLS
  * Additional Doxygen documentation
  *============================================================================*/
 
-/*! \file  cs_balance_by_zone.c
+/*! \file  cs_balance_by_zone.cpp
 
 */
 
@@ -127,27 +127,27 @@ BEGIN_C_DECLS
  *----------------------------------------------------------------------------*/
 
 inline static void
-_balance_boundary_faces(const int          icvflf,
-                        const int          idtvar,
-                        const int          iconvp,
-                        const int          idiffp,
-                        const int          ircflp,
-                        const cs_real_t    relaxp,
-                        const cs_real_3_t  diipb,
-                        const cs_real_3_t  gradi,
-                        const cs_real_t    pi,
-                        const cs_real_t    pia,
-                        const int          bc_type,
-                        const cs_real_t    b_visc,
-                        const cs_real_t    a_F,
-                        const cs_real_t    b_F,
-                        const cs_real_t    af_F,
-                        const cs_real_t    bf_F,
-                        const cs_real_t    ac_F,
-                        const cs_real_t    bc_F,
-                        const cs_real_t    b_mass_flux,
-                        const cs_real_t    xcppi,
-                        cs_real_t         *term_balance)
+_balance_boundary_faces(const int           icvflf,
+                        const int           idtvar,
+                        const int           iconvp,
+                        const int           idiffp,
+                        const int           ircflp,
+                        const cs_real_t     relaxp,
+                        const cs_rreal_3_t  diipb,
+                        const cs_real_3_t   gradi,
+                        const cs_real_t     pi,
+                        const cs_real_t     pia,
+                        const int           bc_type,
+                        const cs_real_t     b_visc,
+                        const cs_real_t     a_F,
+                        const cs_real_t     b_F,
+                        const cs_real_t     af_F,
+                        const cs_real_t     bf_F,
+                        const cs_real_t     ac_F,
+                        const cs_real_t     bc_F,
+                        const cs_real_t     b_mass_flux,
+                        const cs_real_t     xcppi,
+                        cs_real_t          *term_balance)
 {
   /* Steady */
   if (idtvar < 0) {
@@ -288,50 +288,50 @@ _balance_boundary_faces(const int          icvflf,
  *----------------------------------------------------------------------------*/
 
 inline static void
-_balance_internal_faces(int              iupwin,
-                        int              idtvar,
-                        int              iconvp,
-                        int              idiffp,
-                        int              ircflp,
-                        int              ischcp,
-                        int              isstpp,
-                        cs_nvd_type_t    limiter_choice,
-                        cs_real_t        relaxp,
-                        cs_real_t        blencp,
-                        cs_real_t        blend_st,
-                        cs_real_t        weight,
-                        cs_real_t        i_dist,
-                        const cs_real_t  cell_ceni[3],
-                        const cs_real_t  cell_cenj[3],
-                        const cs_real_t  cell_cenc[3],
-                        const cs_real_t  cell_cend[3],
-                        const cs_real_t  i_face_u_normal[3],
-                        const cs_real_t  i_face_cog[3],
-                        cs_real_t        hybrid_blend_i,
-                        cs_real_t        hybrid_blend_j,
-                        const cs_real_t  diipf[3],
-                        const cs_real_t  djjpf[3],
-                        const cs_real_t  gradi[3],
-                        const cs_real_t  gradj[3],
-                        const cs_real_t  gradc[3],
-                        const cs_real_t  gradupi[3],
-                        const cs_real_t  gradupj[3],
-                        const cs_real_t  gradsti[3],
-                        const cs_real_t  gradstj[3],
-                        cs_real_t        pi,
-                        cs_real_t        pj,
-                        cs_real_t        pc,
-                        cs_real_t        pd,
-                        cs_real_t        pia,
-                        cs_real_t        pja,
-                        cs_real_t        i_visc,
-                        cs_real_t        i_mass_flux,
-                        cs_real_t        xcppi,
-                        cs_real_t        xcppj,
-                        cs_real_t        local_max,
-                        cs_real_t        local_min,
-                        cs_real_t        courant_c,
-                        cs_real_t        bi_bterms[2])
+_balance_internal_faces(int               iupwin,
+                        int               idtvar,
+                        int               iconvp,
+                        int               idiffp,
+                        int               ircflp,
+                        int               ischcp,
+                        int               isstpp,
+                        cs_nvd_type_t     limiter_choice,
+                        cs_real_t         relaxp,
+                        cs_real_t         blencp,
+                        cs_real_t         blend_st,
+                        cs_real_t         weight,
+                        cs_real_t         i_dist,
+                        const cs_real_t   cell_ceni[3],
+                        const cs_real_t   cell_cenj[3],
+                        const cs_real_t   cell_cenc[3],
+                        const cs_real_t   cell_cend[3],
+                        const cs_nreal_t  i_face_u_normal[3],
+                        const cs_real_t   i_face_cog[3],
+                        cs_real_t         hybrid_blend_i,
+                        cs_real_t         hybrid_blend_j,
+                        const cs_rreal_t  diipf[3],
+                        const cs_rreal_t  djjpf[3],
+                        const cs_real_t   gradi[3],
+                        const cs_real_t   gradj[3],
+                        const cs_real_t   gradc[3],
+                        const cs_real_t   gradupi[3],
+                        const cs_real_t   gradupj[3],
+                        const cs_real_t   gradsti[3],
+                        const cs_real_t   gradstj[3],
+                        cs_real_t         pi,
+                        cs_real_t         pj,
+                        cs_real_t         pc,
+                        cs_real_t         pd,
+                        cs_real_t         pia,
+                        cs_real_t         pja,
+                        cs_real_t         i_visc,
+                        cs_real_t         i_mass_flux,
+                        cs_real_t         xcppi,
+                        cs_real_t         xcppj,
+                        cs_real_t         local_max,
+                        cs_real_t         local_min,
+                        cs_real_t         courant_c,
+                        cs_real_t         bi_bterms[2])
 {
   if (iupwin == 1) {
 
@@ -777,25 +777,21 @@ cs_balance_by_zone_compute(const char      *scalar_name,
   const cs_lnum_t n_b_faces = m->n_b_faces;
 
   const cs_lnum_2_t *restrict i_face_cells
-    = (const cs_lnum_2_t *restrict)m->i_face_cells;
+    = (const cs_lnum_2_t *)m->i_face_cells;
   const cs_lnum_t *restrict b_face_cells
-    = (const cs_lnum_t *restrict)m->b_face_cells;
+    = (const cs_lnum_t *)m->b_face_cells;
   const cs_real_t *restrict weight = fvq->weight;
   const cs_real_t *restrict i_dist = fvq->i_dist;
   const cs_real_t *restrict b_face_surf = fvq->b_face_surf;
   const cs_real_t *restrict cell_vol = fvq->cell_vol;
   const cs_real_3_t *restrict cell_cen
-    = (const cs_real_3_t *restrict)fvq->cell_cen;
-  const cs_real_3_t *restrict i_face_u_normal
-    = (const cs_real_3_t *restrict)fvq->i_face_u_normal;
+    = (const cs_real_3_t *)fvq->cell_cen;
+  const cs_nreal_3_t *restrict i_face_u_normal = fvq->i_face_u_normal;
   const cs_real_3_t *restrict i_face_cog
-    = (const cs_real_3_t *restrict)fvq->i_face_cog;
-  const cs_real_3_t *restrict diipf
-    = (const cs_real_3_t *restrict)fvq->diipf;
-  const cs_real_3_t *restrict djjpf
-    = (const cs_real_3_t *restrict)fvq->djjpf;
-  const cs_real_3_t *restrict diipb
-    = (const cs_real_3_t *restrict)fvq->diipb;
+    = (const cs_real_3_t *)fvq->i_face_cog;
+  const cs_rreal_3_t *restrict diipf = fvq->diipf;
+  const cs_rreal_3_t *restrict djjpf = fvq->djjpf;
+  const cs_rreal_3_t *restrict diipb = fvq->diipb;
 
   const int *bc_type = cs_glob_bc_type;
 
@@ -827,15 +823,15 @@ cs_balance_by_zone_compute(const char      *scalar_name,
   /* Get the calculation option from the field */
   const cs_equation_param_t *eqp = cs_field_get_equation_param_const(f);
 
-  cs_real_t *pvar_local = NULL;
-  cs_real_t *pvar_distant = NULL;
+  cs_real_t *pvar_local = nullptr;
+  cs_real_t *pvar_distant = nullptr;
   cs_real_t  hint, rcodcl2, heq;
 
-  const cs_lnum_t *faces_local = NULL;
+  const cs_lnum_t *faces_local = nullptr;
   cs_lnum_t  n_local = 0;
   cs_lnum_t  n_distant = 0;
-  const cs_lnum_t *faces_distant = NULL;
-  cs_internal_coupling_t *cpl = NULL;
+  const cs_lnum_t *faces_distant = nullptr;
+  cs_internal_coupling_t *cpl = nullptr;
 
   /* Temperature indicator.
      Will multiply by CP in order to have energy. */
@@ -843,7 +839,7 @@ cs_balance_by_zone_compute(const char      *scalar_name,
     = cs_field_get_key_int(f, cs_field_key_id("is_temperature"));
 
   /* Specific heat (CP) */
-  cs_real_t *cpro_cp = NULL;
+  cs_real_t *cpro_cp = nullptr;
   const int icp = cs_field_id_by_name("specific_heat");
   if (itemperature) {
     if (icp != -1)
@@ -877,20 +873,20 @@ cs_balance_by_zone_compute(const char      *scalar_name,
 
   /* Zone cells selection variables*/
   cs_lnum_t n_i_faces_sel = 0;
-  cs_lnum_t *i_face_sel_ids = NULL;
+  cs_lnum_t *i_face_sel_ids = nullptr;
   cs_lnum_t n_bb_faces_sel = 0;
-  cs_lnum_t *bb_face_sel_ids = NULL;
+  cs_lnum_t *bb_face_sel_ids = nullptr;
   cs_lnum_t n_bi_faces_sel = 0;
-  cs_lnum_t *bi_face_sel_ids = NULL;
-  cs_lnum_2_t *bi_face_cells = NULL;
-  cs_lnum_t *cells_tag_ids = NULL;
+  cs_lnum_t *bi_face_sel_ids = nullptr;
+  cs_lnum_2_t *bi_face_cells = nullptr;
+  cs_lnum_t *cells_tag_ids = nullptr;
 
-  cs_real_t *local_min = NULL;
-  cs_real_t *local_max = NULL;
-  cs_real_t *courant = NULL;
+  cs_real_t *local_min = nullptr;
+  cs_real_t *local_max = nullptr;
+  cs_real_t *courant = nullptr;
 
-  cs_real_t *cv_limiter = NULL;
-  cs_real_t *df_limiter = NULL;
+  cs_real_t *cv_limiter = nullptr;
+  cs_real_t *df_limiter = nullptr;
 
   const int key_lim_choice = cs_field_key_id("limiter_choice");
 
@@ -1023,8 +1019,8 @@ cs_balance_by_zone_compute(const char      *scalar_name,
   int inc = 1;
 
   /* Compute the gradient for convective scheme (the slope test, limiter, SOLU, etc) */
-  cs_real_3_t *gradup = NULL;
-  cs_real_3_t *gradst = NULL;
+  cs_real_3_t *gradup = nullptr;
+  cs_real_3_t *gradst = nullptr;
   if (eqp->blencv > 0 && eqp->isstpc == 0) {
     BFT_MALLOC(gradst, n_cells_ext, cs_real_3_t);
     for (cs_lnum_t c_id = 0; c_id < n_cells_ext; c_id++) {
@@ -1076,7 +1072,7 @@ cs_balance_by_zone_compute(const char      *scalar_name,
   BFT_MALLOC(i_visc, n_i_faces, cs_real_t);
   BFT_MALLOC(b_visc, n_b_faces, cs_real_t);
 
-  cs_real_t *c_visc = NULL;
+  cs_real_t *c_visc = nullptr;
   BFT_MALLOC(c_visc, n_cells_ext, cs_real_t);
   const int kivisl
     = cs_field_get_key_int(f, cs_field_key_id("diffusivity_id"));
@@ -1139,7 +1135,7 @@ cs_balance_by_zone_compute(const char      *scalar_name,
     cs_lnum_t c_id_sel = cell_sel_ids[c_id];
     cells_tag_ids[c_id_sel] = 1;
   }
-  if (halo != NULL) {
+  if (halo != nullptr) {
     cs_halo_sync_num(halo, halo_type, cells_tag_ids);
   }
 
@@ -1281,9 +1277,9 @@ cs_balance_by_zone_compute(const char      *scalar_name,
      In case of a mass source term, add contribution from Gamma*Tn+1 */
 
   cs_lnum_t ncesmp = 0;
-  const cs_lnum_t *icetsm = NULL;
-  int *itpsmp = NULL;
-  cs_real_t *smcelp, *gamma = NULL;
+  const cs_lnum_t *icetsm = nullptr;
+  int *itpsmp = nullptr;
+  cs_real_t *smcelp, *gamma = nullptr;
 
   cs_volume_mass_injection_get_arrays(f, &ncesmp, &icetsm, &itpsmp,
                                       &smcelp, &gamma);
@@ -1488,7 +1484,7 @@ cs_balance_by_zone_compute(const char      *scalar_name,
 
     int bldfrp = ircflp;
     /* Local limitation of the reconstruction */
-    if (df_limiter != NULL && ircflp > 0) {
+    if (df_limiter != nullptr && ircflp > 0) {
       cs_real_t _bldfrp = fmax(fmin(df_limiter[c_id1],
                                     df_limiter[c_id2]), 0.);
       bldfrp = (int)_bldfrp;
@@ -1511,10 +1507,10 @@ cs_balance_by_zone_compute(const char      *scalar_name,
                                 &ic,  /* central cell id */
                                 &id); /* downwind cell id */
 
-      if (courant != NULL)
+      if (courant != nullptr)
         courant_c = courant[ic];
 
-      if (local_max != NULL) {
+      if (local_max != nullptr) {
         _local_max = local_max[ic];
         _local_min = local_min[ic];
       }
@@ -1693,7 +1689,7 @@ cs_balance_by_zone(const char  *selection_crit,
   /* Select cells */
 
   cs_lnum_t n_cells_sel = 0;
-  cs_lnum_t *cells_sel_ids = NULL;
+  cs_lnum_t *cells_sel_ids = nullptr;
 
   BFT_MALLOC(cells_sel_ids, m->n_cells, cs_lnum_t);
   cs_selector_get_cell_list(selection_crit, &n_cells_sel, cells_sel_ids);
@@ -1775,19 +1771,16 @@ cs_pressure_drop_by_zone_compute(cs_lnum_t        n_cells_sel,
   const cs_lnum_t n_b_faces = m->n_b_faces;
 
   const cs_lnum_2_t *restrict i_face_cells
-    = (const cs_lnum_2_t *restrict)m->i_face_cells;
+    = (const cs_lnum_2_t *)m->i_face_cells;
   const cs_lnum_t *restrict b_face_cells
-    = (const cs_lnum_t *restrict)m->b_face_cells;
+    = (const cs_lnum_t *)m->b_face_cells;
   const cs_real_3_t *restrict i_face_cog
-    = (const cs_real_3_t *restrict)fvq->i_face_cog;
+    = (const cs_real_3_t *)fvq->i_face_cog;
   const cs_real_3_t *restrict b_face_cog
-    = (const cs_real_3_t *restrict)fvq->b_face_cog;
-  const cs_real_3_t *restrict diipf
-    = (const cs_real_3_t *restrict)fvq->diipf;
-  const cs_real_3_t *restrict djjpf
-    = (const cs_real_3_t *restrict)fvq->djjpf;
-  const cs_real_3_t *restrict diipb
-    = (const cs_real_3_t *restrict)fvq->diipb;
+    = (const cs_real_3_t *)fvq->b_face_cog;
+  const cs_rreal_3_t *restrict diipf = fvq->diipf;
+  const cs_rreal_3_t *restrict djjpf = fvq->djjpf;
+  const cs_rreal_3_t *restrict diipb = fvq->diipb;
 
   const int *bc_type = cs_glob_bc_type;
 
@@ -1808,13 +1801,13 @@ cs_pressure_drop_by_zone_compute(cs_lnum_t        n_cells_sel,
 
   /* Zone cells selection variables*/
   cs_lnum_t n_i_faces_sel = 0;
-  cs_lnum_t *i_face_sel_ids = NULL;
+  cs_lnum_t *i_face_sel_ids = nullptr;
   cs_lnum_t n_bb_faces_sel = 0;
-  cs_lnum_t *bb_face_sel_ids = NULL;
+  cs_lnum_t *bb_face_sel_ids = nullptr;
   cs_lnum_t n_bi_faces_sel = 0;
-  cs_lnum_t *bi_face_sel_ids = NULL;
-  cs_lnum_2_t *bi_face_cells = NULL;
-  cs_lnum_t *cells_tag_ids = NULL;
+  cs_lnum_t *bi_face_sel_ids = nullptr;
+  cs_lnum_2_t *bi_face_cells = nullptr;
+  cs_lnum_t *cells_tag_ids = nullptr;
 
   /* Initialization of balance contributions
      ---------------------------------------
@@ -1896,7 +1889,7 @@ cs_pressure_drop_by_zone_compute(cs_lnum_t        n_cells_sel,
     cs_lnum_t c_id_sel = cell_sel_ids[c_id];
     cells_tag_ids[c_id_sel] = 1;
   }
-  if (halo != NULL) {
+  if (halo != nullptr) {
     cs_halo_sync_num(halo, CS_HALO_STANDARD, cells_tag_ids);
   }
 
@@ -2317,7 +2310,7 @@ cs_pressure_drop_by_zone(const char * selection_crit)
   /* Select cells */
 
   cs_lnum_t n_cells_sel = 0;
-  cs_lnum_t *cells_sel_ids = NULL;
+  cs_lnum_t *cells_sel_ids = nullptr;
 
   BFT_MALLOC(cells_sel_ids, m->n_cells, cs_lnum_t);
   cs_selector_get_cell_list(selection_crit, &n_cells_sel, cells_sel_ids);
@@ -2404,16 +2397,16 @@ cs_surface_balance(const char       *selection_crit,
   const cs_mesh_t *m = cs_glob_mesh;
   const cs_lnum_t n_cells = m->n_cells;
   const cs_lnum_2_t *restrict i_face_cells
-    = (const cs_lnum_2_t *restrict)m->i_face_cells;
+    = (const cs_lnum_2_t *)m->i_face_cells;
 
   const int nt_cur = cs_glob_time_step->nt_cur;
 
   /* Faces selection */
 
   cs_lnum_t n_b_faces_sel = 0;
-  cs_lnum_t *b_face_sel_ids = NULL;
+  cs_lnum_t *b_face_sel_ids = nullptr;
   cs_lnum_t n_i_faces_sel = 0;
-  cs_lnum_t *i_face_sel_ids = NULL;
+  cs_lnum_t *i_face_sel_ids = nullptr;
 
   BFT_MALLOC(i_face_sel_ids, m->n_i_faces, cs_lnum_t);
   BFT_MALLOC(b_face_sel_ids, m->n_b_faces, cs_lnum_t);
@@ -2432,8 +2425,8 @@ cs_surface_balance(const char       *selection_crit,
                           b_face_sel_ids,
                           i_face_sel_ids,
                           balance,
-                          NULL,   /* flux_b_faces */
-                          NULL);  /* flux_i_faces */
+                          nullptr,   /* flux_b_faces */
+                          nullptr);  /* flux_i_faces */
 
   /* Recount selected interior faces (parallel test) */
 
@@ -2511,11 +2504,11 @@ cs_surface_balance(const char       *selection_crit,
  * \param[in]   i_face_sel_ids    ids of selected internal faces
  * \param[out]  balance           optional array of computed balance terms
  *                                (see \ref cs_balance_term_t), of
- *                                size CS_BALANCE_N_TERMS, or NULL
+ *                                size CS_BALANCE_N_TERMS, or nullptr
  * \param[out]  flux_b_faces      optional surface flux through selected
- *                                boundary faces, or NULL
+ *                                boundary faces, or nullptr
  * \param[out]  flux_i_faces      optional surface flux through selected
- *                                interior faces, or NULL
+ *                                interior faces, or nullptr
  */
 /*----------------------------------------------------------------------------*/
 
@@ -2535,37 +2528,31 @@ cs_flux_through_surface(const char         *scalar_name,
   const cs_mesh_t *m = cs_glob_mesh;
   cs_mesh_quantities_t *fvq = cs_glob_mesh_quantities;
 
-  cs_real_t *local_min = NULL;
-  cs_real_t *local_max = NULL;
-  cs_real_t *courant = NULL;
+  cs_real_t *local_min = nullptr;
+  cs_real_t *local_max = nullptr;
+  cs_real_t *courant = nullptr;
 
-  cs_real_t *cv_limiter = NULL;
-  cs_real_t *df_limiter = NULL;
+  cs_real_t *cv_limiter = nullptr;
+  cs_real_t *df_limiter = nullptr;
 
   const cs_lnum_t n_cells = m->n_cells;
   const cs_lnum_t n_cells_ext = m->n_cells_with_ghosts;
   const cs_lnum_t n_i_faces = m->n_i_faces;
   const cs_lnum_t n_b_faces = m->n_b_faces;
 
-  const cs_lnum_2_t *restrict i_face_cells
-    = (const cs_lnum_2_t *restrict)m->i_face_cells;
-  const cs_lnum_t *restrict b_face_cells
-    = (const cs_lnum_t *restrict)m->b_face_cells;
+  const cs_lnum_2_t *restrict i_face_cells = m->i_face_cells;
+  const cs_lnum_t *restrict b_face_cells = m->b_face_cells;
   const cs_real_t *restrict weight = fvq->weight;
   const cs_real_t *restrict i_dist = fvq->i_dist;
   const cs_real_t *restrict b_face_surf = fvq->b_face_surf;
   const cs_real_3_t *restrict cell_cen
-    = (const cs_real_3_t *restrict)fvq->cell_cen;
-  const cs_real_3_t *restrict i_face_normal
-    = (const cs_real_3_t *restrict)fvq->i_face_normal;
+    = (const cs_real_3_t *)fvq->cell_cen;
+  const cs_nreal_3_t *restrict i_face_u_normal = fvq->i_face_u_normal;
   const cs_real_3_t *restrict i_face_cog
-    = (const cs_real_3_t *restrict)fvq->i_face_cog;
-  const cs_real_3_t *restrict diipf
-    = (const cs_real_3_t *restrict)fvq->diipf;
-  const cs_real_3_t *restrict djjpf
-    = (const cs_real_3_t *restrict)fvq->djjpf;
-  const cs_real_3_t *restrict diipb
-    = (const cs_real_3_t *restrict)fvq->diipb;
+    = (const cs_real_3_t *)fvq->i_face_cog;
+  const cs_rreal_3_t *restrict diipf = fvq->diipf;
+  const cs_rreal_3_t *restrict djjpf = fvq->djjpf;
+  const cs_rreal_3_t *restrict diipb = fvq->diipb;
 
   /* Parallel or device dispatch */
   cs_dispatch_context ctx;
@@ -2574,7 +2561,7 @@ cs_flux_through_surface(const char         *scalar_name,
   const int *bc_type = cs_glob_bc_type;
 
   const cs_field_t *f = cs_field_by_name_try(scalar_name);
-  if (f == NULL)
+  if (f == nullptr)
     return;
 
   const int field_id = cs_field_id_by_name(scalar_name);
@@ -2594,13 +2581,13 @@ cs_flux_through_surface(const char         *scalar_name,
   int icvflf = 0;
 
   /* Internal cuplin varibale initialization*/
-  cs_real_t *pvar_local = NULL;
-  cs_real_t *pvar_distant = NULL;
-  const cs_lnum_t *faces_local = NULL;
+  cs_real_t *pvar_local = nullptr;
+  cs_real_t *pvar_distant = nullptr;
+  const cs_lnum_t *faces_local = nullptr;
   cs_lnum_t n_local = 0;
   cs_lnum_t n_distant = 0;
-  const cs_lnum_t *faces_distant = NULL;
-  cs_internal_coupling_t *cpl = NULL;
+  const cs_lnum_t *faces_distant = nullptr;
+  cs_internal_coupling_t *cpl = nullptr;
 
  /* Physical properties
     ------------------- */
@@ -2614,7 +2601,7 @@ cs_flux_through_surface(const char         *scalar_name,
   }
 
   /* Specific heat (CP) */
-  cs_real_t *cpro_cp = NULL;
+  cs_real_t *cpro_cp = nullptr;
   const int icp = cs_field_id_by_name("specific_heat");
   if (itemperature) {
     if (icp != -1)
@@ -2654,7 +2641,7 @@ cs_flux_through_surface(const char         *scalar_name,
   CS_MALLOC_HD(i_visc, n_i_faces, cs_real_t, cs_alloc_mode);
   CS_MALLOC_HD(b_visc, n_b_faces, cs_real_t, cs_alloc_mode);
 
-  cs_real_t *c_visc = NULL;
+  cs_real_t *c_visc = nullptr;
   CS_MALLOC_HD(c_visc, n_cells_ext, cs_real_t, cs_alloc_mode);
   const int kivisl
     = cs_field_get_key_int(f, cs_field_key_id("diffusivity_id"));
@@ -2752,8 +2739,8 @@ cs_flux_through_surface(const char         *scalar_name,
 
   /* Compute the gradient for convective scheme
      (the slope test, limiter, SOLU, etc) */
-  cs_real_3_t *gradup = NULL;
-  cs_real_3_t *gradst = NULL;
+  cs_real_3_t *gradup = nullptr;
+  cs_real_3_t *gradst = nullptr;
   if (eqp->blencv > 0 && eqp->isstpc == 0) {
     BFT_MALLOC(gradst, n_cells_ext, cs_real_3_t);
     for (cs_lnum_t c_id = 0; c_id < n_cells_ext; c_id++) {
@@ -2800,7 +2787,7 @@ cs_flux_through_surface(const char         *scalar_name,
   /* Faces selection
      --------------- */
 
-  cs_lnum_2_t *bi_face_cells = NULL;
+  cs_lnum_2_t *bi_face_cells = nullptr;
 
   if (n_i_faces_sel > 0) {
 
@@ -2815,21 +2802,21 @@ cs_flux_through_surface(const char         *scalar_name,
       cs_lnum_t c_id1 = i_face_cells[f_id_sel][0];
       cs_lnum_t c_id2 = i_face_cells[f_id_sel][1];
 
-      cs_real_t dot_pro = cs_math_3_dot_product(normal, i_face_normal[f_id_sel]);
+      cs_real_t dot_pro = cs_math_3_dot_product(normal, i_face_u_normal[f_id_sel]);
       if (fabs(dot_pro) < 1.0e-14)//FIXME
         dot_pro = 0;
-      if(dot_pro > 0.)
+      if (dot_pro > 0.)
         bi_face_cells[f_id_sel][0] = c_id1;
       else if (dot_pro < 0.)
         bi_face_cells[f_id_sel][1] = c_id2;
     }
 
-    if (flux_i_faces != NULL) {
+    if (flux_i_faces != nullptr) {
       for (cs_lnum_t f_id = 0; f_id < n_i_faces_sel; f_id++)
         flux_i_faces[f_id] = 0.;
     }
 
-    if (flux_b_faces != NULL) {
+    if (flux_b_faces != nullptr) {
       for (cs_lnum_t f_id = 0; f_id < n_b_faces_sel; f_id++)
         flux_b_faces[f_id] = 0.;
     }
@@ -2846,7 +2833,7 @@ cs_flux_through_surface(const char         *scalar_name,
 
   for (cs_lnum_t f_id = 0; f_id < n_b_faces_sel; f_id++) {
 
-    cs_lnum_t f_id_sel = (b_face_sel_ids != NULL) ? b_face_sel_ids[f_id] : f_id;
+    cs_lnum_t f_id_sel = (b_face_sel_ids != nullptr) ? b_face_sel_ids[f_id] : f_id;
 
     /* Associated boundary cell */
     cs_lnum_t c_id = b_face_cells[f_id_sel];
@@ -2884,7 +2871,7 @@ cs_flux_through_surface(const char         *scalar_name,
                             cpro_cp[c_id],
                             &term_balance);
 
-    if (flux_b_faces != NULL)
+    if (flux_b_faces != nullptr)
       flux_b_faces[f_id] = term_balance;
 
     if (bc_type[f_id_sel] == CS_INLET ||
@@ -2919,13 +2906,13 @@ cs_flux_through_surface(const char         *scalar_name,
 
   if (eqp->icoupl > 0) {
 
-    cs_lnum_t *inv_b_face_sel_ids = NULL;
+    cs_lnum_t *inv_b_face_sel_ids = nullptr;
 
     BFT_MALLOC(inv_b_face_sel_ids, n_b_faces, cs_lnum_t);
     for (cs_lnum_t f_id = 0; f_id < n_b_faces; f_id++)
       inv_b_face_sel_ids[f_id] = -1;
 
-    if (b_face_sel_ids != NULL) {
+    if (b_face_sel_ids != nullptr) {
       for (cs_lnum_t f_id = 0; f_id < n_b_faces_sel; f_id++) {
         cs_lnum_t f_id_sel = b_face_sel_ids[f_id];
         inv_b_face_sel_ids[f_id_sel] = f_id;
@@ -2994,7 +2981,7 @@ cs_flux_through_surface(const char         *scalar_name,
                               heq,
                               &term_balance);
 
-      if (flux_b_faces != NULL)
+      if (flux_b_faces != nullptr)
         flux_b_faces[inv_b_face_sel_ids[f_id]] = term_balance;
 
       _balance[CS_BALANCE_BOUNDARY_COUPLED_I] -= term_balance;
@@ -3029,7 +3016,7 @@ cs_flux_through_surface(const char         *scalar_name,
 
     int bldfrp = ircflp;
     /* Local limitation of the reconstruction */
-    if (df_limiter != NULL && ircflp > 0) {
+    if (df_limiter != nullptr && ircflp > 0) {
       cs_real_t _bldfrp = fmax(fmin(df_limiter[c_id1],
                                     df_limiter[c_id2]), 0.);
       bldfrp = (int)_bldfrp;
@@ -3052,10 +3039,10 @@ cs_flux_through_surface(const char         *scalar_name,
                                 &ic,  /* central cell id */
                                 &id); /* downwind cell id */
 
-      if (courant != NULL)
+      if (courant != nullptr)
         courant_c = courant[ic];
 
-      if (local_max != NULL) {
+      if (local_max != nullptr) {
         _local_max = local_max[ic];
         _local_min = local_min[ic];
       }
@@ -3084,7 +3071,7 @@ cs_flux_through_surface(const char         *scalar_name,
                             cell_cen[c_id2],
                             cell_cen[ic],
                             cell_cen[id],
-                            i_face_normal[f_id_sel],
+                            i_face_u_normal[f_id_sel],
                             i_face_cog[f_id_sel],
                             hybrid_coef_ii,
                             hybrid_coef_jj,
@@ -3117,7 +3104,7 @@ cs_flux_through_surface(const char         *scalar_name,
     /* Face normal well oriented (check i_face_cells array) */
     if (bi_face_cells[f_id_sel][0] >= 0) {
       if (c_id1 < n_cells) {
-        if (flux_i_faces != NULL)
+        if (flux_i_faces != nullptr)
           flux_i_faces[f_id] -= bi_bterms[0];
         if (i_mass_flux[f_id_sel] > 0)
           _balance[CS_BALANCE_INTERIOR_IN] -= bi_bterms[0];
@@ -3128,7 +3115,7 @@ cs_flux_through_surface(const char         *scalar_name,
     /* Face normal direction reversed */
     else if (bi_face_cells[f_id_sel][1] >= 0) {
       if (c_id2 < n_cells) {
-        if (flux_i_faces != NULL)
+        if (flux_i_faces != nullptr)
           flux_i_faces[f_id] += bi_bterms[1];
         if (i_mass_flux[f_id_sel] > 0)
           _balance[CS_BALANCE_INTERIOR_IN] += bi_bterms[1];
@@ -3138,7 +3125,7 @@ cs_flux_through_surface(const char         *scalar_name,
     }
   }
 
-  if (balance != NULL) {
+  if (balance != nullptr) {
 
     _balance[CS_BALANCE_BOUNDARY_WALL] =   _balance[CS_BALANCE_BOUNDARY_WALL_S]
                                          + _balance[CS_BALANCE_BOUNDARY_WALL_R];
