@@ -237,7 +237,7 @@ _cs_dot_superblock(cs_lnum_t         n,
           end_id = _n;
         double cdot = 0.0;
         for (cs_lnum_t i = start_id; i < end_id; i++)
-        cdot += _x[i]*_y[i];
+          cdot += _x[i]*_y[i];
         sdot += cdot;
       }
 
@@ -1721,6 +1721,65 @@ cs_gdot(cs_lnum_t         n,
   cs_parall_sum(1, CS_DOUBLE, &retval);
 
   return retval;
+}
+
+/*----------------------------------------------------------------------------
+ * Return the global dot product of a vector: x.x
+ *
+ * In parallel mode, the local results are summed on the default
+ * global communicator.
+ *
+ * parameters:
+ *   n <-- size of arrays x and y
+ *   x <-- array of floating-point values
+ *
+ * returns:
+ *   dot product
+ *----------------------------------------------------------------------------*/
+
+double
+cs_gdot_xx(cs_lnum_t n, const cs_real_t *x)
+{
+  double retval = cs_dot_xx(n, x);
+
+  cs_parall_sum(1, CS_DOUBLE, &retval);
+
+  return retval;
+}
+
+/*----------------------------------------------------------------------------
+ * Return the global double dot product of 2 vectors: x.x, and x.y
+ *
+ * The products could be computed separately, but computing them
+ * simultaneously adds more optimization opportunities and possibly better
+ * cache behavior.
+ *
+ * In parallel mode, the local results are summed on the default
+ * global communicator.
+ *
+ * parameters:
+ *   n  <-- size of arrays x and y
+ *   x  <-- array of floating-point values
+ *   y  <-- array of floating-point values
+ *   xx --> x.x dot product
+ *   xy --> x.y dot product
+ *----------------------------------------------------------------------------*/
+
+void
+cs_gdot_xx_xy(cs_lnum_t        n,
+              const cs_real_t *x,
+              const cs_real_t *y,
+              double          *xx,
+              double          *xy)
+{
+  double retval[2];
+
+  cs_dot_xx_xy(n, x, y, &retval[0], &retval[1]);
+
+  cs_parall_sum(2, CS_DOUBLE, &retval);
+
+  *xx = retval[0];
+  *xy = retval[1];
 }
 
 /*----------------------------------------------------------------------------*/

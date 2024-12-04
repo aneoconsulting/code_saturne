@@ -76,9 +76,35 @@ BEGIN_C_DECLS
  * Global variables
  *============================================================================*/
 
+/* Undefine variables defined as macros and redeclare their type to
+   ensure C linkage is available.
+   In the future we should probably use the macros
+   (or a constexpr if possible in C++, keeping the C linkage just for
+   C compatibility). */
+
+#if  (defined(__NVCC__) && defined(__CUDA_ARCH__)) \
+  || defined(SYCL_LANGUAGE_VERSION) \
+  || defined(HAVE_OPENMP_TARGET)
+
+#undef cs_math_zero_threshold
+#undef cs_math_epzero
+#undef cs_math_infinite_r
+#undef cs_math_big_r
+#undef cs_math_pi
+
+extern const cs_real_t cs_math_zero_threshold;
+extern const cs_real_t cs_math_epzero;
+extern const cs_real_t cs_math_infinite_r;
+extern const cs_real_t cs_math_big_r;
+extern const cs_real_t cs_math_pi;
+
+#endif
+
 /* Numerical constants */
 
 #if !(defined(__NVCC__) && defined(__CUDA_ARCH__))
+
+BEGIN_C_DECLS
 
 const cs_real_t cs_math_zero_threshold = FLT_MIN;
 const cs_real_t cs_math_1ov3 = 1./3.;
@@ -100,6 +126,8 @@ const cs_real_t cs_math_big_r = 1.e12;
 
 /*! \f$ \pi \f$ value with 20 digits */
 const cs_real_t cs_math_pi = 3.14159265358979323846;
+
+END_C_DECLS
 
 #endif
 
@@ -151,15 +179,6 @@ cs_f_math_sym_33_inv_cramer(const cs_real_t s[6],
                             cs_real_t       sout[6]);
 
 void
-cs_f_math_sym_33_product(const cs_real_t  s1[6],
-                         const cs_real_t  s2[6],
-                         cs_real_t        sout[6]);
-
-void
-cs_f_math_reduce_sym_prod_33_to_66(const cs_real_t       s[3][3],
-                                   cs_real_t  (*restrict sout)[6]);
-
-void
 cs_f_math_3_normalize(const cs_real_t vin[3],
                       cs_real_t       vout[3]);
 
@@ -176,29 +195,6 @@ cs_f_math_sym_33_inv_cramer(const cs_real_t s[6],
                             cs_real_t       sout[6])
 {
   cs_math_sym_33_inv_cramer(s, sout);
-}
-
-/*----------------------------------------------------------------------------
- * Wrapper to cs_math_sym_33_product
- *----------------------------------------------------------------------------*/
-
-void
-cs_f_math_sym_33_product(const cs_real_t  s1[6],
-                         const cs_real_t  s2[6],
-                         cs_real_t        sout[6])
-{
-  cs_math_sym_33_product(s1, s2, sout);
-}
-
-/*----------------------------------------------------------------------------
- * Wrapper to cs_math_reduce_sym_prod_33_to_66
- *----------------------------------------------------------------------------*/
-
-void
-cs_f_math_reduce_sym_prod_33_to_66(const cs_real_t       s[3][3],
-                                   cs_real_t  (*restrict sout)[6])
-{
-  cs_math_reduce_sym_prod_33_to_66(s, sout);
 }
 
 /*----------------------------------------------------------------------------

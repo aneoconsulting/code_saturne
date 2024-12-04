@@ -907,6 +907,7 @@ cs_equation_param_create(const char         *name,
   eqp->climgr = 1.5;
   eqp->relaxv = 1.;
   eqp->b_gradient_r = 2;
+  eqp->b_diff_flux_rc = 1;
 
   /* Boundary conditions structure.
      One assigns a boundary condition by default */
@@ -1386,7 +1387,7 @@ cs_equation_param_clear(cs_equation_param_t *eqp)
  *
  * \param[in, out] eqp  pointer to a \ref cs_equation_param_t
  *
- * \return a nullptr pointer
+ * \return a null pointer
  */
 /*----------------------------------------------------------------------------*/
 
@@ -2053,7 +2054,7 @@ cs_equation_param_has_robin_bc(const cs_equation_param_t *eqp)
  *        given zone with name z_name
  *
  * \param[in, out] eqp     pointer to a cs_equation_param_t structure
- * \param[in]      z_name  name of the associated zone (if nullptr or "" all
+ * \param[in]      z_name  name of the associated zone (if null or "" all
  *                         cells are considered)
  * \param[in]      val     pointer to the value
  *
@@ -2112,7 +2113,7 @@ cs_equation_add_ic_by_value(cs_equation_param_t *eqp,
  *         returns the requested quantity
  *
  * \param[in, out]  eqp       pointer to a cs_equation_param_t structure
- * \param[in]       z_name    name of the associated zone (if nullptr or
+ * \param[in]       z_name    name of the associated zone (if null or
  *                            "" all cells are considered)
  * \param[in]       quantity  quantity to distribute over the mesh location
  *
@@ -2170,10 +2171,10 @@ cs_equation_add_ic_by_qov(cs_equation_param_t *eqp,
  *         name z_name is set according to an analytical function
  *
  * \param[in, out] eqp       pointer to a cs_equation_param_t structure
- * \param[in]      z_name    name of the associated zone (if nullptr or "" if
+ * \param[in]      z_name    name of the associated zone (if null or "" if
  *                           all cells are considered)
  * \param[in]      analytic  pointer to an analytic function
- * \param[in]      input     nullptr or pointer to a structure cast on-the-fly
+ * \param[in]      input     null or pointer to a structure cast on-the-fly
  *
  * \return a pointer to the new \ref cs_xdef_t structure
  */
@@ -2197,7 +2198,7 @@ cs_equation_add_ic_by_analytic(cs_equation_param_t *eqp,
     meta_flag |= CS_FLAG_FULL_LOC;
 
   cs_xdef_analytic_context_t ac
-    = { .z_id = z_id, .func = analytic, .input = input, .free_input = nullptr };
+    = { .z_id = z_id, .func = analytic, .input = input, .free_input = nullptr};
 
   cs_xdef_t  *d = cs_xdef_volume_create(CS_XDEF_BY_ANALYTIC_FUNCTION,
                                         eqp->dim, z_id,
@@ -3462,7 +3463,7 @@ cs_equation_add_source_term_by_array(cs_equation_param_t *eqp,
 
   /* Define a flag according to the kind of space discretization */
 
-  cs_flag_t  state_flag = 0, meta_flag = 0;
+  cs_flag_t state_flag = 0, meta_flag = 0;
   cs_source_term_set_default_flag(eqp->space_scheme, &state_flag, &meta_flag);
 
   if (cs_flag_test(loc, cs_flag_primal_vtx) == true)

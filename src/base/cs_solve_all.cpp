@@ -56,6 +56,7 @@
 #include "cs_dilatable_scalar_diff_st.h"
 #include "cs_fan.h"
 #include "cs_field_default.h"
+#include "cs_field_operator.h"
 #include "cs_field_pointer.h"
 #include "cs_head_losses.h"
 #include "cs_lagr.h"
@@ -246,18 +247,14 @@ _compute_tensorial_time_step(const cs_mesh_t   *m,
  * \brief solve energy and variables equations when
  *        scalar and momentum they are coupled in case of buoyancy
  *
- * \param[in]  n_scal      number of scalar
  * \param[in]  iterns      number of iteration
  * \param[in]  n_cells     number of cells
- * \param[in]  scalar_idx  idx of scalar
  */
 /*----------------------------------------------------------------------------*/
 
 static void
-_solve_coupled_vel_p_variables_equation(const int        n_scal,
-                                        const int        iterns,
-                                        const cs_lnum_t  n_cells,
-                                        const int        scalar_idx[])
+_solve_coupled_vel_p_variables_equation(const int        iterns,
+                                        const cs_lnum_t  n_cells)
 {
   if (cs_glob_velocity_pressure_model->n_buoyant_scal < 1)
     return;
@@ -297,14 +294,20 @@ _solve_coupled_vel_p_variables_equation(const int        n_scal,
   // Correct the scalar to ensure scalar conservation
   const cs_real_t *crom = CS_F_(rho)->val;
   const int key_buoyant_id = cs_field_key_id_try("coupled_with_vel_p");
+
   // Correction only made for the collocated time-scheme (Li Ma phd)
   cs_field_t *rho_mass = cs_field_by_name_try("density_mass");
   if (   rho_mass != nullptr
       && cs_glob_velocity_pressure_param->itpcol == 1) {
-    for (int ii = 0; ii < n_scal; ii++) {
-      const cs_field_t *f = cs_field_by_id(scalar_idx[ii]);
-      if ((f->type & CS_FIELD_CDO))
+    const int n_fields = cs_field_n_fields();
+
+    for (int f_id = 0; f_id < n_fields; f_id++) {
+      cs_field_t *f = cs_field_by_id(f_id);
+      if (!(f->type & CS_FIELD_VARIABLE))
         continue;
+      if (f->type & CS_FIELD_CDO)
+        continue;
+
       const int coupled_with_vel_p_fld
         = cs_field_get_key_int(f, key_buoyant_id);
       if (coupled_with_vel_p_fld != 1)
@@ -360,7 +363,7 @@ _update_pressure_temperature(cs_lnum_t n_cells)
  *
  * \param[out] vel_verbosity  verbosity for velocity
  * \param[out] italim         implicit coupling iteration number
- * \param[out] itrfin         indicator for last iteration of implicit couplin
+ * \param[out] itrfin         indicator for last iteration of implicit coupling
  * \param[out] ineefl         for ALE
  * \param[out] itrfup         indication of iteration
  * \param[out] must_return    if it is done
@@ -369,7 +372,6 @@ _update_pressure_temperature(cs_lnum_t n_cells)
 
 static void
 _solve_most(int              n_var,
-            int              n_scal,
             int              isvhb,
             int              itrale,
             int              vel_verbosity,
@@ -378,7 +380,6 @@ _solve_most(int              n_var,
             int             *ineefl,
             int             *itrfup,
             bool            *must_return,
-            const int        scalar_idx[],
             const cs_real_t  ckupdc[][6],
             cs_real_t        htot_cond[])
 {
@@ -423,7 +424,7 @@ _solve_most(int              n_var,
   if (th_f != nullptr)
     BFT_MALLOC(theipb, n_b_faces, cs_real_t);
 
-  if (   cs_glob_turb_model->itytur == 4
+  if (   cs_glob_turb_model->type == CS_TURB_LES
       && cs_glob_turb_les_model->idries == 1)
     BFT_MALLOC(visvdr, n_cells_ext, cs_real_t);
 
@@ -570,10 +571,8 @@ _solve_most(int              n_var,
          -------------------------------- */
 
       // In case of buoyancy, scalars and momentum are coupled
-      _solve_coupled_vel_p_variables_equation(n_scal,
-                                              iterns,
-                                              n_cells,
-                                              scalar_idx);
+      _solve_coupled_vel_p_variables_equation(iterns,
+                                              n_cells);
 
       if (vel_verbosity > 0) {
         bft_printf
@@ -667,7 +666,7 @@ _solve_turbulence(cs_lnum_t   n_cells,
       && (   cs_glob_turb_model->itytur == 2
           || cs_glob_turb_model->itytur == 3
           || cs_glob_turb_model->itytur == 5
-          || cs_glob_turb_model->iturb == CS_TURB_K_OMEGA)) {
+          || cs_glob_turb_model->model == CS_TURB_K_OMEGA)) {
     bft_printf
       (_(" ------------------------------------------------------------\n\n"
          "  SOLVING TURBULENT VARIABLES EQUATIONS\n"
@@ -711,11 +710,11 @@ _solve_turbulence(cs_lnum_t   n_cells,
 
   }
   else if (cs_glob_turb_model->itytur == 3) {
-    if (cs_glob_turb_model->iturb == CS_TURB_RIJ_EPSILON_EBRSM)
+    if (cs_glob_turb_model->model == CS_TURB_RIJ_EPSILON_EBRSM)
       cs_turbulence_rij_solve_alpha(CS_F_(alp_bl)->id, -1, cs_turb_xcl);
     cs_turbulence_rij(-1);
   }
-  else if (cs_glob_turb_model->iturb == CS_TURB_K_OMEGA) {
+  else if (cs_glob_turb_model->model == CS_TURB_K_OMEGA) {
     cs_turbulence_kw(-1);
     cs_real_t *cvar_k = CS_F_(k)->val;
     cs_real_t *cvar_omg = CS_F_(omg)->val;
@@ -735,10 +734,10 @@ _solve_turbulence(cs_lnum_t   n_cells,
     }
 
     // HTLES
-    if (cs_glob_turb_model->hybrid_turb == 4)
+    if (cs_glob_turb_model->hybrid_turb == CS_HYBRID_HTLES)
       cs_turbulence_htles();
   }
-  else if (cs_glob_turb_model->iturb == CS_TURB_SPALART_ALLMARAS) {
+  else if (cs_glob_turb_model->model == CS_TURB_SPALART_ALLMARAS) {
     cs_turbulence_sa();
     cs_real_t *cvar_nusa = CS_F_(nusa)->val;
     const cs_real_t *cvara_nusa = CS_F_(nusa)->val_pre;
@@ -795,7 +794,6 @@ cs_solve_all(int  itrale)
   int n_scal = 0;
   const int n_fields = cs_field_n_fields();
 
-  int scalar_idx[n_fields];
   const int keysca = cs_field_key_id("scalar_id");
 
   {
@@ -814,7 +812,6 @@ cs_solve_all(int  itrale)
       const int sc_id = cs_field_get_key_int(f, keysca) - 1;
       if (sc_id < 0)
         continue;
-      scalar_idx[n_scal] = f_id;
       n_scal++;
       if (n_syr_couplings > 0) {
         if (cs_field_get_key_int(f, kcpsyr) == 1)
@@ -884,25 +881,14 @@ cs_solve_all(int  itrale)
   /* Halo synchronization (only variables require this) */
   if (m->halo != nullptr) {
     for (int f_id = 0; f_id < n_fields; f_id++) {
-      const cs_field_t *f = cs_field_by_id(f_id);
+      cs_field_t *f = cs_field_by_id(f_id);
       if (!(f->type & CS_FIELD_VARIABLE))
         continue;
 
       if ((f->type & CS_FIELD_CDO))
         continue;
 
-      cs_halo_sync_var_strided(m->halo, CS_HALO_STANDARD, f->val, f->dim);
-      if (m->have_rotation_perio) {
-        if (f->dim == 3)
-          cs_halo_perio_sync_var_vect(m->halo,  CS_HALO_STANDARD, f->val, 3);
-        else if (f->dim == 6)
-          cs_halo_perio_sync_var_vect(m->halo,  CS_HALO_STANDARD, f->val, 6);
-        else if (f->dim > 1)
-          bft_error(__FILE__, __LINE__, 0,
-                    _("field %s of dimension %d\n"
-                      "cannot handle rotational periodicity\n"),
-                    f->name, f->dim);
-      }
+      cs_field_synchronize(f, CS_HALO_STANDARD);
     }
 
     static bool first_pass = true;
@@ -1005,9 +991,9 @@ cs_solve_all(int  itrale)
   }
 
   cs_local_time_step_compute(itrale);
-  const int nalinf = cs_glob_ale_n_ini_f;
-  const int nbaste = cs_ast_coupling_n_couplings();
-  if (nbaste > 0 && itrale > nalinf)
+  const int n_init_f_ale  = cs_glob_ale_n_ini_f;
+  const int nb_ext_structs = cs_ast_coupling_n_couplings();
+  if (nb_ext_structs > 0 && itrale > n_init_f_ale)
     cs_ast_coupling_exchange_time_step(CS_F_(dt)->val);
 
   if (eqp_p->idften & CS_ANISOTROPIC_DIFFUSION)
@@ -1043,11 +1029,10 @@ cs_solve_all(int  itrale)
   int itrfin = 1;
   int ineefl = 0;
 
-  if (   cs_glob_ale >  CS_ALE_NONE
-      && itrale > nalinf
-      && cs_glob_mobile_structures_i_max > 1) {
+  if (cs_glob_ale != CS_ALE_NONE && itrale > n_init_f_ale &&
+      cs_glob_mobile_structures_n_iter_max > 1) {
     /* Indicate if we need to return to the initial state at the end
-       of an  ALE iteration. */
+       of an ALE iteration. */
     ineefl = 1;
 
     if (   cs_syr_coupling_n_couplings() > 0
@@ -1071,21 +1056,7 @@ cs_solve_all(int  itrale)
   cs_wall_condensation_t *wall_cond = cs_get_glob_wall_condensation();
   if ((wall_cond->icondb == 0) || (wall_cond->icondv == 0)) {
     // Condensation source terms arrays initialized
-    for (int ii = 0; ii < wall_cond->nfbpcd; ii++) {
-      wall_cond->hpcond[ii] = 0.0;
-      for (int ivar = 0; ivar < n_var; ivar++) {
-        wall_cond->itypcd[ivar*wall_cond->nfbpcd + ii] = 0;
-        wall_cond->spcond[ivar*wall_cond->nfbpcd + ii] = 0.0;
-      }
-    }
-
-    for (cs_lnum_t ii = 0; ii < wall_cond->ncmast; ii++) {
-      wall_cond->flxmst[ii] = 0.0;
-      for (int ivar = 0; ivar < n_var; ivar++) {
-        wall_cond->itypst[ivar*wall_cond->ncmast + ii] = 0;
-        wall_cond->svcond[ivar*wall_cond->ncmast + ii] = 0.0;
-      }
-    }
+    cs_wall_condensation_reset(wall_cond, n_var);
 
     cs_user_wall_condensation(3);
 
@@ -1105,7 +1076,6 @@ cs_solve_all(int  itrale)
   while (need_new_solve) {
 
     _solve_most(n_var,
-                n_scal,
                 isvhb,
                 itrale,
                 eqp_vel->verbosity,
@@ -1114,7 +1084,6 @@ cs_solve_all(int  itrale)
                 &ineefl,
                 &itrfup,
                 &must_return,
-                scalar_idx,
                 ckupdc,
                 htot_cond);
 
@@ -1128,19 +1097,20 @@ cs_solve_all(int  itrale)
 
     /* Computation on non-frozen velocity field, continued */
 
-    if (_active_dyn && cs_glob_ale > CS_ALE_NONE) {
-
+    if (_active_dyn && cs_glob_ale != CS_ALE_NONE) {
       /* Movement of structures in ALE and test implicit loop */
 
-      const int n_structs = cs_mobile_structures_get_n_structures();
-      if (n_structs > 0 || nbaste > 0) {
+      const int nb_int_structs = cs_mobile_structures_get_n_int_structures();
+      if (nb_int_structs > 0 || nb_ext_structs > 0) {
         cs_mobile_structures_displacement(itrale, italim, &itrfin);
         if (itrfin != -1) {
           italim++;
           need_new_solve = true;
         }
+        else if (nb_ext_structs > 0) {
+          cs_ast_coupling_save_values();
+        }
       }
-
     }
 
   } // End loop on need_new_solve (_solve_most)

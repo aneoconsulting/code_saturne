@@ -233,7 +233,7 @@ cs_ctwr_fields_init1(void)
  * \brief Initialize the field variables
  *
  * \param[in]     rho0        Reference density of humid air
- * \param[in]     t0          Reference temperature of humid air
+ * \param[in]     t0          Reference temperature of humid air (Kelvin)
  * \param[in]     p0          Reference pressure
  * \param[in]     molmassrat  Dry air to water vapor molecular mass ratio
  */
@@ -404,7 +404,7 @@ cs_ctwr_init_field_vars(cs_real_t  rho0,
     }
     else {
 
-      /* Bulk humid air temperature */
+      /* Bulk humid air temperature in Celsius, t0 in Kelvin */
       t_h[cell_id] = t0 - cs_physical_constants_celsius_to_kelvin;
       t_h_a[cell_id] = t_h[cell_id];
 
@@ -464,7 +464,7 @@ cs_ctwr_init_field_vars(cs_real_t  rho0,
 
     /* Initialize rain variables (note that Yp is already set to 0) */
     if (ct_opt->has_rain) {
-      cs_real_3_t *drift_vel = (cs_real_3_t *restrict)(cfld_drift_vel->val);
+      cs_real_3_t *drift_vel = (cs_real_3_t *)(cfld_drift_vel->val);
       drift_vel[cell_id][0] = cpro_taup[cell_id] * gravity[0];
       drift_vel[cell_id][1] = cpro_taup[cell_id] * gravity[1];
       drift_vel[cell_id][2] = cpro_taup[cell_id] * gravity[2];
@@ -563,8 +563,8 @@ cs_ctwr_init_flow_vars(cs_real_t  liq_mass_flow[])
   cs_real_t *vel_l = cs_field_by_name("vertvel_l")->val; /* Liquid velocity
                                                             in packing */
 
-  const cs_real_3_t *restrict i_face_normal
-    = (const cs_real_3_t *restrict)cs_glob_mesh_quantities->i_face_normal;
+  const cs_nreal_3_t *restrict i_face_u_normal
+    = cs_glob_mesh_quantities->i_face_u_normal;
   const cs_lnum_2_t *i_face_cells =
     (const cs_lnum_2_t *)(cs_glob_mesh->i_face_cells);
 
@@ -633,7 +633,7 @@ cs_ctwr_init_flow_vars(cs_real_t  liq_mass_flow[])
 
       /* Vertical (align with gravity) component of the surface vector */
       cs_real_t liq_surf = cs_math_3_dot_product(g_dir,
-                                                 i_face_normal[face_id]);
+                                                 i_face_u_normal[face_id]);
 
       /* Face mass flux of the liquid */
       cs_lnum_t cell_id;

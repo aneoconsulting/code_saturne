@@ -152,7 +152,7 @@ _init_context_do_nothing(cs_equation_param_t   *eqp,
  *
  * \param[in, out] scheme_context    pointer to a structure cast on-the-fly
  *
- * \return a nullptr pointer
+ * \return a null pointer
  */
 /*----------------------------------------------------------------------------*/
 
@@ -381,15 +381,10 @@ _add_field(int            n_previous,
   else {
 
     previous = false; /* avoid a compiler warning */
-    bft_error(__FILE__,
-              __LINE__,
-              0,
+    bft_error(__FILE__, __LINE__, 0,
               "%s: Expected value for n_previous is > -1. Here %d\n"
               "%s: Eq. \"%s\"\n",
-              __func__,
-              n_previous,
-              __func__,
-              eqp->name);
+              __func__, n_previous, __func__, eqp->name);
   }
 
   /* Associate a predefined mesh_location_id to this field */
@@ -412,25 +407,18 @@ _add_field(int            n_previous,
     break;
 
   default:
-    bft_error(__FILE__,
-              __LINE__,
-              0,
+    bft_error(__FILE__, __LINE__, 0,
               "%s: Space scheme for eq. \"%s\" is incompatible with a field.\n"
               "%s: Stop adding a cs_field_t structure.\n",
-              __func__,
-              eqp->name,
-              __func__);
+              __func__, eqp->name, __func__);
     break;
   }
 
   if (location_id == -1)
-    bft_error(__FILE__,
-              __LINE__,
-              0,
+    bft_error(__FILE__, __LINE__, 0,
               "%s: Invalid mesh location id (= -1) for the field associated"
               " to Eq. \"%s\"\n",
-              __func__,
-              eqp->name);
+              __func__, eqp->name);
 
   /* Store the related field id */
 
@@ -503,11 +491,11 @@ cs_equation_get_n_equations(void)
 /*----------------------------------------------------------------------------*/
 /*!
  * \brief Find the cs_equation_t structure with name eqname
- *        Return nullptr if not find
+ *        Return null if not find
  *
  * \param[in] eqname     name of the equation to find
  *
- * \return a pointer to a cs_equation_t structure or nullptr if not found
+ * \return a pointer to a cs_equation_t structure or null if not found
  */
 /*----------------------------------------------------------------------------*/
 
@@ -540,7 +528,7 @@ cs_equation_by_name(const char *eqname)
  *
  * \param[in] field_name       name of the field
  *
- * \return a pointer to a cs_equation_t structure or nullptr if not found
+ * \return a pointer to a cs_equation_t structure or null if not found
  */
 /*----------------------------------------------------------------------------*/
 
@@ -604,7 +592,7 @@ cs_equation_has_field_name(const cs_equation_t *eq,
  *
  * \param[in] eqname       name of the equation
  *
- * \return a cs_equation_param_t structure or nullptr if not found
+ * \return a cs_equation_param_t structure or null if not found
  */
 /*----------------------------------------------------------------------------*/
 
@@ -637,7 +625,7 @@ cs_equation_param_by_name(const char *eqname)
  *
  * \param[in] field_name       name of the field
  *
- * \return a cs_equation_param_t structure or nullptr if not found
+ * \return a cs_equation_param_t structure or null if not found
  */
 /*----------------------------------------------------------------------------*/
 
@@ -662,7 +650,7 @@ cs_equation_param_by_field_name(const char *field_name)
  *
  * \param[in] eq       pointer to a cs_equation_t structure
  *
- * \return a cs_equation_param_t structure or nullptr if not found
+ * \return a cs_equation_param_t structure or null if not found
  */
 /*----------------------------------------------------------------------------*/
 
@@ -678,11 +666,11 @@ cs_equation_get_param(const cs_equation_t *eq)
 /*----------------------------------------------------------------------------*/
 /*!
  * \brief Find the \ref cs_equation_t structure with id eq_id
- *        Return nullptr if not find
+ *        Return null if not find
  *
  * \param[in] eq_id    id of the equation to find
  *
- * \return a pointer to a \ref cs_equation_t structure or nullptr if not found
+ * \return a pointer to a \ref cs_equation_t structure or null if not found
  */
 /*----------------------------------------------------------------------------*/
 
@@ -701,7 +689,7 @@ cs_equation_by_id(int eq_id)
  *
  * \param[in] eq       pointer to a cs_equation_t structure
  *
- * \return a name or nullptr if not found
+ * \return a name or null if not found
  */
 /*----------------------------------------------------------------------------*/
 
@@ -740,7 +728,7 @@ cs_equation_get_id(const cs_equation_t *eq)
  *
  * \param[in] eq       pointer to a cs_equation_t structure
  *
- * \return a cs_field_t structure or nullptr if not found
+ * \return a cs_field_t structure or null if not found
  */
 /*----------------------------------------------------------------------------*/
 
@@ -782,7 +770,7 @@ cs_equation_get_field_id(const cs_equation_t *eq)
  *
  * \param[in] eq       pointer to a cs_equation_t structure
  *
- * \return a cs_range_set_t structure or nullptr if not found
+ * \return a cs_range_set_t structure or null if not found
  */
 /*----------------------------------------------------------------------------*/
 
@@ -916,7 +904,7 @@ cs_equation_get_boundary_flux(const cs_equation_t *eq)
  *
  * \param[in] eq       pointer to a cs_equation_t structure
  *
- * \return a cs_equation_builder_t structure or nullptr if not found
+ * \return a cs_equation_builder_t structure or null if not found
  */
 /*----------------------------------------------------------------------------*/
 
@@ -936,7 +924,7 @@ cs_equation_get_builder(const cs_equation_t *eq)
  *
  * \param[in] eq       pointer to a cs_equation_t structure
  *
- * \return a pointer to a structure to cast on-the-fly or nullptr if not found
+ * \return a pointer to a structure to cast on-the-fly or null if not found
  */
 /*----------------------------------------------------------------------------*/
 
@@ -1014,21 +1002,15 @@ cs_equation_get_source_term_array(const cs_equation_t *eq)
         return cs_cdovcb_scaleq_get_source_term_values(eq->scheme_context);
 
       default:
-        bft_error(__FILE__,
-                  __LINE__,
-                  0,
+        bft_error(__FILE__, __LINE__, 0,
                   "%s: (Eq. %s). Not implemented.",
-                  __func__,
-                  eqp->name);
+                  __func__, eqp->name);
       }
     }
     else
-      bft_error(__FILE__,
-                __LINE__,
-                0,
+      bft_error(__FILE__, __LINE__, 0,
                 "%s: Case not handled yet. Eq. \"%s\"\n",
-                __func__,
-                eqp->name);
+                __func__, eqp->name);
   }
 
   return source_term;
@@ -1087,7 +1069,7 @@ cs_equation_get_time_property(const cs_equation_t *eq)
  * \param[in] eq             pointer to a cs_equation_t structure
  * \param[in] reaction_id    id related to this reaction term
  *
- * \return a pointer to a cs_property_t structure or nullptr if not found
+ * \return a pointer to a cs_property_t structure or null if not found
  */
 /*----------------------------------------------------------------------------*/
 
@@ -1363,7 +1345,7 @@ cs_equation_set_flag(cs_equation_t *eq,
 /*!
  * \brief Add a hook function to enable an advanced control during the
  *        cellwise system building.
- *        Only for an advanced usage. The context may be set to nullptr if there
+ *        Only for an advanced usage. The context may be set to null if there
  *        is no need to get additional information.
  *
  * \param[in, out] eq        pointer to the cs_equation_t stucture to update
@@ -1384,14 +1366,11 @@ cs_equation_add_build_hook(cs_equation_t            *eq,
   assert(eqp != nullptr);
 
   if (eq->builder == nullptr)
-    bft_error(__FILE__,
-              __LINE__,
-              0,
+    bft_error(__FILE__, __LINE__, 0,
               " %s: Initialization of equation %s has not been done yet.\n"
               " Please call this operation later in"
               " cs_user_extra_operations_initialize() for instance.",
-              __func__,
-              eqp->name);
+              __func__, eqp->name);
 
   cs_equation_builder_t *eqb = eq->builder;
 
@@ -1524,9 +1503,7 @@ cs_equation_add(const char         *eqname,
     break;
 
   default:
-    bft_error(__FILE__,
-              __LINE__,
-              0,
+    bft_error(__FILE__, __LINE__, 0,
               " %s: This type of equation is not handled.\n"
               " Stop adding a new equation.",
               __func__);
@@ -1624,13 +1601,10 @@ cs_equation_add_user(const char         *eqname,
 
   if (   (default_bc != CS_BC_HMG_DIRICHLET)
       && (default_bc != CS_BC_SYMMETRY))
-    bft_error(__FILE__,
-              __LINE__,
-              0,
+    bft_error(__FILE__, __LINE__, 0,
               _(" %s: Invalid type of boundary condition by default.\n"
                 " Valid choices are CS_BC_HMG_DIRICHLET or"
-                " CS_BC_SYMMETRY"),
-              __func__);
+                " CS_BC_SYMMETRY"), __func__);
 
 
   /* Add a new user equation */
@@ -1872,14 +1846,14 @@ cs_equation_log_setup(void)
 /*!
  * \brief Set a parameter attached to a keyname for the default settigns
  *
- * \param[in] key      key related to the member of eq to set
- * \param[in] keyval   accessor to the value to set
+ * \param[in] key     key related to the member of eq to set
+ * \param[in] keyval  accessor to the value to set
  */
 /*----------------------------------------------------------------------------*/
 
 void
-cs_equation_set_default_param(cs_equation_key_t key,
-                              const char *keyval)
+cs_equation_set_default_param(cs_equation_key_t  key,
+                              const char        *keyval)
 {
   if (_n_equations == 0)
     return;
@@ -2154,12 +2128,9 @@ cs_equation_set_functions(void)
           case CS_TIME_SCHEME_CRANKNICO:
           case CS_TIME_SCHEME_BDF2:
           default:
-            bft_error(__FILE__,
-                      __LINE__,
-                      0,
+            bft_error(__FILE__, __LINE__, 0,
                       "%s: Eq. %s. This time scheme is not yet implemented",
-                      __func__,
-                      eqp->name);
+                      __func__, eqp->name);
           }
         }
         else {
@@ -2180,12 +2151,9 @@ cs_equation_set_functions(void)
 
           case CS_TIME_SCHEME_BDF2:
           default:
-            bft_error(__FILE__,
-                      __LINE__,
-                      0,
+            bft_error(__FILE__, __LINE__, 0,
                       "%s: Eq. %s. This time scheme is not yet implemented",
-                      __func__,
-                      eqp->name);
+                      __func__, eqp->name);
           }
 
         } /* Incremental solve or not */
@@ -2223,12 +2191,9 @@ cs_equation_set_functions(void)
         /* New mechanism */
 
         if (eqp->incremental_algo_type != CS_PARAM_NL_ALGO_NONE)
-          bft_error(__FILE__,
-                    __LINE__,
-                    0,
+          bft_error(__FILE__, __LINE__, 0,
                     "%s: Eq. %s. Incremental form is not available.\n",
-                    __func__,
-                    eqp->name);
+                    __func__, eqp->name);
 
         eq->solve_steady_state = cs_cdovb_vecteq_solve_steady_state;
         switch (eqp->time_scheme) {
@@ -2240,12 +2205,9 @@ cs_equation_set_functions(void)
         case CS_TIME_SCHEME_THETA:
         case CS_TIME_SCHEME_CRANKNICO:
         default:
-          bft_error(__FILE__,
-                    __LINE__,
-                    0,
+          bft_error(__FILE__, __LINE__, 0,
                     "%s: Eq. %s. This time scheme is not yet implemented",
-                    __func__,
-                    eqp->name);
+                    __func__, eqp->name);
         }
 
         eq->postprocess         = cs_cdovb_vecteq_extra_post;
@@ -2285,12 +2247,9 @@ cs_equation_set_functions(void)
         /* New mechanism */
 
         if (eqp->incremental_algo_type != CS_PARAM_NL_ALGO_NONE)
-          bft_error(__FILE__,
-                    __LINE__,
-                    0,
+          bft_error(__FILE__, __LINE__, 0,
                     "%s: Eq. %s. Incremental form is not available.\n",
-                    __func__,
-                    eqp->name);
+                    __func__, eqp->name);
 
         eq->solve_steady_state = cs_cdovcb_scaleq_solve_steady_state;
         switch (eqp->time_scheme) {
@@ -2309,12 +2268,9 @@ cs_equation_set_functions(void)
 
         case CS_TIME_SCHEME_BDF2:
         default:
-          bft_error(__FILE__,
-                    __LINE__,
-                    0,
+          bft_error(__FILE__, __LINE__, 0,
                     "%s: Eq. %s. This time scheme is not yet implemented",
-                    __func__,
-                    eqp->name);
+                    __func__, eqp->name);
         }
 
         eq->postprocess         = cs_cdovcb_scaleq_extra_post;
@@ -2354,12 +2310,9 @@ cs_equation_set_functions(void)
         /* New mechanism */
 
         if (eqp->incremental_algo_type != CS_PARAM_NL_ALGO_NONE)
-          bft_error(__FILE__,
-                    __LINE__,
-                    0,
+          bft_error(__FILE__, __LINE__, 0,
                     "%s: Eq. %s. Incremental form is not available.\n",
-                    __func__,
-                    eqp->name);
+                    __func__, eqp->name);
 
         eq->solve_steady_state = cs_cdofb_scaleq_solve_steady_state;
         switch (eqp->time_scheme) {
@@ -2378,12 +2331,9 @@ cs_equation_set_functions(void)
 
         case CS_TIME_SCHEME_BDF2:
         default:
-          bft_error(__FILE__,
-                    __LINE__,
-                    0,
+          bft_error(__FILE__, __LINE__, 0,
                     "%s: Eq. %s. This time scheme is not yet implemented",
-                    __func__,
-                    eqp->name);
+                    __func__, eqp->name);
         }
 
         eq->compute_balance     = cs_cdofb_scaleq_balance;
@@ -2419,12 +2369,9 @@ cs_equation_set_functions(void)
         /* New mechanism */
 
         if (eqp->incremental_algo_type != CS_PARAM_NL_ALGO_NONE)
-          bft_error(__FILE__,
-                    __LINE__,
-                    0,
+          bft_error(__FILE__, __LINE__, 0,
                     "%s: Eq. %s. Incremental form is not available.\n",
-                    __func__,
-                    eqp->name);
+                    __func__, eqp->name);
 
         eq->solve_steady_state = cs_cdofb_vecteq_solve_steady_state;
         switch (eqp->time_scheme) {
@@ -2443,21 +2390,15 @@ cs_equation_set_functions(void)
 
         case CS_TIME_SCHEME_BDF2:
           eq->solve = nullptr; /* cs_cdofb_vecteq_solve_bdf2 */
-          bft_error(__FILE__,
-                    __LINE__,
-                    0,
+          bft_error(__FILE__, __LINE__, 0,
                     "%s: Eq. %s. This time scheme is not yet implemented",
-                    __func__,
-                    eqp->name);
+                    __func__, eqp->name);
           break;
 
         default:
-          bft_error(__FILE__,
-                    __LINE__,
-                    0,
+          bft_error(__FILE__, __LINE__, 0,
                     "%s: Eq. %s. This time scheme is not yet implemented",
-                    __func__,
-                    eqp->name);
+                    __func__, eqp->name);
         }
 
         eq->postprocess         = cs_cdofb_vecteq_extra_post;
@@ -2497,12 +2438,9 @@ cs_equation_set_functions(void)
         /* New mechanism */
 
         if (eqp->incremental_algo_type != CS_PARAM_NL_ALGO_NONE)
-          bft_error(__FILE__,
-                    __LINE__,
-                    0,
+          bft_error(__FILE__, __LINE__, 0,
                     "%s: Eq. %s. Incremental form is not available.\n",
-                    __func__,
-                    eqp->name);
+                    __func__, eqp->name);
 
         eq->solve_steady_state = cs_cdocb_scaleq_solve_steady_state;
         switch (eqp->time_scheme) {
@@ -2511,12 +2449,9 @@ cs_equation_set_functions(void)
           break;
 
         default:
-          bft_error(__FILE__,
-                    __LINE__,
-                    0,
+          bft_error(__FILE__, __LINE__, 0,
                     "%s: Eq. %s. This time scheme is not yet implemented",
-                    __func__,
-                    eqp->name);
+                    __func__, eqp->name);
         }
 
         eq->compute_balance     = cs_cdocb_scaleq_balance;
@@ -2561,12 +2496,9 @@ cs_equation_set_functions(void)
         /* New mechanism */
 
         if (eqp->incremental_algo_type != CS_PARAM_NL_ALGO_NONE)
-          bft_error(__FILE__,
-                    __LINE__,
-                    0,
+          bft_error(__FILE__, __LINE__, 0,
                     "%s: Eq. %s. Incremental form is not available.\n",
-                    __func__,
-                    eqp->name);
+                    __func__, eqp->name);
 
         eq->solve_steady_state = cs_cdoeb_vecteq_solve_steady_state;
         switch (eqp->time_scheme) {
@@ -2575,12 +2507,9 @@ cs_equation_set_functions(void)
           break;
 
         default:
-          bft_error(__FILE__,
-                    __LINE__,
-                    0,
+          bft_error(__FILE__, __LINE__, 0,
                     "%s: Eq. %s. This time scheme is not yet implemented",
-                    __func__,
-                    eqp->name);
+                    __func__, eqp->name);
         }
 
         eq->postprocess         = cs_cdoeb_vecteq_extra_post;
@@ -2605,12 +2534,9 @@ cs_equation_set_functions(void)
 
     case CS_SPACE_SCHEME_HHO_P0:
       if (eqp->incremental_algo_type != CS_PARAM_NL_ALGO_NONE)
-        bft_error(__FILE__,
-                  __LINE__,
-                  0,
+        bft_error(__FILE__, __LINE__, 0,
                   "%s: Eq. %s. Incremental form is not available.\n",
-                  __func__,
-                  eqp->name);
+                  __func__, eqp->name);
 
       if (eqp->dim == 1) /* Set pointers of function */
         _set_scal_hho_function_pointers(eq);
@@ -2621,9 +2547,7 @@ cs_equation_set_functions(void)
 
     case CS_SPACE_SCHEME_HHO_P1:
       if (eqp->incremental_algo_type != CS_PARAM_NL_ALGO_NONE)
-        bft_error(__FILE__,
-                  __LINE__,
-                  0,
+        bft_error(__FILE__, __LINE__, 0,
                   "%s: Eq. %s. Incremental form is not available.\n",
                   __func__,
                   eqp->name);
@@ -2641,12 +2565,9 @@ cs_equation_set_functions(void)
 
     case CS_SPACE_SCHEME_HHO_P2:
       if (eqp->incremental_algo_type != CS_PARAM_NL_ALGO_NONE)
-        bft_error(__FILE__,
-                  __LINE__,
-                  0,
+        bft_error(__FILE__, __LINE__, 0,
                   "%s: Eq. %s. Incremental form is not available.\n",
-                  __func__,
-                  eqp->name);
+                  __func__, eqp->name);
 
       if (eqp->dim == 1) /* Set pointers of function */
         _set_scal_hho_function_pointers(eq);
@@ -2676,12 +2597,9 @@ cs_equation_set_functions(void)
         /* New mechanism */
 
         if (eqp->incremental_algo_type != CS_PARAM_NL_ALGO_NONE)
-          bft_error(__FILE__,
-                    __LINE__,
-                    0,
+          bft_error(__FILE__, __LINE__, 0,
                     "%s: Eq. %s. Incremental form is not available.\n",
-                    __func__,
-                    eqp->name);
+                    __func__, eqp->name);
 
         eq->solve_steady_state = cs_macfb_vecteq_solve_steady_implicit;
         switch (eqp->time_scheme) {
@@ -2700,21 +2618,15 @@ cs_equation_set_functions(void)
 
         case CS_TIME_SCHEME_BDF2:
           eq->solve = nullptr; /* cs_macfb_vecteq_solve_bdf2 */
-          bft_error(__FILE__,
-                    __LINE__,
-                    0,
+          bft_error(__FILE__, __LINE__, 0,
                     "%s: Eq. %s. This time scheme is not yet implemented",
-                    __func__,
-                    eqp->name);
+                    __func__, eqp->name);
           break;
 
         default:
-          bft_error(__FILE__,
-                    __LINE__,
-                    0,
+          bft_error(__FILE__, __LINE__, 0,
                     "%s: Eq. %s. This time scheme is not yet implemented",
-                    __func__,
-                    eqp->name);
+                    __func__, eqp->name);
         }
 
         eq->postprocess         = cs_macfb_vecteq_extra_post;
@@ -2738,13 +2650,10 @@ cs_equation_set_functions(void)
       break;
 
     default:
-      bft_error(__FILE__,
-                __LINE__,
-                0,
+      bft_error(__FILE__, __LINE__, 0,
                 _(" %s: Eq. %s. Invalid scheme for the space discretization.\n"
                   " Please check your settings."),
-                __func__,
-                eqp->name);
+                __func__, eqp->name);
       break;
     }
 
@@ -2818,14 +2727,10 @@ cs_equation_predefined_create_field(int            n_previous,
   cs_equation_param_t *eqp = eq->param;
 
   if (eqp->type == CS_EQUATION_TYPE_USER)
-    bft_error(__FILE__,
-              __LINE__,
-              0,
+    bft_error(__FILE__, __LINE__, 0,
               "%s: Only predefined equation are managed with this function.\n"
               "%s: Eq. \"%s\"\n",
-              __func__,
-              __func__,
-              eqp->name);
+              __func__, __func__, eqp->name);
 
   if (n_previous < 0)
     n_previous = (eqp->flag & CS_EQUATION_UNSTEADY) ? 1 : 0;
@@ -2994,20 +2899,14 @@ cs_equation_init_field_values(const cs_mesh_t      *mesh,
     /* Check that the main structure for an equation have been defined */
 
     if (eq->builder == nullptr)
-      bft_error(__FILE__,
-                __LINE__,
-                0,
+      bft_error(__FILE__, __LINE__, 0,
                 "%s: A builder structure is expected for eq. \"%s\"\n",
-                __func__,
-                eqp->name);
+                __func__, eqp->name);
 
     if (eq->scheme_context == nullptr)
-      bft_error(__FILE__,
-                __LINE__,
-                0,
+      bft_error(__FILE__, __LINE__, 0,
                 "%s: A context structure is expected for eq. \"%s\"\n",
-                __func__,
-                eqp->name);
+                __func__, eqp->name);
 #endif
 
     /* Assign an initial value for the variable fields */
@@ -3413,12 +3312,9 @@ cs_equation_integrate_variable(const cs_cdo_connect_t    *connect,
   const cs_equation_param_t *eqp = eq->param;
   assert(eqp != nullptr);
   if (eqp->dim > 1)
-    bft_error(__FILE__,
-              __LINE__,
-              0,
+    bft_error(__FILE__, __LINE__, 0,
               "%s: (Eq. %s) Not implemented",
-              __func__,
-              eqp->name);
+              __func__, eqp->name);
 
   /* Scalar-valued equation */
 
@@ -3487,12 +3383,9 @@ cs_equation_integrate_variable(const cs_cdo_connect_t    *connect,
   } break;
 
   default:
-    bft_error(__FILE__,
-              __LINE__,
-              0,
+    bft_error(__FILE__, __LINE__, 0,
               "%s: (Eq. %s). Not implemented.",
-              __func__,
-              eqp->name);
+              __func__, eqp->name);
 
   } /* End of switch */
 
@@ -3508,68 +3401,188 @@ cs_equation_integrate_variable(const cs_cdo_connect_t    *connect,
  *        resulting array differs.
  *        For Vb and VCb schemes, this array relies on the bf2v adjacency.
  *
- * \param[in]      t_eval     time at which one the property is evaluated
+ * If eqp is set to nullptr, then one uses eq->param. Otherwise, one checks that
+ * the given eqp structure is relevant (same space discretization as eq->param)
+ * Using a different eqp allows one to build a diffusive flux relying on
+ * another property associated to the diffusion term.
+ *
+ * If pty is set to nullptr then one considers the diffusion property related to
+ * the eqp structure which will be used. Otherwise, one considers the one
+ * given.
+ *
+ * If dof_vals is set to nullptr (and cell_values too), then one uses the
+ * current values of the variable associated to the given equation
+ * (cs_equation_get_*_values functions). The calling function has to ensure
+ * that the location of the values is relevant with the one expected with the
+ * given equation. Using dof_vals (and possibly cell_vals) allows one to
+ * compute the diffusive flux for an array of values which is not the one
+ * associated to the given equation.
+ *
+ * cell_values is not useful for CDO vertex-based schemes while it is mandatory
+ * for CDO vertex+cell-based schemes and CDO face-based schemes. For CDO
+ * cell-based schemes, the flux is a variable so that neither dof_vals nor
+ * cell_vals are used.
+ *
+ * Be aware that the boundary conditions are applied through the equation
+ * builder structure which has to be consistent with what is used in eqp
+ *
  * \param[in]      eq         pointer to a cs_equation_t structure
+ * \param[in]      eqp        set of equation parameters to use or nullptr
+ * \param[in]      diff_pty   diffusion property or nullptr
+ * \param[in]      dof_vals   values at the location of the degrees of freedom
+ * \param[in]      cell_vals  values at the cell centers or nullptr
+ * \param[in]      t_eval     time at which one the property is evaluated
  * \param[in, out] diff_flux  value of the diffusive part of the flux
  */
 /*----------------------------------------------------------------------------*/
 
 void
-cs_equation_compute_boundary_diff_flux(cs_real_t            t_eval,
-                                       const cs_equation_t *eq,
-                                       cs_real_t           *diff_flux)
+cs_equation_compute_boundary_diff_flux(const cs_equation_t       *eq,
+                                       const cs_equation_param_t *eqp,
+                                       const cs_property_t       *diff_pty,
+                                       const cs_real_t           *dof_vals,
+                                       const cs_real_t           *cell_vals,
+                                       cs_real_t                  t_eval,
+                                       cs_real_t                 *diff_flux)
 {
   if (diff_flux == nullptr)
     return;
 
+  const char fmsg[] = " %s: (Eq. %s) Stop computing the diffusive flux.\n"
+                      " This functionality is not available for this scheme.";
+  const char lmsg[] = " %s: (Eq. %s) Stop computing the diffusive flux.\n"
+                      " This mesh location is not available for this scheme.";
+
   if (eq == nullptr)
     bft_error(__FILE__, __LINE__, 0, _err_empty_eq, __func__);
 
-  const cs_equation_param_t *eqp = eq->param;
+  /* Which set of equation parameters to use ? */
 
-  assert(eqp != nullptr);
-  if (eqp->dim > 1)
-    bft_error(__FILE__,
-              __LINE__,
-              0,
-              "%s: (Eq. %s) Not implemented",
-              __func__,
-              eqp->name);
+  const cs_equation_param_t *used_eqp;
+  if (eqp != nullptr) {
 
-  /* Scalar-valued equation */
+    used_eqp = eqp;
+    if (used_eqp->space_scheme != eq->param->space_scheme)
+      bft_error(__FILE__, __LINE__, 0,
+                "%s: Eq. \"%s\" Stop computing the diffusive flux.\n"
+                "  Different space discretizations are considered.",
+                __func__, used_eqp->name);
 
-  switch (eqp->space_scheme) {
+  }
+  else
+    used_eqp = eq->param;
 
-  case CS_SPACE_SCHEME_CDOVB: {
-    const cs_real_t *p_v = cs_equation_get_vertex_values(eq, false);
+  assert(used_eqp != nullptr);
+  if (used_eqp->dim > 1)
+    bft_error(__FILE__, __LINE__, 0, fmsg, __func__, used_eqp->name);
 
-    cs_cdovb_scaleq_boundary_diff_flux(
-      t_eval, eqp, p_v, eq->builder, eq->scheme_context, diff_flux);
-  } break;
+  /* Which property to use ? */
 
-  case CS_SPACE_SCHEME_CDOVCB: {
-    const cs_real_t *p_v = cs_equation_get_vertex_values(eq, false);
-    const cs_real_t *p_c = cs_equation_get_cell_values(eq, false);
+  const cs_property_t *used_property;
+  if (diff_pty == nullptr)
+    used_property = used_eqp->diffusion_property;
+  else
+    used_property = diff_pty;
 
-    cs_cdovcb_scaleq_boundary_diff_flux(
-      t_eval, eqp, p_v, p_c, eq->builder, eq->scheme_context, diff_flux);
-  } break;
+  /* Which function to call ? */
 
-  case CS_SPACE_SCHEME_CDOFB: {
-    const cs_real_t *p_f = cs_equation_get_face_values(eq, false);
-    const cs_real_t *p_c = cs_equation_get_cell_values(eq, false);
+  switch (used_eqp->space_scheme) {
 
-    cs_cdofb_scaleq_boundary_diff_flux(
-      t_eval, eqp, p_f, p_c, eq->builder, eq->scheme_context, diff_flux);
-  } break;
+  case CS_SPACE_SCHEME_CDOVB:
+    {
+      /* Which values to consider ? */
+
+      const cs_real_t *used_values;
+
+      if (dof_vals != nullptr)
+        used_values = dof_vals;
+      else
+        used_values = cs_equation_get_vertex_values(eq, false);
+
+      cs_cdovb_scaleq_boundary_diff_flux(used_values,
+                                         used_eqp,
+                                         used_property,
+                                         t_eval,
+                                         eq->builder,
+                                         eq->scheme_context,
+                                         diff_flux);
+    }
+    break;
+
+  case CS_SPACE_SCHEME_CDOVCB:
+    {
+      /* Which values to consider ? */
+
+      const cs_real_t *used_dof_values;
+      const cs_real_t *used_cell_values;
+
+      if (dof_vals != nullptr) {
+
+        used_dof_values  = dof_vals;
+        used_cell_values = cell_vals;
+
+        if (cell_vals == nullptr)
+          bft_error(__FILE__, __LINE__, 0,
+                    "%s: Need cell values with this set of options.", __func__);
+
+      }
+      else {
+
+        used_dof_values  = cs_equation_get_vertex_values(eq, false);
+        used_cell_values = cs_equation_get_cell_values(eq, false);
+
+      }
+
+      cs_cdovcb_scaleq_boundary_diff_flux(used_dof_values,
+                                          used_cell_values,
+                                          used_eqp,
+                                          used_property,
+                                          t_eval,
+                                          eq->builder,
+                                          eq->scheme_context,
+                                          diff_flux);
+    }
+    break;
+
+  case CS_SPACE_SCHEME_CDOFB:
+    {
+      /* Which values to consider ? */
+
+      const cs_real_t *used_dof_values;
+      const cs_real_t *used_cell_values;
+
+      if (dof_vals != nullptr) {
+
+        used_dof_values  = dof_vals;
+        used_cell_values = cell_vals;
+
+        if (cell_vals == nullptr)
+          bft_error(__FILE__, __LINE__, 0,
+                    "%s: Need cell values with this set of options.",
+                    __func__);
+
+      }
+      else {
+
+        used_dof_values  = cs_equation_get_face_values(eq, false);
+        used_cell_values = cs_equation_get_cell_values(eq, false);
+
+      }
+
+      cs_cdofb_scaleq_boundary_diff_flux(used_dof_values,
+                                         used_cell_values,
+                                         used_eqp,
+                                         used_property,
+                                         t_eval,
+                                         eq->builder,
+                                         eq->scheme_context,
+                                         diff_flux);
+    }
+    break;
 
   default:
-    bft_error(__FILE__,
-              __LINE__,
-              0,
-              "%s: (Eq. %s). Not implemented.",
-              __func__,
-              eqp->name);
+    bft_error(__FILE__, __LINE__, 0,
+              "%s: (Eq. %s). Not implemented.", __func__, eqp->name);
 
   } /* End of switch */
 }
@@ -3601,13 +3614,10 @@ cs_equation_compute_flux_across_plane(const cs_equation_t *eq,
 
   const int ml_id = cs_mesh_location_get_id_by_name(ml_name);
   if (ml_id == -1)
-    bft_error(__FILE__,
-              __LINE__,
-              0,
+    bft_error(__FILE__, __LINE__, 0,
               " %s: Invalid mesh location name %s.\n"
               " This mesh location is not already defined.\n",
-              __func__,
-              ml_name);
+              __func__, ml_name);
 
   const char emsg[] = "%s: Computation of the diffusive and convective flux"
                       " across a plane\n is not available for equation %s\n";
@@ -3667,11 +3677,11 @@ cs_equation_compute_flux_across_plane(const cs_equation_t *eq,
  * Using a different eqp allows one to build a diffusive flux relying on
  * another property associated to the diffusion term.
  *
- * If pty is set to nullptr then one considers the diffusion property related to
+ * If pty is set to null then one considers the diffusion property related to
  * the eqp structure which will be used. Otherwise, one considers the one
  * given.
  *
- * If dof_vals is set to nullptr (and cell_values too), then one uses the
+ * If dof_vals is set to null (and cell_values too), then one uses the
  * current values of the variable associated to the given equation
  * (cs_equation_get_*_values functions). The calling function has to ensure
  * that the location of the values is relevant with the one expected with the
@@ -3685,7 +3695,7 @@ cs_equation_compute_flux_across_plane(const cs_equation_t *eq,
  * cell_vals are used.
  *
  * \param[in]      eq         pointer to a cs_equation_t structure
- * \param[in]      eqp        pointer to a cs_equation_param_t structure
+ * \param[in]      eqp        set of equation parameters to use or nullptr
  * \param[in]      diff_pty   diffusion property or nullptr
  * \param[in]      dof_vals   values at the location of the degrees of freedom
  * \param[in]      cell_vals  values at the cell centers or nullptr
@@ -3705,13 +3715,14 @@ cs_equation_compute_diffusive_flux(const cs_equation_t       *eq,
                                    cs_real_t                  t_eval,
                                    cs_real_t                 *diff_flux)
 {
+  if (diff_flux == nullptr)
+    return;
+
   const char fmsg[] = " %s: (Eq. %s) Stop computing the diffusive flux.\n"
                       " This functionality is not available for this scheme.";
   const char lmsg[] = " %s: (Eq. %s) Stop computing the diffusive flux.\n"
                       " This mesh location is not available for this scheme.";
 
-  if (diff_flux == nullptr)
-    return;
   if (eq == nullptr)
     bft_error(__FILE__, __LINE__, 0, _err_empty_eq, __func__);
 
@@ -3722,13 +3733,10 @@ cs_equation_compute_diffusive_flux(const cs_equation_t       *eq,
 
     used_eqp = eqp;
     if (used_eqp->space_scheme != eq->param->space_scheme)
-      bft_error(__FILE__,
-                __LINE__,
-                0,
+      bft_error(__FILE__, __LINE__, 0,
                 "%s: Eq. \"%s\" Stop computing the diffusive flux.\n"
                 "  Different space discretizations are considered.",
-                __func__,
-                used_eqp->name);
+                __func__, used_eqp->name);
   }
   else
     used_eqp = eq->param;
@@ -3749,20 +3757,30 @@ cs_equation_compute_diffusive_flux(const cs_equation_t       *eq,
 
   switch (used_eqp->space_scheme) {
 
-  case CS_SPACE_SCHEME_CDOVB: {
-    /* Which values to consider ? */
+  case CS_SPACE_SCHEME_CDOVB:
+    {
+      /* Which values to consider ? */
 
-    const cs_real_t *used_values;
+      const cs_real_t *used_values;
 
-    if (dof_vals != nullptr)
-      used_values = dof_vals;
-    else
-      used_values = cs_equation_get_vertex_values(eq, false);
+      if (dof_vals != nullptr)
+        used_values = dof_vals;
+      else
+        used_values = cs_equation_get_vertex_values(eq, false);
 
-    /* Compute the diffusive flux */
+      /* Compute the diffusive flux */
 
-    if (cs_flag_test(location, cs_flag_primal_cell))
-      cs_cdovb_scaleq_diff_flux_in_cells(used_values,
+      if (cs_flag_test(location, cs_flag_primal_cell))
+        cs_cdovb_scaleq_diff_flux_in_cells(used_values,
+                                           used_eqp,
+                                           used_property,
+                                           t_eval,
+                                           eq->builder,
+                                           eq->scheme_context,
+                                           diff_flux);
+
+      else if (cs_flag_test(location, cs_flag_dual_face_byc))
+        cs_cdovb_scaleq_diff_flux_dfaces(used_values,
                                          used_eqp,
                                          used_property,
                                          t_eval,
@@ -3770,47 +3788,51 @@ cs_equation_compute_diffusive_flux(const cs_equation_t       *eq,
                                          eq->scheme_context,
                                          diff_flux);
 
-    else if (cs_flag_test(location, cs_flag_dual_face_byc))
-      cs_cdovb_scaleq_diff_flux_dfaces(used_values,
-                                       used_eqp,
-                                       used_property,
-                                       t_eval,
-                                       eq->builder,
-                                       eq->scheme_context,
-                                       diff_flux);
+      else
+        bft_error(__FILE__, __LINE__, 0, lmsg, __func__, used_eqp->name);
 
-    else
-      bft_error(__FILE__, __LINE__, 0, lmsg, __func__, used_eqp->name);
-  } break;
-
-  case CS_SPACE_SCHEME_CDOVCB: {
-    /* Which values to consider ? */
-
-    const cs_real_t *used_dof_values;
-    const cs_real_t *used_cell_values;
-
-    if (dof_vals != nullptr) {
-
-      used_dof_values  = dof_vals;
-      used_cell_values = cell_vals;
-
-      if (cell_vals == nullptr)
-        bft_error(__FILE__,
-                  __LINE__,
-                  0,
-                  "%s: Need cell values with this set of options.",
-                  __func__);
     }
-    else {
+    break;
 
-      used_dof_values  = cs_equation_get_vertex_values(eq, false);
-      used_cell_values = cs_equation_get_cell_values(eq, false);
-    }
+  case CS_SPACE_SCHEME_CDOVCB:
+    {
+      /* Which values to consider ? */
 
-    /* Compute the diffusive flux */
+      const cs_real_t *used_dof_values;
+      const cs_real_t *used_cell_values;
 
-    if (cs_flag_test(location, cs_flag_primal_cell))
-      cs_cdovcb_scaleq_diff_flux_in_cells(used_dof_values,
+      if (dof_vals != nullptr) {
+
+        used_dof_values  = dof_vals;
+        used_cell_values = cell_vals;
+
+        if (cell_vals == nullptr)
+          bft_error(__FILE__, __LINE__, 0,
+                    "%s: Need cell values with this set of options.",
+                    __func__);
+
+      }
+      else {
+
+        used_dof_values  = cs_equation_get_vertex_values(eq, false);
+        used_cell_values = cs_equation_get_cell_values(eq, false);
+
+      }
+
+      /* Compute the diffusive flux */
+
+      if (cs_flag_test(location, cs_flag_primal_cell))
+        cs_cdovcb_scaleq_diff_flux_in_cells(used_dof_values,
+                                            used_cell_values,
+                                            used_eqp,
+                                            used_property,
+                                            t_eval,
+                                            eq->builder,
+                                            eq->scheme_context,
+                                            diff_flux);
+
+      else if (cs_flag_test(location, cs_flag_dual_face_byc))
+        cs_cdovcb_scaleq_diff_flux_dfaces(used_dof_values,
                                           used_cell_values,
                                           used_eqp,
                                           used_property,
@@ -3818,9 +3840,41 @@ cs_equation_compute_diffusive_flux(const cs_equation_t       *eq,
                                           eq->builder,
                                           eq->scheme_context,
                                           diff_flux);
+      else
+        bft_error(__FILE__, __LINE__, 0, lmsg, __func__, used_eqp->name);
 
-    else if (cs_flag_test(location, cs_flag_dual_face_byc))
-      cs_cdovcb_scaleq_diff_flux_dfaces(used_dof_values,
+    }
+    break;
+
+  case CS_SPACE_SCHEME_CDOFB:
+    {
+      /* Which values to consider ? */
+
+      const cs_real_t *used_dof_values;
+      const cs_real_t *used_cell_values;
+
+      if (dof_vals != nullptr) {
+
+        used_dof_values  = dof_vals;
+        used_cell_values = cell_vals;
+
+        if (cell_vals == nullptr)
+          bft_error(__FILE__, __LINE__, 0,
+                    "%s: Need cell values with this set of options.",
+                    __func__);
+
+      }
+      else {
+
+        used_dof_values  = cs_equation_get_face_values(eq, false);
+        used_cell_values = cs_equation_get_cell_values(eq, false);
+
+      }
+
+      /* Compute the diffusive flux */
+
+      if (cs_flag_test(location, cs_flag_primal_face))
+        cs_cdofb_scaleq_diff_flux_faces(used_dof_values,
                                         used_cell_values,
                                         used_eqp,
                                         used_property,
@@ -3828,67 +3882,34 @@ cs_equation_compute_diffusive_flux(const cs_equation_t       *eq,
                                         eq->builder,
                                         eq->scheme_context,
                                         diff_flux);
-    else
-      bft_error(__FILE__, __LINE__, 0, lmsg, __func__, used_eqp->name);
-  } break;
 
-  case CS_SPACE_SCHEME_CDOFB: {
-    /* Which values to consider ? */
+      else
+        bft_error(__FILE__, __LINE__, 0, lmsg, __func__, used_eqp->name);
 
-    const cs_real_t *used_dof_values;
-    const cs_real_t *used_cell_values;
-
-    if (dof_vals != nullptr) {
-
-      used_dof_values  = dof_vals;
-      used_cell_values = cell_vals;
-
-      if (cell_vals == nullptr)
-        bft_error(__FILE__,
-                  __LINE__,
-                  0,
-                  "%s: Need cell values with this set of options.",
-                  __func__);
     }
-    else {
+    break;
 
-      used_dof_values  = cs_equation_get_face_values(eq, false);
-      used_cell_values = cs_equation_get_cell_values(eq, false);
+  case CS_SPACE_SCHEME_CDOCB:
+    {
+      /* No need to compute the flux. This is an output of the scheme. One
+         handles only the case where one gets the flux from the equation
+         context (all behaviors by default are expected) */
+
+      const cs_real_t *used_values = nullptr;
+      assert(dof_vals == nullptr && diff_pty == nullptr);
+
+      if (cs_flag_test(location, cs_flag_primal_face))
+        cs_cdocb_scaleq_diff_flux_faces(used_values,
+                                        used_eqp,
+                                        t_eval,
+                                        eq->builder,
+                                        eq->scheme_context,
+                                        diff_flux);
+      else
+        bft_error(__FILE__, __LINE__, 0, lmsg, __func__, used_eqp->name);
+
     }
-
-    /* Compute the diffusive flux */
-
-    if (cs_flag_test(location, cs_flag_primal_face))
-      cs_cdofb_scaleq_diff_flux_faces(used_dof_values,
-                                      used_cell_values,
-                                      used_eqp,
-                                      used_property,
-                                      t_eval,
-                                      eq->builder,
-                                      eq->scheme_context,
-                                      diff_flux);
-    else
-      bft_error(__FILE__, __LINE__, 0, lmsg, __func__, used_eqp->name);
-  } break;
-
-  case CS_SPACE_SCHEME_CDOCB: {
-    /* No need to compute the flux. This is an output of the scheme. One
-       handles only the case where one gets the flux from the equation
-       context (all behaviors by default are expected) */
-
-    const cs_real_t *used_values = nullptr;
-    assert(dof_vals == nullptr && diff_pty == nullptr);
-
-    if (cs_flag_test(location, cs_flag_primal_face))
-      cs_cdocb_scaleq_diff_flux_faces(used_values,
-                                      used_eqp,
-                                      t_eval,
-                                      eq->builder,
-                                      eq->scheme_context,
-                                      diff_flux);
-    else
-      bft_error(__FILE__, __LINE__, 0, lmsg, __func__, used_eqp->name);
-  } break;
+    break;
 
   default:
     bft_error(__FILE__, __LINE__, 0, fmsg, __func__, used_eqp->name);
@@ -3927,13 +3948,10 @@ cs_equation_compute_vtx_field_gradient(const cs_equation_t *eq,
 
   case CS_SPACE_SCHEME_CDOVB: /* --> wall distance */
   default:
-    bft_error(__FILE__,
-              __LINE__,
-              0,
+    bft_error(__FILE__, __LINE__, 0,
               " %s: Invalid type of scheme for equation %s when computing"
               " the gradient at vertices",
-              __func__,
-              eqp->name);
+              __func__, eqp->name);
     break;
   }
 }
@@ -3966,21 +3984,15 @@ cs_equation_compute_peclet(const cs_equation_t  *eq,
     return;
 
   if (eqp->diffusion_property == nullptr)
-    bft_error(__FILE__,
-              __LINE__,
-              0,
+    bft_error(__FILE__, __LINE__, 0,
               "%s: Computation of the Peclet number is requested for\n"
               " equation %s but no diffusion property is set.\n",
-              __func__,
-              eqp->name);
+              __func__, eqp->name);
   if (eqp->adv_field == nullptr)
-    bft_error(__FILE__,
-              __LINE__,
-              0,
+    bft_error(__FILE__, __LINE__, 0,
               "%s: Computation of the Peclet number is requested for\n"
               " equation %s but no advection field is set.\n",
-              __func__,
-              eqp->name);
+              __func__, eqp->name);
 
   if (eq->main_ts_id > -1) /* Activate timer statistics */
     cs_timer_stats_start(eq->main_ts_id);
@@ -4072,13 +4084,10 @@ cs_equation_post_balance(const cs_mesh_t           *mesh,
       continue;
 
     if (eq->compute_balance == nullptr)
-      bft_error(__FILE__,
-                __LINE__,
-                0,
+      bft_error(__FILE__, __LINE__, 0,
                 "%s: Balance for equation %s is requested but\n"
                 " this functionality is not available yet.\n",
-                __func__,
-                eqp->name);
+                __func__, eqp->name);
 
     if (eq->main_ts_id > -1) /* Activate timer statistics */
       cs_timer_stats_start(eq->main_ts_id);
@@ -4187,18 +4196,15 @@ cs_equation_apply_stiffness(cs_equation_t       *eq,
   /* Preliminary checkings */
 
   if (pot == nullptr)
-    bft_error(
-      __FILE__, __LINE__, 0, "%s: Input array not allocated.\n", __func__);
+    bft_error(__FILE__, __LINE__, 0,
+              "%s: Input array not allocated.\n", __func__);
   if (res == nullptr)
-    bft_error(
-      __FILE__, __LINE__, 0, "%s: Resulting array not allocated.\n", __func__);
+    bft_error(__FILE__, __LINE__, 0, "%s: Resulting array not allocated.\n",
+              __func__);
   if (eq->apply_stiffness == nullptr)
-    bft_error(__FILE__,
-              __LINE__,
-              0,
+    bft_error(__FILE__, __LINE__, 0,
               "%s: Function not defined for this equation \"%s\".\n",
-              __func__,
-              cs_equation_get_name(eq));
+              __func__, cs_equation_get_name(eq));
 
   /* Perform the requested operation */
 

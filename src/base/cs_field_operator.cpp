@@ -1016,8 +1016,7 @@ cs_field_gradient_boundary_iprime_scalar(const cs_field_t  *f,
   }
   else {
 
-    const cs_real_3_t *restrict diipb
-      = (const cs_real_3_t *)fvq->diipb;
+    const cs_rreal_3_t *restrict diipb = fvq->diipb;
 
     cs_real_3_t *grad;
     CS_MALLOC_HD(grad,
@@ -1184,8 +1183,7 @@ cs_field_gradient_boundary_iprime_vector(const cs_field_t  *f,
                          (cs_real_3_t *)f->val_pre
                        : (cs_real_3_t *)f->val;
 
-    const cs_real_3_t *restrict diipb
-      = (const cs_real_3_t *)fvq->diipb;
+    const cs_rreal_3_t *restrict diipb = fvq->diipb;
 
     cs_real_33_t *grad;
     CS_MALLOC_HD(grad,
@@ -1327,8 +1325,7 @@ cs_field_gradient_boundary_iprime_tensor(const cs_field_t  *f,
                          (cs_real_6_t *)f->val_pre
                        : (cs_real_6_t *)f->val;
 
-    const cs_real_3_t *restrict diipb
-      = (const cs_real_3_t *)fvq->diipb;
+    const cs_rreal_3_t *restrict diipb = fvq->diipb;
 
     cs_real_63_t *grad;
     CS_MALLOC_HD(grad,
@@ -1528,18 +1525,24 @@ cs_field_synchronize(cs_field_t      *f,
 
         cs_halo_sync_var_strided(halo, halo_type, f->val, f->dim);
 
-        if (cs_glob_mesh->n_init_perio > 0) {
+        if (cs_glob_mesh->have_rotation_perio) {
           switch(f->dim) {
-          case 9:
-            cs_halo_perio_sync_var_tens(halo, halo_type, f->val);
-            break;
-          case 6:
-            cs_halo_perio_sync_var_sym_tens(halo, halo_type, f->val);
+          case 1:
             break;
           case 3:
             cs_halo_perio_sync_var_vect(halo, halo_type, f->val, 3);
             break;
+          case 6:
+            cs_halo_perio_sync_var_sym_tens(halo, halo_type, f->val);
+            break;
+          case 9:
+            cs_halo_perio_sync_var_tens(halo, halo_type, f->val);
+            break;
           default:
+            bft_error(__FILE__, __LINE__, 0,
+                      _("field %s of dimension %d\n"
+                        "cannot handle rotational periodicity\n"),
+                      f->name, f->dim);
             break;
           }
 

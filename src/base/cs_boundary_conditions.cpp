@@ -194,9 +194,6 @@ cs_f_boundary_conditions_get_coincl_pointers(int     **ientfu,
                                              double  **tgf,
                                              double  **frmel);
 
-void
-cs_f_boundary_conditions_get_atincl_pointers(int **iautom);
-
 /*============================================================================
  * Private function definitions
  *============================================================================*/
@@ -796,7 +793,7 @@ _compute_robin_bc(const cs_mesh_t            *mesh,
  * \brief cs_dof_func_t function to compute the velocity at boundary faces
  *        using a uniform norm.
  *
- * For the calling function, elt_ids is optional. If not nullptr, array(s) should
+ * For the calling function, elt_ids is optional. If non-null, array(s) should
  * be accessed with an indirection. The same indirection can be applied to fill
  * retval if dense_output is set to false.
  * In the current case, retval is allocated to mesh->n_b_faces * stride
@@ -855,7 +852,7 @@ _dof_vel_const_uniform_normal(cs_lnum_t         n_elts,
  * \brief cs_dof_func_t function to compute the velocity at boundary faces
  *        using a vector per face.
  *
- * For the calling function, elt_ids is optional. If not nullptr, array(s) should
+ * For the calling function, elt_ids is optional. If non-null, array(s) should
  * be accessed with an indirection. The same indirection can be applied to fill
  * retval if dense_output is set to false.
  * In the current case, retval is allocated to mesh->n_b_faces * stride
@@ -899,7 +896,7 @@ _dof_vel_from_buffer(cs_lnum_t         n_elts,
  * \brief cs_dof_func_t function to compute the velocity at boundary faces
  *        using a vector per face.
  *
- * For the calling function, elt_ids is optional. If not nullptr, array(s) should
+ * For the calling function, elt_ids is optional. If non-null, array(s) should
  * be accessed with an indirection. The same indirection can be applied to fill
  * retval if dense_output is set to false.
  * In the current case, retval is allocated to mesh->n_b_faces * stride
@@ -971,7 +968,7 @@ _clear_inlet_outlet_vel(cs_boundary_conditions_open_t *c)
  * \brief cs_eval_at_location_t function to compute the velocity at
  *        boundary faces using a constant uniform vector value.
  *
- * For the calling function, elt_ids is optional. If not nullptr, array(s) should
+ * For the calling function, elt_ids is optional. If non-null, array(s) should
  * be accessed with an indirection.
  *
  * \param[in]       location_id   base associated mesh location id
@@ -1014,7 +1011,7 @@ _vel_profile_constant_uniform(int               location_id,
  * \brief cs_eval_at_location_t function to compute the velocity at
  *        boundary faces using a constant uniform normal value.
  *
- * For the calling function, elt_ids is optional. If not nullptr, array(s) should
+ * For the calling function, elt_ids is optional. If non-null, array(s) should
  * be accessed with an indirection.
  *
  * \param[in]       location_id   base associated mesh location id
@@ -1133,7 +1130,7 @@ _compute_mass_flow_rate(const cs_zone_t  *zone)
  * \brief cs_eval_at_location_t function to scale the velocity at boundary
  *        faces so as to obtain the requested mass flow rate.
  *
- * For the calling function, elt_ids is optional. If not nullptr, array(s) should
+ * For the calling function, elt_ids is optional. If non-null, array(s) should
  * be accessed with an indirection.
  *
  * \param[in]       location_id   base associated mesh location id
@@ -1241,7 +1238,7 @@ _scale_vel_mass_flow_rate(int               location_id,
  * \brief cs_eval_at_location_t function to scale the velocity at boundary
  *        faces so as to obtain the requested volume flow rate.
  *
- * For the calling function, elt_ids is optional. If not nullptr, array(s) should
+ * For the calling function, elt_ids is optional. If non-null, array(s) should
  * be accessed with an indirection.
  *
  * \param[in]       location_id   base associated mesh location id
@@ -1455,157 +1452,6 @@ _update_inlet_outlet(cs_boundary_conditions_open_t  *c)
   }
 }
 
-/*----------------------------------------------------------------------------
- * Define automatic turbulence values.
- *----------------------------------------------------------------------------*/
-
-static void
-_standard_turbulence_bcs(void)
-{
-  const cs_mesh_t *m = cs_glob_mesh;
-  const cs_mesh_quantities_t  *mq = cs_glob_mesh_quantities;
-  const cs_lnum_t n_b_faces = m->n_b_faces;
-  const cs_lnum_t *b_face_cells = m->b_face_cells;
-
-  const cs_real_t *b_rho = CS_F_(rho_b)->val;
-  const cs_real_t *c_mu = CS_F_(mu)->val;
-
-  const cs_real_t  *_rcodcl_v[3];
-  for (cs_lnum_t coo_id = 0; coo_id < 3; coo_id++)
-    _rcodcl_v[coo_id] = CS_F_(vel)->bc_coeffs->rcodcl1 + coo_id*n_b_faces;
-
-  /* Inlet BC's */
-
-  cs_field_t *w_dist = nullptr;
-  cs_halo_type_t halo_type = m->halo_type;
-
-  /* For some models, we will need the gradient of the wall distance
-     for the shear direction; prepare things here to avoid excess tests
-     in loops. */
-
-  if (cs_glob_turb_model->order == CS_TURB_SECOND_ORDER) {
-    w_dist = cs_field_by_name_try("wall_distance");
-    if (w_dist->bc_coeffs == nullptr)
-      w_dist = nullptr;
-    else {
-      const cs_equation_param_t *eqp = cs_field_get_equation_param(w_dist);
-      cs_gradient_type_t  gradient_type;
-      cs_gradient_type_by_imrgra(eqp->imrgra,
-                                 &gradient_type,
-                                 &halo_type);
-    }
-  }
-
-  /* Loop on open boundaries */
-
-  for (int io_id = 0; io_id < _n_bc_open; io_id++) {
-    cs_boundary_conditions_open_t *c = _bc_open[io_id];
-
-    if (c->turb_compute > CS_BC_TURB_NONE) {
-
-      const cs_real_3_t *f_n = (const cs_real_3_t *)mq->b_face_u_normal;
-      const cs_zone_t *z = c->zone;
-      const cs_real_t dh = c->hyd_diameter;
-
-      const cs_real_t ant = -sqrt(cs_turb_cmu); /* Note: should be
-                                                   model dependant */
-
-      /* Now compute BC values at zone's faces */
-
-      for (cs_lnum_t i = 0; i < z->n_elts; i++) {
-
-        cs_lnum_t face_id = z->elt_ids[i];
-        cs_lnum_t cell_id = b_face_cells[face_id];
-
-        cs_real_t vel[3] = {_rcodcl_v[0][face_id],
-                            _rcodcl_v[1][face_id],
-                            _rcodcl_v[2][face_id]};
-
-        if (cs_math_3_dot_product(vel, f_n[face_id]) > 0) {
-          cs_turbulence_bc_set_hmg_neumann(face_id);
-          continue;
-        }
-
-        if (c->turb_compute == CS_BC_TURB_BY_HYDRAULIC_DIAMETER) {
-          cs_real_t uref2 = fmax(cs_math_3_square_norm(vel),
-                                 cs_math_epzero);
-
-          cs_real_t *vel_dir = nullptr;
-          cs_real_t *shear_dir = nullptr;
-          cs_real_t _shear_dir[3];
-
-          /* Compute the wall direction only if needed */
-          if (w_dist != nullptr) {
-            cs_gradient_scalar_cell(m,
-                                    mq,
-                                    b_face_cells[face_id],
-                                    halo_type,
-                                    w_dist->bc_coeffs,
-                                    w_dist->val,
-                                    nullptr,  /* c_weight */
-                                    _shear_dir);
-            cs_math_3_normalize(_shear_dir, _shear_dir);
-            for (int j = 0; j < 3; j++)
-              _shear_dir[j] *= ant;
-
-            vel_dir = vel;
-            shear_dir = _shear_dir;
-          }
-
-          cs_turbulence_bc_set_uninit_inlet_hyd_diam(face_id,
-                                                     vel_dir,
-                                                     shear_dir,
-                                                     uref2, dh,
-                                                     b_rho[face_id],
-                                                     c_mu[cell_id]);
-        }
-
-        else if (c->turb_compute == CS_BC_TURB_BY_TURBULENT_INTENSITY) {
-          cs_real_t uref2 = fmax(cs_math_3_square_norm(vel),
-                                 cs_math_epzero);
-
-          cs_turbulence_bc_set_uninit_inlet_turb_intensity(face_id,
-                                                           uref2,
-                                                           c->turb_intensity,
-                                                           dh);
-        }
-
-      }
-
-    } /* End for inlet */
-
-  }
-
-  /* Automatic wall condition for alpha */
-
-  if (cs_glob_turb_model->iturb == CS_TURB_RIJ_EPSILON_EBRSM) {
-
-    if (CS_F_(alp_bl)->bc_coeffs != nullptr) {
-      cs_real_t *_rcodcl_alp = CS_F_(alp_bl)->bc_coeffs->rcodcl1;
-
-      const cs_boundary_t *boundaries = cs_glob_boundaries;
-
-      for (int b_id = 0; b_id < boundaries->n_boundaries; b_id++) {
-
-        cs_boundary_type_t type = boundaries->types[b_id];
-
-        if (type & CS_BOUNDARY_WALL) {
-          const cs_zone_t *z
-            = cs_boundary_zone_by_id(boundaries->zone_ids[b_id]);
-
-          for (cs_lnum_t i = 0; i < z->n_elts; i++) {
-            cs_lnum_t face_id = z->elt_ids[i];
-            _rcodcl_alp[face_id] = 0.;
-          }
-
-        }
-      }
-    }
-
-  }
-
-}
-
 /*============================================================================
  * Fortran wrapper function definitions
  *============================================================================*/
@@ -1741,20 +1587,134 @@ cs_f_boundary_conditions_get_coincl_pointers(int     **ientfu,
   *frmel  = &(cs_glob_bc_pm_info->frmel);
 }
 
-void
-cs_f_boundary_conditions_get_atincl_pointers(int **iautom)
-{
-  if (cs_glob_physical_model_flag[CS_ATMOSPHERIC] > -1)
-    *iautom = cs_glob_bc_pm_info->iautom;
-  else
-    *iautom = nullptr;
-}
-
 /*! (DOXYGEN_SHOULD_SKIP_THIS) \endcond */
 
 /*============================================================================
  * Semi-private function definitions
  *============================================================================*/
+
+/*----------------------------------------------------------------------------
+ * Define automatic turbulence values for open boundaries.
+ *----------------------------------------------------------------------------*/
+
+void
+cs_boundary_conditions_open_turb(void)
+{
+  const cs_mesh_t *m = cs_glob_mesh;
+  const cs_mesh_quantities_t  *mq = cs_glob_mesh_quantities;
+  const cs_lnum_t n_b_faces = m->n_b_faces;
+  const cs_lnum_t *b_face_cells = m->b_face_cells;
+
+  const cs_real_t *b_rho = CS_F_(rho_b)->val;
+  const cs_real_t *c_mu = CS_F_(mu)->val;
+
+  const cs_real_t  *_rcodcl_v[3];
+  for (cs_lnum_t coo_id = 0; coo_id < 3; coo_id++)
+    _rcodcl_v[coo_id] = CS_F_(vel)->bc_coeffs->rcodcl1 + coo_id*n_b_faces;
+
+  /* Inlet BC's */
+
+  cs_field_t *w_dist = nullptr;
+  cs_halo_type_t halo_type = m->halo_type;
+
+  /* For some models, we will need the gradient of the wall distance
+     for the shear direction; prepare things here to avoid excess tests
+     in loops. */
+
+  if (cs_glob_turb_model->order == CS_TURB_SECOND_ORDER) {
+    w_dist = cs_field_by_name_try("wall_distance");
+    if (w_dist->bc_coeffs == nullptr)
+      w_dist = nullptr;
+    else {
+      const cs_equation_param_t *eqp = cs_field_get_equation_param(w_dist);
+      cs_gradient_type_t  gradient_type;
+      cs_gradient_type_by_imrgra(eqp->imrgra,
+                                 &gradient_type,
+                                 &halo_type);
+    }
+  }
+
+  /* Loop on open boundaries */
+
+  for (int io_id = 0; io_id < _n_bc_open; io_id++) {
+    cs_boundary_conditions_open_t *c = _bc_open[io_id];
+
+    if (c->turb_compute > CS_BC_TURB_NONE) {
+
+      const cs_real_3_t *f_n = (const cs_real_3_t *)mq->b_face_u_normal;
+      const cs_zone_t *z = c->zone;
+      const cs_real_t dh = c->hyd_diameter;
+
+      const cs_real_t ant = -sqrt(cs_turb_cmu); /* Note: should be
+                                                   model dependant */
+
+      /* Now compute BC values at zone's faces */
+
+      for (cs_lnum_t i = 0; i < z->n_elts; i++) {
+
+        cs_lnum_t face_id = z->elt_ids[i];
+        cs_lnum_t cell_id = b_face_cells[face_id];
+
+        cs_real_t vel[3] = {_rcodcl_v[0][face_id],
+                            _rcodcl_v[1][face_id],
+                            _rcodcl_v[2][face_id]};
+
+        if (cs_math_3_dot_product(vel, f_n[face_id]) > 0) {
+          cs_turbulence_bc_set_hmg_neumann(face_id);
+          continue;
+        }
+
+        if (c->turb_compute == CS_BC_TURB_BY_HYDRAULIC_DIAMETER) {
+          cs_real_t uref2 = fmax(cs_math_3_square_norm(vel),
+                                 cs_math_epzero);
+
+          cs_real_t *vel_dir = nullptr;
+          cs_real_t *shear_dir = nullptr;
+          cs_real_t _shear_dir[3];
+
+          /* Compute the wall direction only if needed */
+          if (w_dist != nullptr) {
+            cs_gradient_scalar_cell(m,
+                                    mq,
+                                    b_face_cells[face_id],
+                                    halo_type,
+                                    w_dist->bc_coeffs,
+                                    w_dist->val,
+                                    nullptr,  /* c_weight */
+                                    _shear_dir);
+            cs_math_3_normalize(_shear_dir, _shear_dir);
+            for (int j = 0; j < 3; j++)
+              _shear_dir[j] *= ant;
+
+            vel_dir = vel;
+            shear_dir = _shear_dir;
+          }
+
+          cs_turbulence_bc_set_uninit_inlet_hyd_diam(face_id,
+                                                     vel_dir,
+                                                     shear_dir,
+                                                     uref2, dh,
+                                                     b_rho[face_id],
+                                                     c_mu[cell_id]);
+        }
+
+        else if (c->turb_compute == CS_BC_TURB_BY_TURBULENT_INTENSITY) {
+          cs_real_t uref2 = fmax(cs_math_3_square_norm(vel),
+                                 cs_math_epzero);
+
+          cs_turbulence_bc_set_uninit_inlet_turb_intensity(face_id,
+                                                           uref2,
+                                                           c->turb_intensity,
+                                                           dh);
+        }
+
+      }
+
+    } /* End for inlet */
+
+  }
+
+}
 
 /*----------------------------------------------------------------------------*/
 /*!
@@ -2714,31 +2674,6 @@ cs_boundary_conditions_compute(int  bc_type[])
 
   BFT_FREE(eval_buf);
 
-  /* Final adjustments */
-
-  /* Automatic turbulence values
-     TODO: specify which models do not need this instead of those who do.
-     In most cases, even if a model changes this, doing it in all cases
-     should be safe.
-
-     Also, we should compute those conditions using xdef evaluations,
-     once the velocity conditions are computed (which will required
-     looping in an at least partially specified order, and not just
-     field id order); This will allow user-defined xdefs to supercede
-     values defined here. */
-//TODO check atmo already called
-  bool std_turbulence_bcs = false;
-  if (   cs_glob_physical_model_flag[CS_PHYSICAL_MODEL_FLAG] == 0
-      || cs_glob_physical_model_flag[CS_COMPRESSIBLE] >= 0
-      || cs_glob_physical_model_flag[CS_COMBUSTION_COAL] >= 0
-      || cs_glob_physical_model_flag[CS_ATMOSPHERIC] >= 0
-      || cs_glob_physical_model_flag[CS_COOLING_TOWERS] >= 0
-      || cs_glob_physical_model_flag[CS_ELECTRIC_ARCS] >= 0
-      || cs_glob_physical_model_flag[CS_GAS_MIX] >= 0)
-    std_turbulence_bcs = true;
-
-  if (std_turbulence_bcs)
-    _standard_turbulence_bcs();
 }
 
 /*----------------------------------------------------------------------------*/
@@ -3181,7 +3116,7 @@ cs_boundary_conditions_open_set_velocity_by_normal_value(const  cs_zone_t  *z,
 /*!
  * \brief Assign a normal velocity to an inlet using a provided function.
  *
- * Reminder: if the input pointer is non-nullptr, it must point to valid data
+ * Reminder: if the input pointer is non-null, it must point to valid data
  * when the selection function is called, so either:
  * - that value or structure should not be temporary (i.e. local);
  * - when a single integer identifier is needed, the input pointer can be
@@ -3379,7 +3314,7 @@ cs_boundary_conditions_open_set_mass_flow_rate_by_value(const  cs_zone_t  *z,
  * must be aware that values from the previous time step or update will
  * be used, handle this in another manner.
  *
- * Reminder: if the input pointer is non-nullptr, it must point to valid data
+ * Reminder: if the input pointer is non-null, it must point to valid data
  * when the selection function is called, so either:
  * - that value or structure should not be temporary (i.e. local);
  * - when a single integer identifier is needed, the input pointer can be
@@ -3549,7 +3484,7 @@ cs_boundary_conditions_open_set_volume_flow_rate_by_value(const  cs_zone_t  *z,
  * must be aware that values from the previous time step or update will
  * be used, handle this in another manner.
  *
- * Reminder: if the input pointer is non-nullptr, it must point to valid data
+ * Reminder: if the input pointer is non-null, it must point to valid data
  * when the selection function is called, so either:
  * - that value or structure should not be temporary (i.e. local);
  * - when a single integer identifier is needed, the input pointer can be

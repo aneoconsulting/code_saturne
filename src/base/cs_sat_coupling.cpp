@@ -143,7 +143,7 @@ struct _cs_sat_coupling_t {
   int              imajcp; /* ALE/Deformable mesh */
   int              nvarcp; /* Local number of solved variables */
   int              nvarto; /* Max number of solved variables in coupling */
-  int              iturb;  /* Global turbulence model */
+  int              model;  /* Global turbulence model */
 
   /* Communication-related members */
 
@@ -534,7 +534,7 @@ _init_all_mpi_sat(void)
  *   cpl <-> pointer to coupling structure to destroy
  *
  * returns:
- *   nullptr pointer
+ *   null pointer
  *----------------------------------------------------------------------------*/
 
 static cs_sat_coupling_t *
@@ -585,7 +585,7 @@ _sat_coupling_interpolate(cs_sat_coupling_t  *cpl)
   const cs_mesh_quantities_t  *mq = cs_glob_mesh_quantities;
   const cs_real_3_t *cell_cen = (const cs_real_3_t *)mq->cell_cen;
   const cs_real_3_t *b_face_cog = (const cs_real_3_t *)mq->b_face_cog;
-  const cs_real_3_t *b_face_u_normal = (const cs_real_3_t *)mq->b_face_u_normal;
+  const cs_nreal_3_t *b_face_u_normal = mq->b_face_u_normal;
 
   /* Removing the connectivity and localization informations in case of
      coupling update */
@@ -945,7 +945,7 @@ static void
 _sat_coupling_check_turbulence_coherency
 (
   cs_sat_coupling_t *coupl, /*!<[in] pointer to cs_sat_coupling_t */
-  int                iturb  /*!<[in] local turbulence model */
+  int                model  /*!<[in] local turbulence model */
 )
 {
   bool  distant = false;
@@ -963,14 +963,14 @@ _sat_coupling_check_turbulence_coherency
     /* Exchange between the groups master node */
 
     if (cs_glob_rank_id < 1)
-      MPI_Sendrecv(&iturb, 1, CS_MPI_LNUM, coupl->sat_root_rank, 0,
-                   &(coupl->iturb), 1, CS_MPI_LNUM, coupl->sat_root_rank, 0,
+      MPI_Sendrecv(&model, 1, CS_MPI_LNUM, coupl->sat_root_rank, 0,
+                   &(coupl->model), 1, CS_MPI_LNUM, coupl->sat_root_rank, 0,
                    coupl->comm, &status);
 
     /* Synchronization inside a group */
 
     if (cs_glob_n_ranks > 1)
-      MPI_Bcast (&(coupl->iturb), 1, CS_MPI_LNUM, 0, cs_glob_mpi_comm);
+      MPI_Bcast (&(coupl->model), 1, CS_MPI_LNUM, 0, cs_glob_mpi_comm);
 
   }
 
@@ -978,23 +978,23 @@ _sat_coupling_check_turbulence_coherency
 
   if (distant == false) {
 
-    coupl->iturb = iturb;
+    coupl->model = model;
 
   }
 
   /* Check coherency, since only RANS and/or laminar models are handled. */
 
-  if (iturb == CS_TURB_V2F_PHI && coupl->iturb != CS_TURB_V2F_PHI) {
+  if (model == CS_TURB_V2F_PHI && coupl->model != CS_TURB_V2F_PHI) {
     bft_error(__FILE__, __LINE__, 0,
               _("V2F PHI FBAR can only be coupled with itself.\n"));
   }
-  else if (iturb == CS_TURB_V2F_BL_V2K && coupl->iturb != CS_TURB_V2F_BL_V2K) {
+  else if (model == CS_TURB_V2F_BL_V2K && coupl->model != CS_TURB_V2F_BL_V2K) {
     bft_error(__FILE__, __LINE__, 0,
               _("V2F BL-V2/K can only be coupled with itself.\n"));
   }
-  else if (  (iturb >= CS_TURB_LES_SMAGO_CONST && iturb <= CS_TURB_LES_WALE)
-           && !(   coupl->iturb >= CS_TURB_LES_SMAGO_CONST
-                && coupl->iturb <= CS_TURB_LES_WALE)) {
+  else if (  (model >= CS_TURB_LES_SMAGO_CONST && model <= CS_TURB_LES_WALE)
+           && !(   coupl->model >= CS_TURB_LES_SMAGO_CONST
+                && coupl->model <= CS_TURB_LES_WALE)) {
     bft_error(__FILE__, __LINE__, 0,
               _("LES/RANS coupling is not yet handled.\n"));
   }
@@ -1058,7 +1058,7 @@ _sat_coupling_send_bnd_data
   /* Global values used throughout this function */
   const int iprev = 0;
   const int inc   = 1;
-  const int itytur_cpl = coupl->iturb / 10;
+  const int itytur_cpl = coupl->model / 10;
 
   cs_real_3_t *grad = nullptr;
   BFT_MALLOC(grad, cs_glob_mesh->n_cells_with_ghosts, cs_real_3_t);
@@ -1289,11 +1289,11 @@ _sat_coupling_send_bnd_data
 
       ipos += 1;
     }
-    else if (coupl->iturb == CS_TURB_V2F_PHI) {
+    else if (coupl->model == CS_TURB_V2F_PHI) {
       /* Option is unavailable...*/
       cs_assert(0);
     }
-    else if (coupl->iturb == CS_TURB_K_OMEGA) {
+    else if (coupl->model == CS_TURB_K_OMEGA) {
       /* k-eps => k-omega */
       cs_real_t *_k = rvdis[ipos];
       cs_real_t *_om = rvdis[ipos + 1];
@@ -1377,7 +1377,7 @@ _sat_coupling_send_bnd_data
       }
       ipos += 2;
     }
-    else if (coupl->iturb == CS_TURB_K_OMEGA) {
+    else if (coupl->model == CS_TURB_K_OMEGA) {
       cs_real_t *_k = rvdis[ipos];
       cs_real_t *_om = rvdis[ipos + 1];
 
@@ -1394,7 +1394,7 @@ _sat_coupling_send_bnd_data
   /* V2F-Phi
      ------- */
 
-  else if (cs_glob_turb_model->iturb == CS_TURB_V2F_PHI) {
+  else if (cs_glob_turb_model->model == CS_TURB_V2F_PHI) {
 
     /* Interpolate k */
     cs_field_gradient_scalar(CS_F_(k), iprev, inc, grad);
@@ -1422,7 +1422,7 @@ _sat_coupling_send_bnd_data
 
     /* Translation to coupled model */
 
-    if (coupl->iturb == CS_TURB_V2F_PHI) {
+    if (coupl->model == CS_TURB_V2F_PHI) {
       cs_real_t *_k    = rvdis[ipos];
       cs_real_t *_eps  = rvdis[ipos + 1];
       cs_real_t *_phi  = rvdis[ipos + 2];
@@ -1442,7 +1442,7 @@ _sat_coupling_send_bnd_data
   /* K-Omega
      ------- */
 
-  else if (cs_glob_turb_model->iturb == CS_TURB_K_OMEGA) {
+  else if (cs_glob_turb_model->model == CS_TURB_K_OMEGA) {
 
     /* Interpolate k */
     cs_field_gradient_scalar(CS_F_(k), iprev, inc, grad);
@@ -1458,7 +1458,7 @@ _sat_coupling_send_bnd_data
 
     /* Translation to coupled model */
 
-    if (coupl->iturb == CS_TURB_K_OMEGA) {
+    if (coupl->model == CS_TURB_K_OMEGA) {
       cs_real_t *_k = rvdis[ipos];
       cs_real_t *_omg = rvdis[ipos + 1];
 
@@ -1594,7 +1594,7 @@ _sat_interpolate_bc_from_b_face_data
 
   /* Mesh quantities */
   cs_lnum_t *b_face_cells = cs_glob_mesh->b_face_cells;
-  cs_real_t *diipb = cs_glob_mesh_quantities->diipb;
+  const cs_rreal_3_t *diipb = cs_glob_mesh_quantities->diipb;
   cs_real_t *b_face_cog = cs_glob_mesh_quantities->b_face_cog;
   cs_real_t *cell_cen = cs_glob_mesh_quantities->cell_cen;
 
@@ -1641,7 +1641,7 @@ _sat_interpolate_bc_from_b_face_data
       cs_lnum_t f_id = b_faces_loc_ids[e_id];
       cs_lnum_t c_id = b_face_cells[f_id];
 
-      cs_real_t *xyziip = diipb + 3 * f_id;
+      const cs_rreal_t *xyziip = diipb[f_id];
 
       /* Compute bnd face value using gradient projection */
 
@@ -1713,7 +1713,7 @@ _sat_interpolate_bc_from_b_face_data
       if (cs_glob_physical_model_flag[CS_ATMOSPHERIC] > CS_ATMO_OFF)
         cs_glob_bc_pm_info->iautom[f_id] = 1;
 
-      cs_real_t *xyziip = diipb + 3 * f_id;
+      const cs_rreal_t *xyziip = diipb[f_id];
 
       cs_real_3_t xyzif = {b_face_cog[3 * f_id]     - cell_cen[3 * c_id],
                            b_face_cog[3 * f_id + 1] - cell_cen[3 * c_id + 1],
@@ -2041,7 +2041,7 @@ cs_sat_coupling_initialize
     _sat_coupling_int_max(cpl, &(cpl->nvarcp), &(cpl->nvarto));
 
     /* Turbulence models */
-    _sat_coupling_check_turbulence_coherency(cpl, cs_glob_turb_model->iturb);
+    _sat_coupling_check_turbulence_coherency(cpl, cs_glob_turb_model->model);
   }
 }
 

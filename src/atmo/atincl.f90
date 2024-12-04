@@ -142,18 +142,6 @@ integer(c_int), pointer, save :: nbmett
 !> numbers of time steps for the meteo profiles
 integer(c_int), pointer, save :: nbmetm
 
-!> automatic inlet/outlet boundary condition flag
-!> (0: not auto (default); 1,2: auto)
-!> When meteo momentum source terms are activated (iatmst > 0),
-!> iautom = 1 corresponds to a Dirichlet on the pressure and a
-!> Neumann on the velocity, whereas iautom = 2 imposes a Dirichlet
-!> on both pressure and velocity
-integer(c_int), pointer, save :: iautom(:)
-
-!> use meteo profile for variables initialization
-!> (0: not used; 1: used (default))
-integer, save :: initmeteo
-
 !> add a momentum source term based on the meteo profile
 !> for automatic open boundaries
 integer(c_int), pointer, save :: iatmst
@@ -377,9 +365,9 @@ integer, save :: kopint
 
 ! Aerosol optical depth
 !> adimensional :  aod_o3_tot=0.2 other referenced values are  0.10, 0.16
-double precision, save:: aod_o3_tot
+real(c_double), pointer, save :: aod_o3_tot
 !> adimensional :  aod_h2o_tot=0.10 other referenced values are  0.06, 0.08
-double precision, save:: aod_h2o_tot
+real(c_double), pointer, save :: aod_h2o_tot
 
 !> Asymmetry factor for O3 (non-dimensional)
 !> climatic value gaero_o3=0.66
@@ -439,7 +427,8 @@ double precision, save:: zaero
         nbmetd, nbmett, nbmetm, iatra1, nbmaxt,                         &
         meteo_zi, iatsoil,                                              &
         nvertv, kvert, kmx, tsini, tprini, qvsini, ihpm, iqv0,          &
-        nfatr1, w1ini, w2ini, sigc, idrayi, idrayst)          &
+        nfatr1, w1ini, w2ini, sigc, idrayi, idrayst, aod_o3_tot,        &
+        aod_h2o_tot)          &
       bind(C, name='cs_f_atmo_get_pointers')
       use, intrinsic :: iso_c_binding
       implicit none
@@ -460,6 +449,7 @@ double precision, save:: zaero
       type(c_ptr), intent(out) :: meteo_zi, iqv0, w1ini, w2ini
       type(c_ptr), intent(out) :: iatsoil, tsini, tprini, qvsini
       type(c_ptr), intent(out) :: nvertv, kvert, kmx, ihpm, nfatr1
+      type(c_ptr), intent(out) :: aod_o3_tot, aod_h2o_tot
     end subroutine cs_f_atmo_get_pointers
 
     !---------------------------------------------------------------------------
@@ -520,16 +510,6 @@ double precision, save:: zaero
 
     !---------------------------------------------------------------------------
 
-    !> \brief Initialize meteo profiles if no meteo file is given
-
-    subroutine cs_atmo_init_meteo_profiles() &
-        bind(C, name='cs_atmo_init_meteo_profiles')
-      use, intrinsic :: iso_c_binding
-      implicit none
-    end subroutine cs_atmo_init_meteo_profiles
-
-    !---------------------------------------------------------------------------
-
     !> \brief Compute meteo profiles if no meteo file is given
 
     subroutine cs_atmo_compute_meteo_profiles() &
@@ -537,22 +517,6 @@ double precision, save:: zaero
       use, intrinsic :: iso_c_binding
       implicit none
     end subroutine cs_atmo_compute_meteo_profiles
-
-    !---------------------------------------------------------------------------
-
-    !> \brief Calculation of the specific enthalpy of liquid water
-
-    !> \return specific enthalpy of liquid water
-
-    !> \param[in]  t_l  liquid water temperature (in Celsius)
-
-    function cs_liq_t_to_h(t_l) result(h_l) &
-        bind(C, name='cs_liq_t_to_h')
-      use, intrinsic :: iso_c_binding
-      implicit none
-      real(c_double), value :: t_l
-      real(c_double) :: h_l
-    end function cs_liq_t_to_h
 
     !---------------------------------------------------------------------------
 
@@ -572,56 +536,6 @@ double precision, save:: zaero
 
     !---------------------------------------------------------------------------
 
-    !> \brief Convert the absolute humidity of humid air to the
-    !>        air water mass fraction.
-
-    !> \param[in]  x  absolute humidity of humid air
-
-    function cs_air_x_to_yw(x) result(qw) &
-        bind(C, name='cs_air_x_to_yw')
-      use, intrinsic :: iso_c_binding
-      implicit none
-      real(c_double), value :: x
-      real(c_double) :: qw
-    end function cs_air_x_to_yw
-
-    !---------------------------------------------------------------------------
-
-    !> \brief Convert the air water mass fraction to the
-    !>        absolute humidity of humid air.
-
-    !> \param[in]  qw  air water mass fraction
-
-    function cs_air_yw_to_x(qw) result(x) &
-        bind(C, name='cs_air_yw_to_x')
-      use, intrinsic :: iso_c_binding
-      implicit none
-      real(c_double), value :: qw
-      real(c_double) :: x
-    end function cs_air_yw_to_x
-
-    !---------------------------------------------------------------------------
-
-    !> \brief Calculation of the density of humid air.
-
-    !> \param[in]  ywm           air water mass fraction
-    !> \param[in]  theta_l       potential liquide temperature
-    !> \param[in]  p             pressure
-    !> \param[out] yw_liq        liquid water mass fraction
-    !> \param[out] t_h           temperature of humid air in Celsius
-    !> \param[out] rho_h         density of humid air
-    !> \param[out] beta_h
-
-    subroutine cs_rho_humidair(ywm, theta_l, p, yw_liq, t_h, rho_h, beta_h) &
-        bind(C, name='cs_rho_humidair')
-      use, intrinsic :: iso_c_binding
-      implicit none
-      real(c_double), value :: ywm, theta_l, p
-      real(c_double), intent(out) :: yw_liq, t_h, rho_h, beta_h
-    end subroutine cs_rho_humidair
-
-    !=============================================================================
-
     subroutine cs_f_atmo_get_soil_zone(n_faces, n_soil_cat, face_ids)  &
         bind(C, name='cs_f_atmo_get_soil_zone')
       use, intrinsic :: iso_c_binding
@@ -631,35 +545,10 @@ double precision, save:: zaero
       type(c_ptr), intent(out) :: face_ids
     end subroutine cs_f_atmo_get_soil_zone
 
-    subroutine cs_f_boundary_conditions_get_atincl_pointers(p_iautom) &
-      bind(C, name='cs_f_boundary_conditions_get_atincl_pointers')
-      use, intrinsic :: iso_c_binding
-      implicit none
-      type(c_ptr), intent(out) :: p_iautom
-    end subroutine cs_f_boundary_conditions_get_atincl_pointers
-
   end interface
 
 contains
 
-  !=============================================================================
-
-  subroutine at_models_bc_map() &
-    bind(C, name='cs_f_atmo_models_boundary_conditions_map')
-
-    use, intrinsic :: iso_c_binding
-    use mesh, only: nfabor
-    implicit none
-
-    ! Arguments
-
-    ! Local variables
-    type(c_ptr) :: p_iautom
-
-    call cs_f_boundary_conditions_get_atincl_pointers(p_iautom)
-    call c_f_pointer(p_iautom, iautom, [nfabor])
-
-  end subroutine at_models_bc_map
 
   !=============================================================================
 
@@ -748,6 +637,7 @@ contains
     type(c_ptr) :: c_meteo_zi, c_tprini, c_qvsini, c_nfatr1
     type(c_ptr) :: c_iatsoil, c_tsini, c_isepchemistry, c_w1ini, c_w2ini
     type(c_ptr) :: c_nvert, c_kvert, c_kmx, c_theo_interp, c_ihpm
+    type(c_ptr) :: c_aod_o3_tot, c_aod_h2o_tot
 
     call cs_f_atmo_get_pointers(c_ps,               &
       c_syear, c_squant, c_shour, c_smin, c_ssec,   &
@@ -767,7 +657,8 @@ contains
       c_nbmaxt, c_meteo_zi, c_iatsoil,              &
       c_nvert, c_kvert, c_kmx, c_tsini, c_tprini,   &
       c_qvsini, c_ihpm, c_iqv0, c_nfatr1, c_w1ini,  &
-      c_w2ini, c_sigc, c_idrayi, c_idrayst)
+      c_w2ini, c_sigc, c_idrayi, c_idrayst,         &
+      c_aod_o3_tot, c_aod_h2o_tot)
 
     call c_f_pointer(c_ps, ps)
     call c_f_pointer(c_syear, syear)
@@ -826,6 +717,8 @@ contains
     call c_f_pointer(c_idrayi, idrayi)
     call c_f_pointer(c_idrayst, idrayst)
 
+    call c_f_pointer(c_aod_o3_tot,  aod_o3_tot)
+    call c_f_pointer(c_aod_h2o_tot, aod_h2o_tot)
     return
 
   end subroutine atmo_init
@@ -871,9 +764,6 @@ integer(c_int), dimension(2) :: dim_xyvert, dim_kmx2, dim_kmx_nvert
 
 if (imeteo.eq.1) then
   call atlecm(0)
-endif
-if (imeteo.eq.2) then
-  call cs_atmo_init_meteo_profiles()
 endif
 
 call cs_f_atmo_arrays_get_pointers(c_z_dyn_met, c_z_temp_met,     &
@@ -970,9 +860,9 @@ implicit none
 
 procedure() :: mestcr, gridcr, mestde
 
-! Prepare interpolation for 1D radiative model
 if (imeteo.gt.0) then
 
+  ! Prepare interpolation for 1D radiative model
   if (iatra1.eq.1) then
     call mestcr("rayi"//c_null_char, 1, 0, idrayi)
     call mestcr("rayst"//c_null_char, 1, 0, idrayst)

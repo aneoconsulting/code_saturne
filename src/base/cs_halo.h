@@ -1,5 +1,5 @@
-#ifndef __CS_HALO_H__
-#define __CS_HALO_H__
+#ifndef CS_HALO_H
+#define CS_HALO_H
 
 /*============================================================================
  * Structure and function headers handling with ghost cells
@@ -375,8 +375,8 @@ cs_halo_renumber_ghost_cells(cs_halo_t        *halo,
  * \param[in]       sync_mode   synchronization mode (standard or extended)
  * \param[in]       data_type   data type
  * \param[in]       stride      number of (interlaced) values by entity
- * \param[out]      send_buf    pointer to send buffer, nullptr for global buffer
- * \param[in, out]  hs          pointer to halo state, nullptr for global state
+ * \param[out]      send_buf    pointer to send buffer, null for global buffer
+ * \param[in, out]  hs          pointer to halo state, null for global state
  *
  * \return  pointer to halo send buffer
  */
@@ -406,8 +406,8 @@ cs_halo_sync_pack_init_state(const cs_halo_t  *halo,
  * \param[in]       data_type   data type
  * \param[in]       stride      number of (interlaced) values by entity
  * \param[in]       val         pointer to variable value array
- * \param[out]      send_buf    pointer to send buffer, nullptr for global buffer
- * \param[in, out]  hs          pointer to halo state, nullptr for global state
+ * \param[out]      send_buf    pointer to send buffer, null for global buffer
+ * \param[in, out]  hs          pointer to halo state, null for global state
  */
 /*----------------------------------------------------------------------------*/
 
@@ -439,8 +439,8 @@ cs_halo_sync_pack(const cs_halo_t  *halo,
  * \param[in]       stride      number of (interlaced) values by entity
  * \param[in]       val         pointer to variable value array (on device)
  * \param[out]      send_buf    pointer to send buffer (on device),
- *                              nullptr for global buffer
- * \param[in, out]  hs          pointer to halo state, nullptr for global state
+ *                              null for global buffer
+ * \param[in, out]  hs          pointer to halo state, null for global state
  */
 /*----------------------------------------------------------------------------*/
 
@@ -468,7 +468,7 @@ cs_halo_sync_pack_d(const cs_halo_t  *halo,
  *
  * \param[in]       halo        pointer to halo structure
  * \param[in]       val         pointer to variable value array
- * \param[in, out]  hs          pointer to halo state, nullptr for global state
+ * \param[in, out]  hs          pointer to halo state, null for global state
  */
 /*----------------------------------------------------------------------------*/
 
@@ -491,7 +491,7 @@ cs_halo_sync_start(const cs_halo_t  *halo,
  *
  * \param[in]       halo        pointer to halo structure
  * \param[in]       val         pointer to variable value array
- * \param[in, out]  hs          pointer to halo state, nullptr for global state
+ * \param[in, out]  hs          pointer to halo state, null for global state
  */
 /*----------------------------------------------------------------------------*/
 
@@ -718,4 +718,46 @@ cs_halo_dump(const cs_halo_t  *halo,
 
 END_C_DECLS
 
-#endif /* __CS_HALO_H__ */
+#if defined(__cplusplus)
+
+/*=============================================================================
+ * Public C++ functions
+ *============================================================================*/
+
+/*----------------------------------------------------------------------------*/
+/*
+ * \brief Update array of values in case of parallelism or periodicity.
+ *
+ * This function aims at copying main values from local elements
+ * (id between 1 and n_local_elements) to ghost elements on distant ranks
+ * (id between n_local_elements + 1 to n_local_elements_with_halo).
+ *
+ * \tparam[in]      Stride      number of (interlaced) values by entity
+ * \tparam[in]      T           value type
+ *
+ * \param[in]       halo        pointer to halo structure
+ * \param[in]       sync_mode   synchronization mode (standard or extended)
+ * \param[in]       on_device   run on accelerated device if possible
+ * \param[in, out]  val         pointer to variable value array
+ */
+/*----------------------------------------------------------------------------*/
+
+template <typename T>
+void
+cs_halo_sync(const cs_halo_t  *halo,
+             cs_halo_type_t    sync_mode,
+             bool              on_device,
+             T                 val[]);
+
+template <int Stride, typename T>
+void
+cs_halo_sync(const cs_halo_t  *halo,
+             cs_halo_type_t    sync_mode,
+             bool              on_device,
+             T                 val[][Stride]);
+
+/*----------------------------------------------------------------------------*/
+
+#endif // __cplusplus
+
+#endif /* CS_HALO_H */

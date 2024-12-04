@@ -230,21 +230,12 @@ call atmo_init_imbrication()
 
 call field_get_key_id("opt_interp_id", kopint)
 
-! initmeteo --> use meteo profile for variables initialization
-!               (0: not used; 1: used )
-! NB : should eventually be set by interface and by zone (as BCs)
-
-initmeteo = 1
-
 ! --> Initialisation for the chemistry models:
 
 init_at_chem = 1
 
 ! --> Initialisation for the gaseous chemistry model:
 
-nbchim = 0
-nbchmz = 0
-nespgi = 0
 dtchemmax = 10.d0
 
 ! --> Initialisation for the aerosol chemistry model:

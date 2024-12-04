@@ -88,18 +88,18 @@ BEGIN_C_DECLS
  * \param[in]      particle_range    start and past-the-end ids of new particles
  *                                   for this zone and class
  * \param[in]      particle_face_id  face ids of new particles if zone is
- *                                   a boundary,  nullptr otherwise
+ *                                   a boundary, null otherwise
  * \param[in]      visc_length       viscous layer thickness
  *                                   (size: number of mesh boundary faces)
  */
 /*----------------------------------------------------------------------------*/
 
 void
-cs_user_lagr_in(cs_lagr_particle_set_t         *particles,
-                const cs_lagr_injection_set_t  *zis,
-                const cs_lnum_t                 particle_range[2],
-                const cs_lnum_t                 particle_face_id[],
-                const cs_real_t                 visc_length[])
+cs_user_lagr_in(cs_lagr_particle_set_t             *particles,
+                const cs_lagr_injection_set_t      *zis,
+                const cs_lnum_t                     particle_range[2],
+                [[maybe_unused]] const cs_lnum_t    particle_face_id[],
+                [[maybe_unused]] const cs_real_t    visc_length[])
 {
 
   /*! [lagr_inj_example_coal] */

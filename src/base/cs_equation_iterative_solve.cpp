@@ -66,6 +66,7 @@
 #include "cs_field.h"
 #include "cs_gradient.h"
 #include "cs_mesh_quantities.h"
+#include "cs_multigrid.h"
 #include "cs_parameters.h"
 #include "cs_porous_model.h"
 #include "cs_prototypes.h"
@@ -227,12 +228,10 @@ _equation_iterative_solve_strided(int                   idtvar,
   int ndircp = eqp->ndircl;
   double epsrsp = eqp->epsrsm;
   double epsilp = eqp->epsilo;
-  double relaxp = eqp->relaxv;
   double thetap = eqp->theta;
 
   const cs_real_t  *cell_vol = cs_glob_mesh_quantities->cell_vol;
   const cs_lnum_t n_cells = cs_glob_mesh->n_cells;
-  const cs_lnum_t n_faces = cs_glob_mesh->n_i_faces;
   const cs_lnum_t n_i_faces = cs_glob_mesh->n_i_faces;
   const cs_lnum_t n_b_faces = cs_glob_mesh->n_b_faces;
   const cs_lnum_t n_cells_ext = cs_glob_mesh->n_cells_with_ghosts;
@@ -262,7 +261,6 @@ _equation_iterative_solve_strided(int                   idtvar,
     bft_printf("Equation iterative solve of: %s\n", var_name);
 
   /* Matrix block size */
-  cs_lnum_t db_size = stride;
   cs_lnum_t eb_size = 1; /* CS_ISOTROPIC_DIFFUSION
                             or CS_ANISOTROPIC_RIGHT_DIFFUSION */
   if (idftnp & CS_ANISOTROPIC_LEFT_DIFFUSION) eb_size = stride;
@@ -344,73 +342,36 @@ _equation_iterative_solve_strided(int                   idtvar,
       conv_diff_mg = true;
   }
 
-  /*  be careful here, xam is interleaved*/
-
-  cs_lnum_t eb_stride = eb_size*eb_size;
-  cs_real_t *xam;
-  CS_MALLOC_HD(xam, eb_stride*isym*n_faces, cs_real_t, amode);
-
   /*==========================================================================
    * Building of the "simplified" matrix
    *==========================================================================*/
+
+  cs_matrix_t *a = cs_sles_default_get_matrix
+                     (f_id, var_name, stride, eb_size, symmetric);
 
   int tensorial_diffusion = 1;
 
   if (idftnp & CS_ANISOTROPIC_LEFT_DIFFUSION)
     tensorial_diffusion = 2;
 
-  if (stride == 3)
-    cs_matrix_wrapper_vector(iconvp,
-                             idiffp,
-                             tensorial_diffusion,
-                             ndircp,
-                             isym,
-                             eb_size,
-                             thetap,
-                             bc_coeffs,
-                             (const cs_real_33_t *)fimp,
-                             i_massflux,
-                             b_massflux,
-                             i_viscm,
-                             b_viscm,
-                             (cs_real_33_t *)dam,
-                             xam);
-  else if (stride == 6)
-    cs_matrix_wrapper_tensor(iconvp,
-                             idiffp,
-                             tensorial_diffusion,
-                             ndircp,
-                             isym,
-                             thetap,
-                             bc_coeffs,
-                             (const cs_real_66_t *)fimp,
-                             i_massflux,
-                             b_massflux,
-                             i_viscm,
-                             b_viscm,
-                             (cs_real_66_t *)dam,
-                             xam);
+  /* For steady computations, the diagonal is relaxed */
+  cs_real_t relaxp = (idtvar < 0) ? eqp->relaxv : 1.;
 
-  /* Precaution if diagonal is 0, which may happen is all surrounding cells
-   * are disabled
-   * If a whole line of the matrix is 0, the diagonal is set to 1 */
-  if (mq->has_disable_flag == 1) {
-    ctx.parallel_for(n_cells, [=] CS_F_HOST_DEVICE (cs_lnum_t c_id) {
-      for (cs_lnum_t i = 0; i < stride; i++)
-        if (cs_math_fabs(dam[c_id][i][i]) < DBL_MIN)
-          dam[c_id][i][i] += 1.;
-    });
-  }
-
-  /*  For steady computations, the diagonal is relaxed */
-  if (idtvar < 0) {
-    ctx.parallel_for(n_cells, [=] CS_F_HOST_DEVICE (cs_lnum_t c_id) {
-      for (cs_lnum_t i = 0; i < stride; i++) {
-        for (cs_lnum_t j = 0; j < stride; j++)
-          dam[c_id][i][j] /= relaxp;
-      }
-    });
-  }
+  cs_matrix_compute_coeffs(a,
+                           f,
+                           iconvp,
+                           idiffp,
+                           tensorial_diffusion,
+                           ndircp,
+                           eb_size,
+                           thetap,
+                           relaxp,
+                           bc_coeffs,
+                           fimp,
+                           i_massflux,
+                           b_massflux,
+                           i_viscm,
+                           b_viscm);
 
   /*===========================================================================
    * Iterative process to handle non orthogonlaities (starting from the
@@ -634,14 +595,24 @@ _equation_iterative_solve_strided(int                   idtvar,
      for ghost values. */
 
   /* Allocate a temporary array */
+
+  // Number of local ghost cells may be different from that of mesh
+  // in case of internal coupling.
+  cs_lnum_t n_cols = cs_matrix_get_n_columns(a);
+
   var_t *w1, *w2;
-  CS_MALLOC_HD(w1, n_cells_ext, var_t, amode);
-  CS_MALLOC_HD(w2, n_cells_ext, var_t, amode);
+  CS_MALLOC_HD(w1, n_cols, var_t, amode);
+  CS_MALLOC_HD(w2, n_cols, var_t, amode);
 
   cs_real_t *pvar_i;
-  CS_MALLOC_HD(pvar_i, n_cells_ext, cs_real_t, amode);
+  CS_MALLOC_HD(pvar_i, n_cols, cs_real_t, amode);
 
   /* Compute the L2 norm of the variable */
+
+  // FIXME: use cs_array_reduce_wsum_components_l or similar function
+  //        to avoid looping on dimension and extra copy.
+  //        We also need to run this computation on GPU.
+
   for (cs_lnum_t i = 0; i < stride; i++) {
 
     for (cs_lnum_t c_id = 0; c_id < n_cells; c_id++)
@@ -658,14 +629,9 @@ _equation_iterative_solve_strided(int                   idtvar,
   }
   CS_FREE_HD(pvar_i);
 
-  cs_matrix_vector_native_multiply(symmetric,
-                                   db_size,
-                                   eb_size,
-                                   f_id,
-                                   (cs_real_t *)dam,
-                                   xam,
-                                   (cs_real_t *)w2,
-                                   (cs_real_t *)w1);
+  cs_matrix_vector_multiply(a,
+                            (cs_real_t *)w2,
+                            (cs_real_t *)w1);
 
   ctx.wait(); // matrix vector multiply uses the same stream as the ctx
 
@@ -681,20 +647,20 @@ _equation_iterative_solve_strided(int                   idtvar,
     int *c_disable_flag = mq->c_disable_flag;
 
     ctx.parallel_for(n_cells, [=] CS_F_HOST_DEVICE (cs_lnum_t c_id) {
-                                /* Remove contributions from penalized cells */
-                                for (cs_lnum_t i = 0; i < stride; i++)
-                                  w1[c_id][i] += smbrp[c_id][i];
+      /* Remove contributions from penalized cells */
+      for (cs_lnum_t i = 0; i < stride; i++)
+        w1[c_id][i] += smbrp[c_id][i];
 
-                                if (c_disable_flag[c_id] != 0)
-                                  for (cs_lnum_t i = 0; i < stride; i++)
-                                    w1[c_id][i] = 0.;
-                              });
+      if (c_disable_flag[c_id] != 0)
+        for (cs_lnum_t i = 0; i < stride; i++)
+          w1[c_id][i] = 0.;
+    });
   }
   else {
     ctx.parallel_for(n_cells, [=] CS_F_HOST_DEVICE (cs_lnum_t c_id) {
-                                for (cs_lnum_t i = 0; i < stride; i++)
-                                  w1[c_id][i] += smbrp[c_id][i];
-                              });
+      for (cs_lnum_t i = 0; i < stride; i++)
+        w1[c_id][i] += smbrp[c_id][i];
+    });
   }
 
   ctx.wait();
@@ -709,6 +675,8 @@ _equation_iterative_solve_strided(int                   idtvar,
 
   /* Warning: for Weight Matrix, one and only one sweep is done. */
   int nswmod = CS_MAX(eqp->nswrsm, 1);
+
+  cs_sles_t *sc = cs_sles_find_or_add(f_id, var_name);
 
   int isweep = 1;
 
@@ -741,22 +709,15 @@ _equation_iterative_solve_strided(int                   idtvar,
     /*  Solver residual */
     ressol = residu;
 
-    if (conv_diff_mg)
-      cs_sles_setup_native_conv_diff(f_id,
-                                     var_name,
-                                     db_size,
-                                     eb_size,
-                                     (cs_real_t *)dam,
-                                     xam,
-                                     true);
+    if (conv_diff_mg) {
+      cs_multigrid_t *mg
+        = static_cast<cs_multigrid_t *>(cs_sles_get_context(sc));
+      cs_multigrid_setup_conv_diff(mg, var_name, a, true,
+                                   cs_sles_get_verbosity(sc));
+    }
 
-    cs_sles_solve_native(f_id,
-                         var_name,
-                         symmetric,
-                         db_size,
-                         eb_size,
-                         (cs_real_t *)dam,
-                         xam,
+    cs_sles_solve_ccc_fv(sc,
+                         a,
                          epsilp,
                          rnorm,
                          &niterf,
@@ -1117,7 +1078,8 @@ _equation_iterative_solve_strided(int                   idtvar,
    * Free solver setup
    *==========================================================================*/
 
-  cs_sles_free_native(f_id, var_name);
+  cs_sles_free(sc);
+  cs_matrix_release_coefficients(a);
 
   if (stride == 3) {
     /* Save diagonal in case we want to use it */
@@ -1134,7 +1096,6 @@ _equation_iterative_solve_strided(int                   idtvar,
 
   /* Free memory */
   CS_FREE_HD(dam);
-  CS_FREE_HD(xam);
   CS_FREE_HD(smbini);
   CS_FREE_HD(dpvar);
   if (iswdyp >= 1) {
@@ -1296,7 +1257,6 @@ cs_equation_iterative_solve_scalar(int                   idtvar,
   int ndircp = eqp->ndircl;
   cs_real_t epsrsp = eqp->epsrsm;
   cs_real_t epsilp = eqp->epsilo;
-  cs_real_t relaxp = eqp->relaxv;
   cs_real_t thetap = eqp->theta;
 
   const cs_real_t  *cell_vol = cs_glob_mesh_quantities->cell_vol;
@@ -1322,7 +1282,7 @@ cs_equation_iterative_solve_scalar(int                   idtvar,
 
   int coupling_id = -1;
   cs_field_t *f = nullptr;
-  cs_real_t *dam = nullptr, *xam = nullptr, *smbini = nullptr;
+  cs_real_t *smbini = nullptr;
   cs_real_t *w1 = nullptr;
 
   bool conv_diff_mg = false;
@@ -1381,14 +1341,18 @@ cs_equation_iterative_solve_scalar(int                   idtvar,
    * 1.  Building of the "simplified" matrix
    *==========================================================================*/
 
-  CS_MALLOC_HD(dam, n_cells_ext, cs_real_t, cs_alloc_mode);
-  CS_MALLOC_HD(xam, isym*n_i_faces, cs_real_t, cs_alloc_mode);
+  cs_matrix_t *a = cs_sles_default_get_matrix(f_id, var_name, 1, 1, symmetric);
 
-  cs_matrix_wrapper_scalar(iconvp,
+  /* For steady computations, the diagonal is relaxed */
+  cs_real_t relaxp = (idtvar < 0) ? eqp->relaxv : 1.;
+
+  cs_matrix_compute_coeffs(a,
+                           f,
+                           iconvp,
                            idiffp,
                            ndircp,
-                           isym,
                            thetap,
+                           relaxp,
                            imucpp,
                            bc_coeffs,
                            rovsdt,
@@ -1396,26 +1360,7 @@ cs_equation_iterative_solve_scalar(int                   idtvar,
                            b_massflux,
                            i_viscm,
                            b_viscm,
-                           xcpp,
-                           dam,
-                           xam);
-
-  /* Precaution if diagonal is 0, which may happen is all surrounding cells
-   * are disabled
-   * If a whole line of the matrix is 0, the diagonal is set to 1 */
-  if (mq->has_disable_flag == 1) {
-    ctx.parallel_for(n_cells, [=] CS_F_HOST_DEVICE (cs_lnum_t cell_id) {
-      if (CS_ABS(dam[cell_id]) < DBL_MIN)
-        dam[cell_id] += 1.;
-    });
-  }
-
-  /* For steady computations, the diagonal is relaxed */
-  if (idtvar < 0) {
-    ctx.parallel_for(n_cells, [=] CS_F_HOST_DEVICE (cs_lnum_t cell_id) {
-      dam[cell_id] /= relaxp;
-    });
-  }
+                           xcpp);
 
   /*==========================================================================
    * 2. Iterative process to handle non orthogonalities (starting from the
@@ -1564,10 +1509,15 @@ cs_equation_iterative_solve_scalar(int                   idtvar,
        for ghost values. */
 
     /* Allocate a temporary array */
-    CS_MALLOC_HD(w1, n_cells_ext, cs_real_t, cs_alloc_mode);
+
+    // Number of local ghost cells may be different from that of mesh
+    // in case of internal coupling.
+    cs_lnum_t n_cols = cs_matrix_get_n_columns(a);
+
+    CS_MALLOC_HD(w1, n_cols, cs_real_t, cs_alloc_mode);
 
     cs_real_t *w2;
-    CS_MALLOC_HD(w2, n_cells_ext, cs_real_t, cs_alloc_mode);
+    CS_MALLOC_HD(w2, n_cols, cs_real_t, cs_alloc_mode);
 
     cs_real_t p_mean = cs_gmean(n_cells, mq->cell_vol, pvar);
 
@@ -1580,14 +1530,7 @@ cs_equation_iterative_solve_scalar(int                   idtvar,
 
     ctx.wait();
 
-    cs_matrix_vector_native_multiply(symmetric,
-                                     1,  /* db_size */
-                                     1,  /* eb_size */
-                                     f_id,
-                                     dam,
-                                     xam,
-                                     w2,
-                                     w1);
+    cs_matrix_vector_multiply(a, w2, w1);
 
     CS_FREE_HD(w2);
 
@@ -1620,6 +1563,8 @@ cs_equation_iterative_solve_scalar(int                   idtvar,
   if (iterns <= 1)
     sinfo.n_it = 0;
 
+  cs_sles_t *sc = cs_sles_find_or_add(f_id, var_name);
+
   int isweep = 1;
 
   while ((isweep <= nswmod && residu > epsrsp*rnorm) || isweep == 1) {
@@ -1641,24 +1586,17 @@ cs_equation_iterative_solve_scalar(int                   idtvar,
     /* Solver residual */
     ressol = residu;
 
-    if (conv_diff_mg)
-      cs_sles_setup_native_conv_diff(f_id,
-                                     var_name,
-                                     1,  /* db_size */
-                                     1,  /* eb_size */
-                                     dam,
-                                     xam,
-                                     true);
+    if (conv_diff_mg) {
+      cs_multigrid_t *mg
+        = static_cast<cs_multigrid_t *>(cs_sles_get_context(sc));
+      cs_multigrid_setup_conv_diff(mg, var_name, a, true,
+                                   cs_sles_get_verbosity(sc));
+    }
 
     ctx.wait(); /* We now need dpvar, computed by ctx */
 
-    cs_sles_solve_native(f_id,
-                         var_name,
-                         symmetric,
-                         1,  /* db_size */
-                         1,  /* eb_size */
-                         dam,
-                         xam,
+    cs_sles_solve_ccc_fv(sc,
+                         a,
                          epsilp,
                          rnorm,
                          &niterf,
@@ -2051,13 +1989,12 @@ cs_equation_iterative_solve_scalar(int                   idtvar,
    * 4. Free solver setup
    *==========================================================================*/
 
-  cs_sles_free_native(f_id, var_name);
+  cs_sles_free(sc);
+  cs_matrix_release_coefficients(a);
 
   ctx.wait();
 
   /*  Free memory */
-  CS_FREE_HD(dam);
-  CS_FREE_HD(xam);
   CS_FREE_HD(smbini);
 
   if (iswdyp >= 1) {

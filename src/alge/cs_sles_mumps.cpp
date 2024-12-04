@@ -98,7 +98,7 @@ BEGIN_C_DECLS
 
   This function is called the end of the setup stage.
 
-  Note: if the context pointer is non-nullptr, it must point to valid data
+  Note: if the context pointer is non-null, it must point to valid data
   when the selection function is called so that value or structure should
   not be temporary (i.e. local);
 
@@ -2584,7 +2584,7 @@ _automatic_smumps_settings_before_facto(const cs_param_sles_t   *slesp,
  * One can recover the MUMPS step through the "job" member.
  * MUMPS_JOB_ANALYSIS or MUMPS_JOB_FACTORIZATION
  *
- * Note: if the context pointer is non-nullptr, it must point to valid data
+ * Note: if the context pointer is non-null, it must point to valid data
  * when the selection function is called so that structure should
  * not be temporary (i.e. local);
  *
@@ -2607,6 +2607,40 @@ cs_user_sles_mumps_hook(const cs_param_sles_t   *slesp,
 /*============================================================================
  * Public function definitions
  *============================================================================*/
+
+/*----------------------------------------------------------------------------*/
+/*!
+ * \brief Modifiy the default value used as a threshold to clean matrix values
+ *        sent to MUMPS in case of factorization with "double precisiion"
+ *
+ *        If thr < 0, there is no cleaning
+ *
+ * \param[in] thr  value of the threshold to set
+ */
+/*----------------------------------------------------------------------------*/
+
+void
+cs_sles_mumps_set_zero_dthreshold(double thr)
+{
+  cs_sles_mumps_zero_dthreshold = thr;
+}
+
+/*----------------------------------------------------------------------------*/
+/*!
+ * \brief Modifiy the default value used as a threshold to clean matrix values
+ *        sent to MUMPS in case of factorization in "single precisiion"
+ *
+ *        If thr < 0, there is no cleaning
+ *
+ * \param[in] thr  value of the threshold to set
+ */
+/*----------------------------------------------------------------------------*/
+
+void
+cs_sles_mumps_set_zero_sthreshold(double thr)
+{
+  cs_sles_mumps_zero_fthreshold = thr;
+}
 
 /*----------------------------------------------------------------------------*/
 /*!
@@ -2794,7 +2828,7 @@ cs_sles_mumps_free(void  *context)
     return;
 
   const cs_param_sles_t  *slesp = c->sles_param;
-  assert(slesp != NULL);
+  assert(slesp != nullptr);
   const cs_param_mumps_t  *mumpsp
     = static_cast<const cs_param_mumps_t *>(slesp->context_param);
 
@@ -2967,7 +3001,7 @@ cs_sles_mumps_setup(void               *context,
   cs_sles_mumps_t *c = static_cast<cs_sles_mumps_t *>(context);
 
   const cs_param_sles_t  *slesp = c->sles_param;
-  assert(slesp != NULL);
+  assert(slesp != nullptr);
   const cs_param_mumps_t  *mumpsp
     = static_cast<const cs_param_mumps_t *>(slesp->context_param);
 

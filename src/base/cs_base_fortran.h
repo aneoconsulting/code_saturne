@@ -49,49 +49,6 @@ BEGIN_C_DECLS
  * Static global variables
  *============================================================================*/
 
-/*============================================================================
- *  Public function prototypes for Fortran API
- *============================================================================*/
-
-/*----------------------------------------------------------------------------
- * Call exit routine from Fortran code
- *
- * Fortran interface:
- *
- * subroutine csexit (status)
- * *****************
- *
- * integer          status      : <-- : 0 for success, 1+ for error
- *----------------------------------------------------------------------------*/
-
-void CS_PROCF (csexit, CSEXIT)
-(
-  const int  *status
-);
-
-/*----------------------------------------------------------------------------
- * Get log name file information.
- *
- * When log file output is suppressed, it returns the name of the
- * bit buck file ("/dev/null")
- *
- * Fortran interface
- *
- * subroutine cslogname (len, name)
- * ********************
- *
- * integer          len         : <-- : maximum string length
- * character*       name        : --> : Fortran string
- *----------------------------------------------------------------------------*/
-
-void CS_PROCF (cslogname, CSLOGNAME)
-(
- const int   *len,
- char        *dir
- CS_ARGF_SUPP_CHAINE              /*     (possible 'length' arguments added
-                                         by many Fortran compilers) */
-);
-
 /*=============================================================================
  * Public function prototypes
  *============================================================================*/
@@ -138,22 +95,10 @@ cs_base_fortran_bft_printf_to_f(void);
  *----------------------------------------------------------------------------*/
 
 void
-cs_user_extra_operations_initialize_wrapper(void);
-
-void
 cs_user_boundary_conditions_wrapper(int  *itypcl);
 
 void
 cs_user_extra_operations_wrapper(void);
-
-void
-cs_user_initialization_wrapper(void);
-
-void
-cs_user_parameters_wrapper(void);
-
-void
-cs_user_finalize_setup_wrapper(void);
 
 /*----------------------------------------------------------------------------*/
 

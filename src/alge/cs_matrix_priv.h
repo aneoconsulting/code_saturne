@@ -200,64 +200,48 @@ typedef struct _cs_matrix_struct_dist_t {
 
 } cs_matrix_struct_dist_t;
 
-/* CSR matrix coefficients representation */
-/*----------------------------------------*/
+/* Commmon matrix coefficients representation */
+/*--------------------------------------------*/
 
-typedef struct _cs_matrix_coeff_csr_t {
+/* Used for matrix formats except third-party */
 
-  /* Pointers to possibly shared arrays */
-
-  const cs_real_t  *val;              /* Matrix coefficients */
-
-  /* Pointers to private arrays (NULL if shared) */
-
-  cs_real_t        *_val;             /* Matrix coefficients */
-
-  /* Pointers to auxiliary arrays used for queries */
-
-  const cs_real_t  *d_val;            /* Pointer to diagonal matrix
-                                         coefficients, if queried */
-  cs_real_t        *_d_val;           /* Diagonal matrix coefficients,
-                                         if queried */
-
-} cs_matrix_coeff_csr_t;
-
-/* Distributed matrix coefficients representation */
-/*------------------------------------------------*/
-
-/* Used for native, MSR, and distributed matrices */
-
-typedef struct _cs_matrix_coeff_dist_t {
+typedef struct _cs_matrix_coeff_t {
 
   bool             symmetric;         /* Symmetry indicator */
 
   int              db_size;           /* Diagonal block size */
   int              eb_size;           /* Extra-diagonal  block size */
 
-  /* Pointers to possibly shared arrays */
+  /* Pointers to possibly shared arrays.
+     For distributed matrices, where the h_val (halo-only) coefficient array
+     is used, the e_val (extra-diagonal) array should contain only local
+     values. For other matrix types, it can contain a mix of local and
+     distant values. */
 
+  const cs_real_t  *val;              /* All coefficients (CSR) */
   const cs_real_t  *d_val;            /* D (diagonal-only) coefficients */
   const cs_real_t  *e_val;            /* E (extra-diagonal) coefficients */
   const cs_real_t  *h_val;            /* H (halo-only) coefficients */
 
    /* Pointers to private arrays.
-      NULL if shared:
-      * If non-NULL, d_val, e_val, and h_val should point
+      nullptr if shared:
+      * If non-null, d_val, e_val, and h_val should point
         to matching private array.
       * In the case of CSR storage, where diagonal values can be stored in
-        the e_val array, d_val will be NULL but _d_val may be used to store
-        (cache) diagonal values. */
+        the a_val array, d_val will be null but _d_val may be used to store
+        (cache) diagonal values, if queried. */
 
+  cs_real_t        *_val;            /* All coefficients (CSR) */
   cs_real_t        *_d_val;          /* D (diagonal) coefficients */
-  cs_real_t        *_e_val;          /* E (local extra-diagonal) coefficients */
-  cs_real_t        *_h_val;          /* H (halo) coefficients */
+  cs_real_t        *_e_val;          /* E (extra-diagonal) coefficients */
+  cs_real_t        *_h_val;          /* H (halo-only) coefficients */
 
   /* Pointers to auxiliary matrix structure elements */
 
   cs_lnum_t        *d_idx;           /* Index for diagonal matrix coefficients
                                         in case of multiple block sizes */
 
-} cs_matrix_coeff_dist_t;
+} cs_matrix_coeff_t;
 
 /* Matrix structure (representation-independent part) */
 /*----------------------------------------------------*/
@@ -309,6 +293,8 @@ struct _cs_matrix_t {
 
   cs_alloc_mode_t        alloc_mode;   /* Preferred allocation mode */
 
+  unsigned int           need_xa : 1;  /* Need face-based xa array */
+
   /* Pointer to shared structure */
 
   const void            *structure;    /* Possibly shared matrix structure */
@@ -331,6 +317,7 @@ struct _cs_matrix_t {
      code first. */
 
   const cs_real_t       *xa;           /* Extra-diagonal terms */
+  cs_real_t             *_xa;          /* Extra-diagonal terms, private copy */
 
   /* Pointer to associated connectivity and geometric data needed by
      multigrid smoothing. At least cell centers and volumes are needed for

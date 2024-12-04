@@ -275,11 +275,11 @@ _compute_geometrical_face_weight(const cs_internal_coupling_t  *cpl)
   const cs_mesh_quantities_t  *fvq = cs_glob_mesh_quantities;
   const cs_mesh_t             *m   = cs_glob_mesh;
 
-  const cs_real_t* cell_cen = fvq->cell_cen;
-  const cs_real_t* b_face_cog = fvq->b_face_cog;
-  const cs_real_t* diipb = fvq->diipb;
-  const cs_real_t* b_face_surf = cs_glob_mesh_quantities->b_face_surf;
-  const cs_real_t* b_face_normal = cs_glob_mesh_quantities->b_face_normal;
+  const cs_real_t *cell_cen = fvq->cell_cen;
+  const cs_real_t *b_face_cog = fvq->b_face_cog;
+  const cs_rreal_3_t *diipb = fvq->diipb;
+  const cs_real_t *b_face_surf = cs_glob_mesh_quantities->b_face_surf;
+  const cs_real_t *b_face_normal = cs_glob_mesh_quantities->b_face_normal;
 
   /* Store local FI' distances in gweight_distant */
 
@@ -291,7 +291,7 @@ _compute_geometrical_face_weight(const cs_internal_coupling_t  *cpl)
     cell_id = m->b_face_cells[face_id];
 
     for (cs_lnum_t jj = 0; jj < 3; jj++)
-      dv[jj] =  - diipb[3*face_id + jj] - cell_cen[3*cell_id +jj]
+      dv[jj] =  - diipb[face_id][jj] - cell_cen[3*cell_id +jj]
                 + b_face_cog[3*face_id +jj];
 
     g_weight_distant[ii] = cs_math_3_norm(dv);
@@ -2012,10 +2012,10 @@ cs_internal_coupling_exchange_by_face_id(const cs_internal_coupling_t  *cpl,
  *
  * parameters:
  *   cpl             <-- pointer to coupling entity
- *   n_local         --> nullptr or pointer to component n_local
- *   faces_local     --> nullptr or pointer to component faces_local
- *   n_distant       --> nullptr or pointer to component n_distant
- *   faces_distant   --> nullptr or pointer to component faces_distant
+ *   n_local         --> null or pointer to component n_local
+ *   faces_local     --> null or pointer to component faces_local
+ *   n_distant       --> null or pointer to component n_distant
+ *   faces_distant   --> null or pointer to component faces_distant
  *----------------------------------------------------------------------------*/
 
 void

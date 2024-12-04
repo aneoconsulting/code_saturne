@@ -139,7 +139,7 @@ cs_ctwr_compute_reference_pressure(cs_lnum_t  cell_id,
  * \brief Reset the field variables based on the restart values
  *
  * \param[in]     rho0        Reference density of humid air
- * \param[in]     t0          Reference temperature of humid air
+ * \param[in]     t0          Reference temperature of humid air (Kelvin)
  * \param[in]     p0          Reference pressure
  * \param[in]     humidity0   Reference humidity
  * \param[in]     molmassrat  Dry air to water vapor molecular mass ratio
@@ -336,7 +336,7 @@ cs_ctwr_restart_field_vars(cs_real_t  rho0,
 
     /* Initialize rain variable */
     if (ct_opt->has_rain) {//FIXME useless
-      cs_real_3_t *drift_vel = (cs_real_3_t *restrict)(cfld_drift_vel->val);
+      cs_real_3_t *drift_vel = (cs_real_3_t *)(cfld_drift_vel->val);
       drift_vel[cell_id][0] = cpro_taup[cell_id] * gravity[0];
       drift_vel[cell_id][1] = cpro_taup[cell_id] * gravity[1];
       drift_vel[cell_id][2] = cpro_taup[cell_id] * gravity[2];
@@ -405,7 +405,7 @@ cs_ctwr_restart_field_vars(cs_real_t  rho0,
  *        the liquid.
  *
  * \param[in]     rho0        Reference density of humid air
- * \param[in]     t0          Reference temperature of humid air
+ * \param[in]     t0          Reference temperature of humid air (Kelvin)
  * \param[in]     p0          Reference pressure
  */
 /*----------------------------------------------------------------------------*/
@@ -446,9 +446,10 @@ cs_ctwr_phyvar_update(cs_real_t  rho0,
                                                (bulk) density */
     rho_h = cs_field_by_name("rho_humid_air")->val; /* Humid air density */
   }
-  else
+  else {
     rho = (cs_real_t *)CS_F_(rho)->val;
     rho_h = (cs_real_t *)CS_F_(rho)->val;
+  }
 
   cs_real_t rho_l = air_prop->rho_l; /* Liquid density */
   cs_real_t *cp_h = (cs_real_t *)CS_F_(cp)->val;      /* Humid air (bulk) Cp */
@@ -509,9 +510,10 @@ cs_ctwr_phyvar_update(cs_real_t  rho0,
 
   cs_real_t *ym_l_r = nullptr;
   cs_real_t *ym_l_r_pre = nullptr;
-  if (cfld_yp != nullptr)
+  if (cfld_yp != nullptr) {
     ym_l_r = cfld_yp->val;
     ym_l_r_pre = cfld_yp->val_pre;
+  }
 
   cs_real_t *rain_b_mass_flow
     = cs_field_by_composite_name("boundary_mass_flux",cfld_yp->name)->val;

@@ -910,20 +910,23 @@ _petsc_boomeramg_hook(const char             *prefix,
 #endif /* defined(PETSC_HAVE_HYPRE) */
 }
 
+#if defined(PETSC_HAVE_HPDDM)
 /*----------------------------------------------------------------------------*/
 /*!
  * \brief Predefined settings for HPDMM as a preconditioner even if another
  *        settings have been defined. One assumes that one really wants to use
  *        HPDDM
  *
- * \param[in]      prefix        prefix name associated to the current SLES
- * \param[in]      slesp         pointer to a set of SLES parameters
- * \param[in, out] pc            pointer to a PETSc preconditioner
+ * \param[in]      prefix  prefix name associated to the current SLES
+ * \param[in]      slesp   pointer to a set of SLES parameters
+ * \param[in, out] pc      pointer to a PETSc preconditioner
  */
 /*----------------------------------------------------------------------------*/
 
 static void
-_petsc_pchpddm_hook(const char *prefix, const cs_param_sles_t *slesp, PC pc)
+_petsc_pchpddm_hook(const char            *prefix,
+                    const cs_param_sles_t *slesp,
+                    PC                     pc)
 {
   assert(prefix != nullptr);
   assert(slesp != nullptr);
@@ -932,10 +935,13 @@ _petsc_pchpddm_hook(const char *prefix, const cs_param_sles_t *slesp, PC pc)
   char prefix_pc[128];
 
   /* Set type */
+
   PCSetType(pc, PCHPDDM);
 
   /* Symmetric matrix ? */
+
   if (slesp->mat_is_sym) {
+
     /* Define generic options */
     sprintf(prefix_pc, "%s%s", prefix, "pc_hpddm_");
 
@@ -969,8 +975,10 @@ _petsc_pchpddm_hook(const char *prefix, const cs_param_sles_t *slesp, PC pc)
     _petsc_cmd(true, prefix_pc, "mat_mumps_cntl_3", "1.e-50");
     _petsc_cmd(true, prefix_pc, "mat_mumps_cntl_5", "0.");
     _petsc_cmd(true, prefix_pc, "p", "2");
+
   }
   else {
+
     /* There is three important parameters */
     /* Left bounds: easy problem and low cost */
     /* Right bounds: hard problem and high cost */
@@ -1006,8 +1014,10 @@ _petsc_pchpddm_hook(const char *prefix, const cs_param_sles_t *slesp, PC pc)
     _petsc_cmd(true, prefix_pc, "sub_mat_mumps_icntl_14", "400");
     _petsc_cmd(true, prefix_pc, "mat_type", "baij");
     _petsc_cmd(true, prefix_pc, "p", "2");
+
   }
 }
+#endif // PETSC_HAVE_HPDDM
 
 /*----------------------------------------------------------------------------*/
 /*!
@@ -1337,7 +1347,7 @@ _petsc_set_krylov_solver(cs_param_sles_t  *slesp,
     }
 #else
     bft_error(__FILE__, __LINE__, 0,
-              "%s: MUMPS inside PETSc is not available.\n",
+              "%s: MUMPS inside PETSc is not available.\n"
               " Please check your settings or your installation.", __func__);
 #endif
     break;
@@ -1742,6 +1752,17 @@ _petsc_block_hook(void     *context,
     case CS_PARAM_PRECOND_DIAG:
       _petsc_cmd(true, prefix, "ksp_type", "richardson");
       _petsc_cmd(true, prefix, "pc_type", "jacobi");
+      break;
+
+    case CS_PARAM_PRECOND_HPDDM:
+#if defined(PETSC_HAVE_HPDDM)
+      _petsc_pchpddm_hook(prefix, slesp, pc);
+#else
+      bft_error(__FILE__, __LINE__, 0,
+                "%s: Eq. %s: "
+                "Preconditioner HPDDM is not available inside PETSc.",
+                __func__, slesp->name);
+#endif
       break;
 
     case CS_PARAM_PRECOND_ILU0:
@@ -2416,14 +2437,9 @@ _set_saturne_sles(bool                 use_field_id,
     break;
 
     case CS_PARAM_PRECOND_HPDDM:
-
-      bft_error(
-        __FILE__,
-        __LINE__,
-        0,
+      bft_error(__FILE__, __LINE__, 0,
         " %s: Eq. %s: Preconditioner HPDDM is not available outside PETSc.",
-        __func__,
-        slesp->name);
+        __func__, slesp->name);
       break;
 
     default: /* Nothing else to do */
@@ -2709,7 +2725,7 @@ _set_hypre_solver(cs_param_sles_t    *slesp,
  *         This function is called at the end of the setup stage for a KSP
  *         solver.
  *
- *         Note: if the context pointer is non-nullptr, it must point to valid
+ *         Note: if the context pointer is non-null, it must point to valid
  *         data when the selection function is called so that value or
  *         structure should not be temporary (i.e. local);
  *

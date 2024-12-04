@@ -58,12 +58,13 @@ use atincl
 use numvar
 use atchem
 use sshaerosol, only : init_gas_with_lib, sshaerosol_get_gas
+use cs_c_bindings, only: csexit
 
 implicit none
 
 !===============================================================================
 
-procedure() :: csexit, comp_quantile
+procedure() :: comp_quantile
 
 ! Arguments
 
@@ -156,7 +157,7 @@ else
     call csexit(1)
   endif
 
-  ! --> if the date and time are not completed in usppmo/cs_user_model if no meteo
+  ! --> if the date and time are not completed in cs_user_model if no meteo
   ! --> file is given,
   ! --> the date and time of the first concentration profile are taken as the
   !     starting time of the simulation

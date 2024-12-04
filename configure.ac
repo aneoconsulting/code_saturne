@@ -220,7 +220,7 @@ if test "x$auto_flags" = "xyes" ; then
   CPPFLAGS="$cppflags_default $user_CPPFLAGS"
   CFLAGS="$cflags_default $user_CFLAGS"
   CXXFLAGS="$cxxflags_default $user_CXXFLAGS"
-  CXXFLAGS_STD="$cxxflags_default_std"
+  CXXFLAGS_STD="$cxxflags_default_std $user_CXXFLAGS"
   FCFLAGS="$fcflags_default $user_FCFLAGS"
   LDFLAGS="$ldflags_default $user_LDFLAGS"
   LIBS="$libs_default $user_LIBS"
@@ -1260,6 +1260,7 @@ AC_CONFIG_FILES([Makefile
                  preprocessor/Makefile
                  preprocessor/appli/Makefile preprocessor/base/Makefile
                  preprocessor/pre-post/Makefile preprocessor/util/Makefile
+                 external/Makefile external/atmo/Makefile
                  src/Makefile      src/apps/Makefile src/gui/Makefile
                  src/bft/Makefile  src/fvm/Makefile
                  src/base/Makefile src/atmo/Makefile src/cdo/Makefile
