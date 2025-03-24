@@ -44,6 +44,8 @@
 
 #include <cuda_runtime_api.h>
 
+#include <nvtx3/nvtx3.hpp>
+
 /*----------------------------------------------------------------------------
  *  Local headers
  *----------------------------------------------------------------------------*/
@@ -1963,6 +1965,8 @@ cs_gradient_strided_gg_r_cuda
  cs_real_t                     grad[][stride][3]
 )
 {
+  NVTX3_FUNC_RANGE();
+
   //const cs_e2n_sum_t e2n_sum_type = CS_E2N_SUM_SCATTER_ATOMIC;
   const cs_e2n_sum_t e2n_sum_type = CS_E2N_SUM_GATHER;
 

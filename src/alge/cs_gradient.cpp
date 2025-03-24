@@ -41,6 +41,8 @@
 #include <string.h>
 #include <float.h>
 
+#include <nvtx3/nvtx3.hpp>
+
 #if defined(HAVE_MPI)
 #include <mpi.h>
 #endif
@@ -782,6 +784,8 @@ _scalar_gradient_clipping(const cs_mesh_t              *m,
                           const cs_real_t              *restrict  pvar,
                           cs_real_t                   (*restrict grad)[3])
 {
+  NVTX3_FUNC_RANGE();
+
   const cs_lnum_t n_cells = m->n_cells;
   const cs_lnum_t n_cells_ext = m->n_cells_with_ghosts;
 
@@ -3269,6 +3273,8 @@ _lsq_scalar_gradient_hyd_p_gather(const cs_mesh_t                *m,
                                   const cs_real_t       *restrict c_weight_s,
                                   cs_real_3_t           *restrict grad)
 {
+  NVTX3_FUNC_RANGE();
+
   std::chrono::high_resolution_clock::time_point t_start, t_cocg, t_cells, \
     t_stop;
 
@@ -3835,6 +3841,8 @@ _reconstruct_scalar_gradient(const cs_mesh_t                 *m,
                              cs_real_3_t            *restrict r_grad,
                              cs_real_3_t            *restrict grad)
 {
+  NVTX3_FUNC_RANGE();
+
   cs_mesh_quantities_t *mq_g = cs_glob_mesh_quantities_g;
 
   const cs_real_t *coefap = bc_coeffs->a;
@@ -7314,6 +7322,8 @@ _gradient_scalar(const char                    *var_name,
                  const cs_internal_coupling_t  *cpl,
                  cs_real_t           (*restrict grad)[3])
 {
+  NVTX3_FUNC_RANGE();
+
   const cs_mesh_t  *mesh = cs_glob_mesh;
   cs_mesh_quantities_t  *fvq = cs_glob_mesh_quantities;
 
@@ -8466,6 +8476,8 @@ cs_gradient_scalar(const char                    *var_name,
                    const cs_internal_coupling_t  *cpl,
                    cs_real_t           (*restrict grad)[3])
 {
+  NVTX3_FUNC_RANGE();
+
   const cs_mesh_t  *mesh = cs_glob_mesh;
   cs_gradient_info_t *gradient_info = nullptr;
   cs_timer_t t0, t1;
@@ -8572,6 +8584,8 @@ cs_gradient_vector(const char                    *var_name,
                    const cs_internal_coupling_t  *cpl,
                    cs_real_t                      gradv[][3][3])
 {
+  NVTX3_FUNC_RANGE();
+
   const cs_mesh_t  *mesh = cs_glob_mesh;
   const cs_mesh_quantities_t *fvq = cs_glob_mesh_quantities;
   const cs_lnum_t n_b_faces = mesh->n_b_faces;
@@ -8827,6 +8841,8 @@ cs_gradient_tensor(const char                  *var_name,
                    cs_real_6_t        *restrict var,
                    cs_real_63_t       *restrict grad)
 {
+  NVTX3_FUNC_RANGE();
+
   const cs_mesh_t *mesh = cs_glob_mesh;
   const cs_mesh_quantities_t *fvq = cs_glob_mesh_quantities;
   const cs_lnum_t n_b_faces = mesh->n_b_faces;
