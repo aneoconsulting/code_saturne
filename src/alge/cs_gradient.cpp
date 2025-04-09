@@ -8479,7 +8479,9 @@ cs_gradient_vector(const char                    *var_name,
                    const cs_internal_coupling_t  *cpl,
                    cs_real_t                      gradv[][3][3])
 {
+#if defined(HAVE_CUDA) && defined(CS_ENABLE_NVTX)
   NVTX3_FUNC_RANGE();
+#endif
 
   const cs_mesh_t  *mesh = cs_glob_mesh;
   const cs_mesh_quantities_t *fvq = cs_glob_mesh_quantities;
@@ -8733,7 +8735,9 @@ cs_gradient_tensor(const char                  *var_name,
                    cs_real_6_t        *restrict var,
                    cs_real_63_t       *restrict grad)
 {
+#if defined(HAVE_CUDA) && defined(CS_ENABLE_NVTX)
   NVTX3_FUNC_RANGE();
+#endif
 
   const cs_mesh_t *mesh = cs_glob_mesh;
   const cs_mesh_quantities_t *fvq = cs_glob_mesh_quantities;
