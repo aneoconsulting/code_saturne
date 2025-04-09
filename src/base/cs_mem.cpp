@@ -242,10 +242,10 @@ public:
                                     .size    = me.size,
                                     .n_tries = 0 };
 
-        // free_blocks_[me.mode].push_back(mpe);
-
+#if defined(CS_MEM_POOL_SORT)
         // Ensuring the block vector is always sorted by size (ascending order)
         // to prioritize the reuse of smaller blocks.
+
         auto &free_blocks = free_blocks_[me.mode];
         free_blocks.insert(
           std::find_if(std::begin(free_blocks),
@@ -254,6 +254,9 @@ public:
                          return block.size > mpe.size;
                        }),
           mpe);
+#else
+        free_blocks_[me.mode].push_back(mpe);
+#endif
 
         current_capacity_ += me.size;
         if (current_capacity_ > peak_capacity_)
