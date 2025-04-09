@@ -44,6 +44,10 @@
 
 #include <cuda_runtime_api.h>
 
+#if defined(HAVE_CUDA) && defined(CS_ENABLE_NVTX)
+#include <nvtx3/nvtx3.hpp>
+#endif
+
 /*----------------------------------------------------------------------------
  *  Local headers
  *----------------------------------------------------------------------------*/
@@ -1963,6 +1967,10 @@ cs_gradient_strided_gg_r_cuda
  cs_real_t                     grad[][stride][3]
 )
 {
+#if defined(HAVE_CUDA) && defined(CS_ENABLE_NVTX)
+  NVTX3_FUNC_RANGE();
+#endif
+
   //const cs_e2n_sum_t e2n_sum_type = CS_E2N_SUM_SCATTER_ATOMIC;
   const cs_e2n_sum_t e2n_sum_type = CS_E2N_SUM_GATHER;
 

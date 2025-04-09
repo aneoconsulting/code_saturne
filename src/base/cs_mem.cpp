@@ -43,6 +43,7 @@
 
 #if defined(HAVE_ACCEL)
 
+#include <algorithm>
 #include <memory>
 #include <mutex>
 #include <unordered_map>
@@ -237,12 +238,26 @@ public:
 
     if (active_) {
       if (max_capacity_ == 0 || current_capacity_ + me.size < max_capacity_) {
+        cs_mem_pool_block_t mpe = { .ptr     = me.device_ptr,
+                                    .size    = me.size,
+                                    .n_tries = 0 };
 
-        cs_mem_pool_block_t mpe = {.ptr   = me.device_ptr,
-                                   .size  = me.size,
-                                   .n_tries = 0};
+#if defined(CS_MEM_POOL_SORT)
+        // Ensuring the block vector is always sorted by size (ascending order)
+        // to prioritize the reuse of smaller blocks.
 
+        auto &free_blocks = free_blocks_[me.mode];
+        free_blocks.insert(
+          std::find_if(std::begin(free_blocks),
+                       std::end(free_blocks),
+                       [&mpe](cs_mem_pool_block_t const &block) -> bool {
+                         return block.size > mpe.size;
+                       }),
+          mpe);
+#else
         free_blocks_[me.mode].push_back(mpe);
+#endif
+
         current_capacity_ += me.size;
         if (current_capacity_ > peak_capacity_)
           peak_capacity_ = current_capacity_;

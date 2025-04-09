@@ -125,6 +125,7 @@ cs_mass_source_terms.h \
 cs_math.h \
 cs_measures_util.h \
 cs_mem.h \
+cs_mem_pool_scope.h \
 cs_mobile_structures.h \
 cs_rank_neighbors.h \
 cs_notebook.h \
@@ -260,6 +261,7 @@ cs_log.cpp \
 cs_map.cpp \
 cs_math.cpp \
 cs_mem.cpp \
+cs_mem_pool_scope.cpp \
 cs_order.cpp \
 cs_part_to_block.cpp \
 cs_rank_neighbors.cpp \

@@ -34,6 +34,10 @@
 #include <string.h>
 #include <assert.h>
 
+#if defined(HAVE_CUDA) && defined(CS_ENABLE_NVTX)
+#include <nvtx3/nvtx3.hpp>
+#endif
+
 /*----------------------------------------------------------------------------
  *  Local headers
  *----------------------------------------------------------------------------*/
@@ -1705,6 +1709,10 @@ cs_halo_sync_start(const cs_halo_t  *halo,
                    void             *val,
                    cs_halo_state_t  *hs)
 {
+#if defined(HAVE_CUDA) && defined(CS_ENABLE_NVTX)
+  NVTX3_FUNC_RANGE();
+#endif
+
   if (halo == nullptr)
     return;
 
@@ -1954,6 +1962,10 @@ cs_halo_sync(const cs_halo_t  *halo,
              int               stride,
              void             *val)
 {
+#if defined(HAVE_CUDA) && defined(CS_ENABLE_NVTX)
+  NVTX3_FUNC_RANGE();
+#endif
+
   if (halo == nullptr)
     return;
 

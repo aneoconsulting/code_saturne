@@ -41,6 +41,10 @@
 #include <string.h>
 #include <float.h>
 
+#if defined(HAVE_CUDA) && defined(CS_ENABLE_NVTX)
+#include <nvtx3/nvtx3.hpp>
+#endif
+
 #if defined(HAVE_MPI)
 #include <mpi.h>
 #endif
@@ -77,6 +81,7 @@
 #include "base/cs_prototypes.h"
 #include "base/cs_timer.h"
 #include "base/cs_timer_stats.h"
+#include "base/cs_mem_pool_scope.h"
 
 /*----------------------------------------------------------------------------
  *  Header for the current file
@@ -782,6 +787,10 @@ _scalar_gradient_clipping(const cs_mesh_t              *m,
                           const cs_real_t              *restrict  pvar,
                           cs_real_t                   (*restrict grad)[3])
 {
+#if defined(HAVE_CUDA) && defined(CS_ENABLE_NVTX)
+  NVTX3_FUNC_RANGE();
+#endif
+
   const cs_lnum_t n_cells = m->n_cells;
   const cs_lnum_t n_cells_ext = m->n_cells_with_ghosts;
 
@@ -2387,6 +2396,10 @@ _get_cell_cocg_lsq(const cs_mesh_t               *m,
                    cs_cocg_6_t                   *restrict *cocg,
                    cs_cocg_6_t                   *restrict *cocgb)
 {
+#if defined(HAVE_CUDA) && defined(CS_ENABLE_NVTX)
+  NVTX3_FUNC_RANGE();
+#endif
+
   cs_gradient_quantities_t  *gq = _gradient_quantities_get(0);
 
   cs_cocg_6_t *_cocg = nullptr;
@@ -3219,6 +3232,10 @@ _lsq_scalar_gradient_hyd_p_gather(const cs_mesh_t                *m,
                                   const cs_real_t       *restrict c_weight_s,
                                   cs_real_3_t           *restrict grad)
 {
+#if defined(HAVE_CUDA) && defined(CS_ENABLE_NVTX)
+  NVTX3_FUNC_RANGE();
+#endif
+
   std::chrono::high_resolution_clock::time_point t_start, t_cocg, t_cells, \
     t_stop;
 
@@ -3772,6 +3789,10 @@ _reconstruct_scalar_gradient(const cs_mesh_t                 *m,
                              cs_real_3_t            *restrict r_grad,
                              cs_real_3_t            *restrict grad)
 {
+#if defined(HAVE_CUDA) && defined(CS_ENABLE_NVTX)
+  NVTX3_FUNC_RANGE();
+#endif
+
   cs_mesh_quantities_t *mq_g = cs_glob_mesh_quantities_g;
 
   const cs_real_t *coefap = bc_coeffs->a;
@@ -7200,6 +7221,12 @@ _gradient_scalar(const char                    *var_name,
                  const cs_internal_coupling_t  *cpl,
                  cs_real_t           (*restrict grad)[3])
 {
+#if defined(HAVE_CUDA) && defined(CS_ENABLE_NVTX)
+  NVTX3_FUNC_RANGE();
+#endif
+
+  cs_mem_pool_scope_t mem_pool_scope;
+
   const cs_mesh_t  *mesh = cs_glob_mesh;
   cs_mesh_quantities_t  *fvq = cs_glob_mesh_quantities;
 
@@ -8342,6 +8369,10 @@ cs_gradient_scalar(const char                    *var_name,
                    const cs_internal_coupling_t  *cpl,
                    cs_real_t           (*restrict grad)[3])
 {
+#if defined(HAVE_CUDA) && defined(CS_ENABLE_NVTX)
+  NVTX3_FUNC_RANGE();
+#endif
+
   const cs_mesh_t  *mesh = cs_glob_mesh;
   cs_gradient_info_t *gradient_info = nullptr;
   cs_timer_t t0, t1;
@@ -8448,6 +8479,10 @@ cs_gradient_vector(const char                    *var_name,
                    const cs_internal_coupling_t  *cpl,
                    cs_real_t                      gradv[][3][3])
 {
+#if defined(HAVE_CUDA) && defined(CS_ENABLE_NVTX)
+  NVTX3_FUNC_RANGE();
+#endif
+
   const cs_mesh_t  *mesh = cs_glob_mesh;
   const cs_mesh_quantities_t *fvq = cs_glob_mesh_quantities;
   const cs_lnum_t n_b_faces = mesh->n_b_faces;
@@ -8700,6 +8735,10 @@ cs_gradient_tensor(const char                  *var_name,
                    cs_real_6_t        *restrict var,
                    cs_real_63_t       *restrict grad)
 {
+#if defined(HAVE_CUDA) && defined(CS_ENABLE_NVTX)
+  NVTX3_FUNC_RANGE();
+#endif
+
   const cs_mesh_t *mesh = cs_glob_mesh;
   const cs_mesh_quantities_t *fvq = cs_glob_mesh_quantities;
   const cs_lnum_t n_b_faces = mesh->n_b_faces;
