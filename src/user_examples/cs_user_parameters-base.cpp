@@ -933,7 +933,7 @@ cs_user_parameters(cs_domain_t *domain)
       = cs_get_glob_velocity_pressure_param();
     cs_time_control_t *vp_tc =
       &(vp_param->time_control);
-    vp_tc->interval_nt = -1;
+    cs_time_control_init_by_time_step(vp_tc, -1, -1, -1, false, false);
   }
   /*! [param_iccvfg] */
 
@@ -953,6 +953,11 @@ cs_user_parameters(cs_domain_t *domain)
 
     /* Change the hydrostatic pressure algorithm */
     vp_param->iphydr = 1;
+    /* Partial equilibrium between grad(P) and user source terms */
+    vp_param->igpust = 1;
+    /* Partial equilibrium between grad(P) and div(rho R) for
+     * second order turbulence models */
+    vp_param->igprij = 1;
   }
   /*! [param_vp_arak] */
 

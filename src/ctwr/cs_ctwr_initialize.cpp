@@ -341,7 +341,7 @@ cs_ctwr_init_field_vars(cs_real_t  rho0,
   if (cfld_taup != nullptr)
     cpro_taup = cfld_taup->val;
   else
-    BFT_MALLOC(cpro_taup, n_cells_with_ghosts, cs_real_t);
+    CS_MALLOC(cpro_taup, n_cells_with_ghosts, cs_real_t);
 
   const cs_air_fluid_props_t  *air_prop = cs_glob_air_props;
   cs_real_t rho_l = air_prop->rho_l;
@@ -462,7 +462,7 @@ cs_ctwr_init_field_vars(cs_real_t  rho0,
 
     // FIXME make it global for the zone as restart...
     for (int sweep = 0;
-         sweep < 100 && CS_ABS(reynolds - reynolds_old) > 0.001;
+         sweep < 100 && cs::abs(reynolds - reynolds_old) > 0.001;
          sweep++) {
       reynolds_old = reynolds;
       v_lim =   pow(droplet_diam, 2.) * rho_l
@@ -546,7 +546,7 @@ cs_ctwr_init_field_vars(cs_real_t  rho0,
 
   /* Free memory */
   if (cfld_taup == nullptr)
-    BFT_FREE(cpro_taup);
+    CS_FREE(cpro_taup);
 }
 
 /*----------------------------------------------------------------------------*/
@@ -599,7 +599,7 @@ cs_ctwr_init_flow_vars(cs_real_t  liq_mass_flow[])
 
   /* Tag and initialize the ct values in the packing zone cells */
 
-  BFT_MALLOC(packing_cell, n_cells_with_ghosts, int);
+  CS_MALLOC(packing_cell, n_cells_with_ghosts, int);
 
   cs_array_int_set_value(n_cells_with_ghosts, -1, packing_cell);
 
@@ -611,9 +611,9 @@ cs_ctwr_init_flow_vars(cs_real_t  liq_mass_flow[])
   for (int ict = 0; ict < *_n_ct_zones; ict++) {
     cs_ctwr_zone_t *ct = _ct_zone[ict];
 
-    BFT_MALLOC(ct->inlet_faces_ids, n_i_faces, cs_lnum_t);
-    BFT_MALLOC(ct->outlet_faces_ids, n_i_faces, cs_lnum_t);
-    BFT_MALLOC(ct->outlet_cells_ids, n_i_faces, cs_lnum_t);
+    CS_MALLOC(ct->inlet_faces_ids, n_i_faces, cs_lnum_t);
+    CS_MALLOC(ct->outlet_faces_ids, n_i_faces, cs_lnum_t);
+    CS_MALLOC(ct->outlet_cells_ids, n_i_faces, cs_lnum_t);
     const cs_lnum_t *ze_cell_ids = cs_volume_zone_by_name(ct->name)->elt_ids;
     for (int i = 0; i < ct->n_cells; i++) {
       cs_lnum_t cell_id = ze_cell_ids[i];
@@ -639,7 +639,7 @@ cs_ctwr_init_flow_vars(cs_real_t  liq_mass_flow[])
     /* one of neigh. cells is in packing */
     if (packing_cell[cell_id_1] != -1 || packing_cell[cell_id_2] != -1) {
 
-      int ct_id = CS_MAX(packing_cell[cell_id_1], packing_cell[cell_id_2]);
+      int ct_id = cs::max(packing_cell[cell_id_1], packing_cell[cell_id_2]);
       cs_ctwr_zone_t *ct = _ct_zone[ct_id];
 
       /* Vertical (align with gravity) component of the surface vector */
@@ -783,16 +783,15 @@ cs_ctwr_init_flow_vars(cs_real_t  liq_mass_flow[])
   for (int ict = 0; ict < *_n_ct_zones; ict++) {
     cs_ctwr_zone_t *ct = _ct_zone[ict];
 
-    BFT_REALLOC(ct->inlet_faces_ids, ct->n_inlet_faces, cs_lnum_t);
-    BFT_REALLOC(ct->outlet_faces_ids, ct->n_outlet_faces, cs_lnum_t);
-    BFT_REALLOC(ct->outlet_cells_ids, ct->n_outlet_cells, cs_lnum_t);
+    CS_REALLOC(ct->inlet_faces_ids, ct->n_inlet_faces, cs_lnum_t);
+    CS_REALLOC(ct->outlet_faces_ids, ct->n_outlet_faces, cs_lnum_t);
+    CS_REALLOC(ct->outlet_cells_ids, ct->n_outlet_cells, cs_lnum_t);
 
     cs_parall_sum(1, CS_REAL_TYPE, &(ct->surface_in));
     cs_parall_sum(1, CS_REAL_TYPE, &(ct->surface_out));
   }
 
-  BFT_FREE(packing_cell);
-
+  CS_FREE(packing_cell);
 }
 
 /*----------------------------------------------------------------------------*/

@@ -127,11 +127,11 @@ _coal_solve_matrix(int     ndim,
 
   for (int ii = 0; ii < ndim; ii++) {
     int iw = ii;
-    double ww = cs_math_fabs(aa[ii*ndim + ii]);
+    double ww = cs::abs(aa[ii*ndim + ii]);
     for (int jj = ii; jj < ndim; jj++) {
-      if (cs_math_fabs(aa[ii*ndim + jj]) > ww) {
+      if (cs::abs(aa[ii*ndim + jj]) > ww) {
         iw = jj;
-        ww = cs_math_fabs(aa[ii*ndim + jj]);
+        ww = cs::abs(aa[ii*ndim + jj]);
       }
     }
     if (ww <= epsil)  {
@@ -159,7 +159,7 @@ _coal_solve_matrix(int     ndim,
   }
 
   if (retcode != 1) {
-    if (cs_math_fabs(aa[ndim*ndim - 1]) < epsil) {
+    if (cs::abs(aa[ndim*ndim - 1]) < epsil) {
       retcode = 1;
     }
     else {
@@ -295,8 +295,8 @@ cs_coal_read_data(void)
   const int  ngazem = CS_COMBUSTION_COAL_MAX_ELEMENTARY_COMPONENTS;
   const int  npot = CS_COMBUSTION_COAL_MAX_TABULATION_POINTS;
   double *ehcoel, *cpcoel;
-  BFT_MALLOC(ehcoel, ngazem * npot, double);
-  BFT_MALLOC(cpcoel, ngazem * npot, double);
+  CS_MALLOC(ehcoel, ngazem * npot, double);
+  CS_MALLOC(cpcoel, ngazem * npot, double);
 
   const int n_coals = cm->n_coals;
 
@@ -471,7 +471,7 @@ cs_coal_read_data(void)
                                            wmolce,
                                            cm->th);
 
-  BFT_FREE(cpcoel);
+  CS_FREE(cpcoel);
 
   /* Compute enthalpy - temperature tabulation for gas mix */
 
@@ -826,7 +826,7 @@ cs_coal_read_data(void)
     }
   }
 
-  BFT_FREE(ehcoel);
+  CS_FREE(ehcoel);
 
   /* Coke = CH(gamma)O(delta)N(kappa)S(zeta) */
 

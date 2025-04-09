@@ -116,14 +116,14 @@ _physical_properties_update_bsh(const cs_combustion_gas_model_t  *cm)
   cs_real_t *cpro_rho = CS_F_(rho)->val;
 
   cs_real_t *cvar_h = nullptr;
-  if (cs_glob_physical_model_flag[CS_COMBUSTION_3PT] == 1)
+  if (cm->type%2 == 1)
     cvar_h = CS_F_(h)->val;
 
   cs_real_t *cpro_t4m = nullptr;
   if (rt_model != CS_RAD_TRANSFER_NONE)
     cpro_t4m = cs_field_by_name("temperature_4")->val;
 
-  cs_real_t *cpro_t2m = cs_field_by_name("temperature_2")->val;
+  cs_real_t *cpro_t2m = cm->t2m->val;
 
   cs_real_t *cpro_fuel = cs_field_by_name("ym_fuel")->val;
   cs_real_t *cpro_oxyd = cs_field_by_name("ym_oxyd")->val;
@@ -141,7 +141,7 @@ _physical_properties_update_bsh(const cs_combustion_gas_model_t  *cm)
     cs_real_t c_fm = cvar_fm[c_id];
     if (rt_model != CS_RAD_TRANSFER_NONE) {
       cs_real_t had = c_fm*hinfue + (1.-c_fm)*hinoxy;
-      kir = cs_math_fmax(-(cvar_h[c_id] - had), 0.0);
+      kir = cs::max(-(cvar_h[c_id] - had), 0.0);
     }
     else
       kir = 0.;

@@ -561,7 +561,7 @@ _cs_rad_transfer_sol(int       gg_id,
             domegat = rt_params->angsol[dir_id];
             for (cs_lnum_t face_id = 0; face_id < n_b_faces; face_id++) {
               aa = cs_math_3_dot_product(vect_s, b_face_u_normal[face_id]);
-              f_snplus->val[face_id] += 0.5 * (-aa + CS_ABS(aa)) * domegat;
+              f_snplus->val[face_id] += 0.5 * (-aa + cs::abs(aa)) * domegat;
             }
           }
 
@@ -600,7 +600,7 @@ _cs_rad_transfer_sol(int       gg_id,
   /* rovsdt loaded once only */
 
   for (cs_lnum_t cell_id = 0; cell_id < n_cells; cell_id++)
-    rovsdt[cell_id] = CS_MAX(rovsdt[cell_id], 0.0);
+    rovsdt[cell_id] = cs::max(rovsdt[cell_id], 0.0);
 
   /* Angular discretization */
 
@@ -685,21 +685,19 @@ _cs_rad_transfer_sol(int       gg_id,
               if (   gg_id == rt_params->atmo_df_id
                   || gg_id == rt_params->atmo_df_o3_id) {
 
-                /* w0 (1 +- g mu0/mui) S0 */
-                cs_real_t vol_w0 = w0[gg_id + cell_id * stride];
+                /* w0 (1 +- g) S0 */
+                cs_real_t _w0 = w0[gg_id + cell_id * stride];
 
-                cs_real_t mui = 1./sqrt(3.);
-                /* g mu0/mui */
-                cs_real_t gmudmui = g_apc[gg_id + cell_id * stride]
-                  * muzero_cor / mui;
+                /* g assymmetry factor */
+                cs_real_t _gapc= g_apc[gg_id + cell_id * stride];
 
                 /* rhs already contains S0* cell_vol */
                 /* Up */
                 if (cs_math_3_dot_product(grav, vect_s) < 0.0)
-                  rhs[cell_id] *= vol_w0 * 0.5 * (1. - gmudmui);
+                  rhs[cell_id] *= _w0 * 0.5 * (1. - _gapc);
                 /* Down */
                 else
-                  rhs[cell_id] *= vol_w0 * 0.5 * (1. + gmudmui);
+                  rhs[cell_id] *= _w0 * 0.5 * (1. + _gapc);
               }
             }
           }
@@ -829,7 +827,7 @@ _cs_rad_transfer_sol(int       gg_id,
           for (cs_lnum_t face_id = 0; face_id < n_b_faces; face_id++) {
             cs_lnum_t cell_id = cs_glob_mesh->b_face_cells[face_id];
             aa = cs_math_3_dot_product(vect_s, b_face_u_normal[face_id]);
-            aa = 0.5 * (aa + CS_ABS(aa)) * domegat;
+            aa = 0.5 * (aa + cs::abs(aa)) * domegat;
             f_snplus->val[face_id] += aa;
             f_qincid->val[face_id] += aa * radiance[cell_id];
             /* Diffusion: downward reflect on upward */
@@ -1486,13 +1484,13 @@ _rad_transfer_solve(int bc_type[])
 
       ckmin = ckg[0];
       for (cs_lnum_t cell_id = 0; cell_id < n_cells; cell_id++)
-        ckmin = CS_MIN(ckmin, ckg[cell_id]);
+        ckmin = cs::min(ckmin, ckg[cell_id]);
 
     }
     else {
       for (cs_lnum_t cell_id = 0; cell_id < n_cells; cell_id++) {
         for (int gg_id = 0; gg_id < nwsgg; gg_id++)
-          ckmin = CS_MIN(ckmin, kgi[n_cells*gg_id + cell_id]);
+          ckmin = cs::min(ckmin, kgi[n_cells*gg_id + cell_id]);
       }
 
     }
@@ -1559,7 +1557,7 @@ _rad_transfer_solve(int bc_type[])
       cs_real_t ckmax = 0.0;
 
       for (cs_lnum_t cell_id = 0; cell_id < n_cells; cell_id++)
-        ckmax = CS_MAX(ckmax, ckg[cell_id]);
+        ckmax = cs::max(ckmax, ckg[cell_id]);
 
       cs_parall_max(1, CS_REAL_TYPE, &ckmax);
 
@@ -1579,7 +1577,7 @@ _rad_transfer_solve(int bc_type[])
       cs_real_t ckumax = 0.0;
 
       for (cs_lnum_t cell_id = 0; cell_id < n_cells; cell_id++)
-        ckumax = CS_MAX(ckumax, ck_u[gg_id + cell_id * nwsgg]);
+        ckumax = cs::max(ckumax, ck_u[gg_id + cell_id * nwsgg]);
 
       cs_parall_max(1, CS_REAL_TYPE, &ckumax);
 
@@ -1593,7 +1591,7 @@ _rad_transfer_solve(int bc_type[])
       cs_real_t ckdmax = 0.0;
 
       for (cs_lnum_t cell_id = 0; cell_id < n_cells; cell_id++)
-        ckdmax = CS_MAX(ckdmax, ck_d[gg_id + cell_id * nwsgg]);
+        ckdmax = cs::max(ckdmax, ck_d[gg_id + cell_id * nwsgg]);
 
       cs_parall_max(1, CS_REAL_TYPE, &ckdmax);
 
@@ -1769,10 +1767,10 @@ _rad_transfer_solve(int bc_type[])
                    rt_params->atmo_dr_id + 1);
           cs_field_t *f_abs_dr = cs_field_by_name_try(f_name);
           /* Emission initialized by direct absorption S0
-           * Note: radiance is "1/pi * direct flux"
+           * Note: radiance is "1/(2pi) * direct flux"
            * */
           for (cs_lnum_t cell_id = 0; cell_id < n_cells; cell_id++)
-            f_emi->val[cell_id] = f_abs_dr->val[cell_id] * onedpi;
+            f_emi->val[cell_id] = 0.5 * f_abs_dr->val[cell_id] * onedpi;
         }
         if (gg_id == rt_params->atmo_df_o3_id) {
 
@@ -1781,7 +1779,7 @@ _rad_transfer_solve(int bc_type[])
           cs_field_t *f_abs_dr = cs_field_by_name_try(f_name);
           /* Emission initialized by direct absorption S0 * dtau/dz */
           for (cs_lnum_t cell_id = 0; cell_id < n_cells; cell_id++)
-            f_emi->val[cell_id] = f_abs_dr->val[cell_id] * onedpi;
+            f_emi->val[cell_id] = 0.5 * f_abs_dr->val[cell_id] * onedpi;
         }
 
         for (cs_lnum_t cell_id = 0; cell_id < n_cells; cell_id++)
@@ -2049,7 +2047,7 @@ _rad_transfer_solve(int bc_type[])
 
   for (cs_lnum_t ifac = 0; ifac < n_b_faces; ifac++) {
     if (f_fnet->val[ifac] <= xlimit)
-      bc_type[ifac] = - CS_ABS(bc_type[ifac]);
+      bc_type[ifac] = - cs::abs(bc_type[ifac]);
   }
 
   cs_boundary_conditions_error(bc_type, "Net flux BC values");
@@ -2723,7 +2721,7 @@ _rad_transfer_rcfsk_solve(int  bc_type[])
 
   for (cs_lnum_t ifac = 0; ifac < n_b_faces; ifac++) {
     if (f_fnet->val[ifac] <= xlimit)
-      bc_type[ifac] = -CS_ABS(bc_type[ifac]);
+      bc_type[ifac] = -cs::abs(bc_type[ifac]);
   }
 
   cs_boundary_conditions_error(bc_type, "Net flux BC values");

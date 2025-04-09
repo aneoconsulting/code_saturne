@@ -601,8 +601,8 @@ _compute_exchange_mixed_convection(cs_lnum_t  ieltcd,
 
   switch (_wall_cond.mixed_conv_model) {
   case CS_WALL_COND_MIXED_MAX:
-    *hcond = cs_math_fmax(hcond_fc, hcond_nc);
-    *hconv = cs_math_fmax(hconv_fc, hconv_nc);
+    *hcond = cs::max(hcond_fc, hcond_nc);
+    *hconv = cs::max(hconv_fc, hconv_nc);
     break;
   case CS_WALL_COND_MIXED_INCROPERA:;
     const cs_lnum_t *  ifabor = cs_glob_mesh->b_face_cells;
@@ -717,7 +717,7 @@ _compute_exchange_natural_convection_volume_structure(cs_real_t   *hcond,
     t_wall += cs_physical_constants_celsius_to_kelvin;
 
     cs_real_t psat          = _compute_psat(t_wall);
-    cs_real_t x_vap_int     = cs_math_fmin(1.0, psat / pressure);
+    cs_real_t x_vap_int     = cs::min(1.0, psat / pressure);
     cs_real_t mol_mas_ncond = cpro_mol_mass_ncond[iel];
     cs_real_t mol_mas_vap   = s_vap.mol_mas;
     cs_real_t mol_mas_int
@@ -832,18 +832,18 @@ cs_wall_condensation_create(void)
     _wall_cond.nvolumes = 1;
 
   // Mesh related quantities
-  CS_MALLOC(_wall_cond.ifbpcd, _wall_cond.nfbpcd, cs_lnum_t);
-  CS_MALLOC(_wall_cond.itypcd, _wall_cond.nfbpcd * n_var, cs_lnum_t);
-  CS_MALLOC(_wall_cond.izzftcd, _wall_cond.nfbpcd, cs_lnum_t);
-  CS_MALLOC(_wall_cond.spcond, _wall_cond.nfbpcd * n_var, cs_real_t);
-  CS_MALLOC(_wall_cond.hpcond, _wall_cond.nfbpcd, cs_real_t);
-  CS_MALLOC(_wall_cond.twall_cond, _wall_cond.nfbpcd, cs_real_t);
-  CS_MALLOC(_wall_cond.thermal_condensation_flux, _wall_cond.nfbpcd, cs_real_t);
-  CS_MALLOC(_wall_cond.convective_htc, _wall_cond.nfbpcd, cs_real_t);
-  CS_MALLOC(_wall_cond.condensation_htc, _wall_cond.nfbpcd, cs_real_t);
-  CS_MALLOC(_wall_cond.total_htc, _wall_cond.nfbpcd, cs_real_t);
-  CS_MALLOC(_wall_cond.flthr, _wall_cond.nfbpcd, cs_real_t);
-  CS_MALLOC(_wall_cond.dflthr, _wall_cond.nfbpcd, cs_real_t);
+  CS_MALLOC_HD(_wall_cond.ifbpcd, _wall_cond.nfbpcd, cs_lnum_t, cs_alloc_mode);
+  CS_MALLOC_HD(_wall_cond.itypcd, _wall_cond.nfbpcd * n_var, cs_lnum_t, cs_alloc_mode);
+  CS_MALLOC_HD(_wall_cond.izzftcd, _wall_cond.nfbpcd, cs_lnum_t, cs_alloc_mode);
+  CS_MALLOC_HD(_wall_cond.spcond, _wall_cond.nfbpcd * n_var, cs_real_t, cs_alloc_mode);
+  CS_MALLOC_HD(_wall_cond.hpcond, _wall_cond.nfbpcd, cs_real_t, cs_alloc_mode);
+  CS_MALLOC_HD(_wall_cond.twall_cond, _wall_cond.nfbpcd, cs_real_t, cs_alloc_mode);
+  CS_MALLOC_HD(_wall_cond.thermal_condensation_flux, _wall_cond.nfbpcd, cs_real_t, cs_alloc_mode);
+  CS_MALLOC_HD(_wall_cond.convective_htc, _wall_cond.nfbpcd, cs_real_t, cs_alloc_mode);
+  CS_MALLOC_HD(_wall_cond.condensation_htc, _wall_cond.nfbpcd, cs_real_t, cs_alloc_mode);
+  CS_MALLOC_HD(_wall_cond.total_htc, _wall_cond.nfbpcd, cs_real_t, cs_alloc_mode);
+  CS_MALLOC_HD(_wall_cond.flthr, _wall_cond.nfbpcd, cs_real_t, cs_alloc_mode);
+  CS_MALLOC_HD(_wall_cond.dflthr, _wall_cond.nfbpcd, cs_real_t, cs_alloc_mode);
 
   // Zone related quantities
   CS_MALLOC(_wall_cond.izcophc, _wall_cond.nzones, cs_lnum_t);
@@ -888,11 +888,11 @@ cs_wall_condensation_create(void)
     _wall_cond.zprojcond[3 * i + 2] = 0.0;
   }
 
-  CS_MALLOC(_wall_cond.ltmast, _wall_cond.ncmast, cs_lnum_t);
-  CS_MALLOC(_wall_cond.itypst, _wall_cond.ncmast * n_var, cs_lnum_t);
-  CS_MALLOC(_wall_cond.svcond, _wall_cond.ncmast * n_var, cs_real_t);
-  CS_MALLOC(_wall_cond.izmast, _wall_cond.ncmast, cs_lnum_t);
-  CS_MALLOC(_wall_cond.flxmst, _wall_cond.ncmast, cs_real_t);
+  CS_MALLOC_HD(_wall_cond.ltmast, _wall_cond.ncmast, cs_lnum_t, cs_alloc_mode);
+  CS_MALLOC_HD(_wall_cond.itypst, _wall_cond.ncmast * n_var, cs_lnum_t, cs_alloc_mode);
+  CS_MALLOC_HD(_wall_cond.svcond, _wall_cond.ncmast * n_var, cs_real_t, cs_alloc_mode);
+  CS_MALLOC_HD(_wall_cond.izmast, _wall_cond.ncmast, cs_lnum_t, cs_alloc_mode);
+  CS_MALLOC_HD(_wall_cond.flxmst, _wall_cond.ncmast, cs_real_t, cs_alloc_mode);
   CS_MALLOC(_wall_cond.itagms, _wall_cond.nvolumes, cs_lnum_t);
 
   cs_array_lnum_fill_zero(_wall_cond.ncmast, _wall_cond.ltmast);
@@ -986,11 +986,9 @@ cs_wall_condensation_initialize(void)
      a 1-D thermal model with implicit numerical scheme */
   wall_cond->nztag1d = 0;
   for (cs_lnum_t iz = 0; iz < wall_thermal->nzones; iz++) {
-    for (cs_lnum_t ii = 0; ii < wall_cond->nfbpcd; ii++) {
-      if (wall_cond->izzftcd[ii] == iz && wall_cond->iztag1d[iz] == 1)
-        wall_cond->nztag1d
-          = cs_math_fmax(wall_cond->iztag1d[iz], wall_cond->nztag1d);
-    }
+    if (wall_cond->iztag1d[iz] == 1)
+      wall_cond->nztag1d
+        = cs::max(wall_cond->iztag1d[iz], wall_cond->nztag1d);
   }
 
   cs_parall_max(1, CS_INT_TYPE, &wall_cond->nztag1d);
@@ -1000,7 +998,7 @@ cs_wall_condensation_initialize(void)
     wall_thermal->znmurx = 0;
     for (cs_lnum_t iz = 0; iz < wall_cond->nzones; iz++) {
       wall_thermal->znmurx
-        = cs_math_fmax(wall_thermal->znmur[iz], wall_thermal->znmurx);
+        = cs::max(wall_thermal->znmur[iz], wall_thermal->znmurx);
     }
 
     cs_parall_max(1, CS_INT_TYPE, &wall_thermal->znmurx);
@@ -1199,14 +1197,14 @@ cs_wall_condensation_log(void)
 
     for (cs_lnum_t ii = 0; ii < _wall_cond.nfbpcd; ii++) {
       gamma_cond += _wall_cond.spcond[ipr * _wall_cond.nfbpcd + ii];
-      h_conv_min = cs_math_fmin(h_conv_min, _wall_cond.convective_htc[ii]);
-      h_conv_max = cs_math_fmax(h_conv_max, _wall_cond.convective_htc[ii]);
-      h_cond_min = cs_math_fmin(h_cond_min, _wall_cond.condensation_htc[ii]);
-      h_cond_max = cs_math_fmax(h_cond_max, _wall_cond.condensation_htc[ii]);
-      flux_min = cs_math_fmin(flux_min,
-                              _wall_cond.thermal_condensation_flux[ii]);
-      flux_max = cs_math_fmax(flux_max,
-                              _wall_cond.thermal_condensation_flux[ii]);
+      h_conv_min = cs::min(h_conv_min, _wall_cond.convective_htc[ii]);
+      h_conv_max = cs::max(h_conv_max, _wall_cond.convective_htc[ii]);
+      h_cond_min = cs::min(h_cond_min, _wall_cond.condensation_htc[ii]);
+      h_cond_max = cs::max(h_cond_max, _wall_cond.condensation_htc[ii]);
+      flux_min = cs::min(flux_min,
+                         _wall_cond.thermal_condensation_flux[ii]);
+      flux_max = cs::max(flux_max,
+                         _wall_cond.thermal_condensation_flux[ii]);
     }
 
     if (cs_glob_n_ranks > 1) {
@@ -1252,8 +1250,8 @@ cs_wall_condensation_log(void)
 
     for (cs_lnum_t ii = 0; ii < _wall_cond.ncmast; ii++) {
       gamma_cond += _wall_cond.svcond[ipr * _wall_cond.ncmast + ii];
-      flux_min = cs_math_fmin(flux_min, _wall_cond.flxmst[ii]);
-      flux_max = cs_math_fmax(flux_max, _wall_cond.flxmst[ii]);
+      flux_min = cs::min(flux_min, _wall_cond.flxmst[ii]);
+      flux_max = cs::max(flux_max, _wall_cond.flxmst[ii]);
     }
 
     if (cs_glob_n_ranks > 1) {

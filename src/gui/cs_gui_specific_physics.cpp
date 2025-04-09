@@ -48,26 +48,30 @@
 
 #include "fvm/fvm_selector.h"
 
-#include "atmo/cs_atmo.h"
 #include "base/cs_base.h"
+#include "base/cs_field.h"
+#include "base/cs_field_pointer.h"
+#include "base/cs_math.h"
+#include "base/cs_parameters.h"
+#include "base/cs_physical_properties.h"
+#include "base/cs_physical_constants.h"
+#include "base/cs_selector.h"
+#include "base/cs_vof.h"
+
+#include "gui/cs_gui_util.h"
+#include "gui/cs_gui.h"
+
+#include "mesh/cs_mesh.h"
+
+#include "pprt/cs_physical_model.h"
+#include "atmo/cs_atmo.h"
+#include "cdo/cs_param_cdo.h"
+#include "cdo/cs_thermal_system.h"
 #include "cfbl/cs_cf_model.h"
 #include "comb/cs_coal.h"
 #include "cogz/cs_combustion_gas.h"
-#include "gui/cs_gui_util.h"
-#include "gui/cs_gui.h"
-#include "mesh/cs_mesh.h"
-#include "base/cs_field.h"
-#include "base/cs_field_pointer.h"
-#include "cdo/cs_param_cdo.h"
-#include "base/cs_parameters.h"
-#include "pprt/cs_physical_model.h"
-#include "base/cs_selector.h"
-#include "base/cs_physical_properties.h"
-#include "base/cs_physical_constants.h"
-#include "rayt/cs_rad_transfer.h"
-#include "cdo/cs_thermal_system.h"
 #include "elec/cs_elec_model.h"
-#include "base/cs_vof.h"
+#include "rayt/cs_rad_transfer.h"
 
 /*----------------------------------------------------------------------------
  * Header for the current file
@@ -659,8 +663,8 @@ _get_active_thermophysical_model(char  **model_name,
     return isactiv;
   }
   else {
-    BFT_FREE(*model_name);
-    BFT_FREE(*model_value);
+    CS_FREE(*model_name);
+    CS_FREE(*model_value);
   }
 
   const char *model = NULL, *name = NULL;
@@ -703,10 +707,10 @@ _get_active_thermophysical_model(char  **model_name,
   }
 
   if (name != NULL) {
-    BFT_MALLOC(*model_name, strlen(name)+1, char);
+    CS_MALLOC(*model_name, strlen(name)+1, char);
     strcpy(*model_name, name);
 
-    BFT_MALLOC(*model_value, strlen(model)+1, char);
+    CS_MALLOC(*model_value, strlen(model)+1, char);
     strcpy(*model_value, model);
 
     isactiv = 1;
@@ -919,8 +923,8 @@ cs_gui_physical_model_select(void)
   }
 #endif
 
-  BFT_FREE(model_name);
-  BFT_FREE(model_value);
+  CS_FREE(model_name);
+  CS_FREE(model_value);
 }
 
 /*----------------------------------------------------------------------------
@@ -1013,9 +1017,9 @@ cs_gui_coal_model(void)
       int nbrf = cs_tree_get_node_count(tn, "refusal");
 
       cs_real_t *dprefus, *refus, *pourc;
-      BFT_MALLOC(dprefus, nbrf, cs_real_t);
-      BFT_MALLOC(refus, nbrf, cs_real_t);
-      BFT_MALLOC(pourc, cm->n_classes_per_coal[icha], cs_real_t);
+      CS_MALLOC(dprefus, nbrf, cs_real_t);
+      CS_MALLOC(refus, nbrf, cs_real_t);
+      CS_MALLOC(pourc, cm->n_classes_per_coal[icha], cs_real_t);
 
       for (int ii = 0; ii < nbrf; ii++) {
         dprefus[ii] = -1;
@@ -1046,7 +1050,7 @@ cs_gui_coal_model(void)
       /* split classes */
 
       cs_real_t *rf;
-      BFT_MALLOC(rf, cm->n_classes_per_coal[icha], cs_real_t);
+      CS_MALLOC(rf, cm->n_classes_per_coal[icha], cs_real_t);
       rf[0] = pourc[0] / 2.;
 
       for (int icla = 1; icla < cm->n_classes_per_coal[icha]; icla++)
@@ -1095,10 +1099,10 @@ cs_gui_coal_model(void)
       for (int icla = iclag; icla < iclag+cm->n_classes_per_coal[icha]; icla ++)
         bft_printf("%d     %f \n", icla-iclag, cm->diam20[icla]);
 
-      BFT_FREE(pourc);
-      BFT_FREE(refus);
-      BFT_FREE(dprefus);
-      BFT_FREE(rf);
+      CS_FREE(pourc);
+      CS_FREE(refus);
+      CS_FREE(dprefus);
+      CS_FREE(rf);
 
     }
     else {
@@ -1299,13 +1303,13 @@ cs_gui_coal_model(void)
     for (int ioxy = 0; ioxy < cm->noxyd; ioxy++) {
       cs_real_t coef = 100.;
       if (cm->oxyo2[ioxy] > 0.)
-        coef = CS_MIN(coef, cm->oxyo2[ioxy]);
+        coef = cs::min(coef, cm->oxyo2[ioxy]);
       if (cm->oxyn2[ioxy] > 0.)
-        coef = CS_MIN(coef, cm->oxyn2[ioxy]);
+        coef = cs::min(coef, cm->oxyn2[ioxy]);
       if (cm->oxyh2o[ioxy] > 0.)
-        coef = CS_MIN(coef, cm->oxyh2o[ioxy]);
+        coef = cs::min(coef, cm->oxyh2o[ioxy]);
       if (cm->oxyco2[ioxy] > 0.)
-        coef = CS_MIN(coef, cm->oxyco2[ioxy]);
+        coef = cs::min(coef, cm->oxyco2[ioxy]);
 
       cm->oxyo2 [ioxy] /= coef;
       cm->oxyn2 [ioxy] /= coef;
@@ -1486,7 +1490,7 @@ cs_gui_elec_model_rec(void)
            elec_opt->crit_reca[4]);
   crit[127] = '\0';
 
-  BFT_MALLOC(selected_faces, cs_glob_mesh->n_i_faces, cs_lnum_t);
+  CS_MALLOC(selected_faces, cs_glob_mesh->n_i_faces, cs_lnum_t);
 
   cs_selector_get_i_face_list(crit,
                               &n_selected_faces,
@@ -1495,7 +1499,7 @@ cs_gui_elec_model_rec(void)
   for (cs_lnum_t j = 0; j < n_selected_faces; j++)
     elec_opt->izreca[selected_faces[j]] = 1;
 
-  BFT_FREE(selected_faces);
+  CS_FREE(selected_faces);
 }
 
 /*-----------------------------------------------------------------------------

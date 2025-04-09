@@ -387,8 +387,8 @@ cs_ctwr_restart_field_vars(cs_real_t  rho0,
   cs_real_t h_max = -1.e12;
   cs_real_t h_min = 1.e12;
   for (cs_lnum_t cell_id = 0; cell_id < n_cells; cell_id++) {
-    h_min = CS_MIN(h_min,h_h[cell_id]);
-    h_max = CS_MAX(h_max,h_h[cell_id]);
+    h_min = cs::min(h_min,h_h[cell_id]);
+    h_max = cs::max(h_max,h_h[cell_id]);
   }
 
   /* Parallel synchronization */
@@ -802,7 +802,7 @@ cs_ctwr_phyvar_update(cs_real_t  rho0,
                  + ct->relax * (ct->t_l_out + ct->delta_t);
 
       /* Clipping between 0 and 100 */
-      ct->t_l_bc = CS_MAX(CS_MIN(ct->t_l_bc, 100.), 0.);
+      ct->t_l_bc = cs::max(cs::min(ct->t_l_bc, 100.), 0.);
     }
   }
 
@@ -824,38 +824,40 @@ cs_ctwr_phyvar_update(cs_real_t  rho0,
   }
 
   /* Compute the rain mass change in the domain */
-  cs_real_t mass_rain = 0.;
-  cs_real_t mass_rain_pre = 0.;
+  if (cs_log_default_is_active()) {
+    cs_real_t mass_rain = 0.;
+    cs_real_t mass_rain_pre = 0.;
 
-  for (cs_lnum_t cell_id = 0; cell_id < n_cells; cell_id++) {
-    mass_rain += ym_l_r[cell_id] * rho_h[cell_id] * cell_f_vol[cell_id];
-    mass_rain_pre += ym_l_r_pre[cell_id] * rho_h[cell_id] * cell_f_vol[cell_id];
-  }
-
-  cs_real_t mf_rain_walls = 0.;
-
-  for (cs_lnum_t face_id = 0; face_id < n_b_faces; face_id++) {
-    if (   bc_type[face_id] == CS_SMOOTHWALL
-        || bc_type[face_id] == CS_ROUGHWALL) {
-      cs_lnum_t cell_id = b_face_cells[face_id];
-      mf_rain_walls += ym_l_r[cell_id] * rain_b_mass_flow[face_id];
+    for (cs_lnum_t cell_id = 0; cell_id < n_cells; cell_id++) {
+      mass_rain += ym_l_r[cell_id] * rho_h[cell_id] * cell_f_vol[cell_id];
+      mass_rain_pre += ym_l_r_pre[cell_id] * rho_h[cell_id] * cell_f_vol[cell_id];
     }
+
+    cs_real_t mf_rain_walls = 0.;
+
+    for (cs_lnum_t face_id = 0; face_id < n_b_faces; face_id++) {
+      if (   bc_type[face_id] == CS_SMOOTHWALL
+          || bc_type[face_id] == CS_ROUGHWALL) {
+        cs_lnum_t cell_id = b_face_cells[face_id];
+        mf_rain_walls += ym_l_r[cell_id] * rain_b_mass_flow[face_id];
+      }
+    }
+
+    cs_parall_sum(1, CS_REAL_TYPE, &mass_rain_pre);
+    cs_parall_sum(1, CS_REAL_TYPE, &mass_rain);
+    cs_parall_sum(1, CS_REAL_TYPE, &mf_rain_walls);
+
+    bft_printf("  ** Cooling tower model: rain mass balance\n");
+    bft_printf("     --------------------------------------\n\n");
+    bft_printf("Total mass of rain at previous timestep:   %12.5e kg\n",
+               mass_rain_pre);
+    bft_printf("Total mass of rain at current timestep :   %12.5e kg\n",
+               mass_rain);
+    bft_printf("Rain mass rate of change in the domain :   %12.5e kg/s\n",
+               (mass_rain - mass_rain_pre) / cs_glob_time_step->dt_ref);
+    bft_printf("Outgoing rain mass flux through walls  :   %12.5e kg/s\n",
+               mf_rain_walls);
   }
-
-  cs_parall_sum(1, CS_REAL_TYPE, &mass_rain_pre);
-  cs_parall_sum(1, CS_REAL_TYPE, &mass_rain);
-  cs_parall_sum(1, CS_REAL_TYPE, &mf_rain_walls);
-
-  bft_printf("  ** Cooling tower model : rain mass balance\n");
-  bft_printf("     ---------------------------------------\n\n");
-  bft_printf("Total mass of rain at previous timestep :   %12.5e kg \n",
-             mass_rain_pre);
-  bft_printf("Total mass of rain at current timestep  :   %12.5e kg \n",
-             mass_rain);
-  bft_printf("Rain mass rate of change in the domain  :   %12.5e kg/s \n",
-             (mass_rain - mass_rain_pre) / cs_glob_time_step->dt_ref);
-  bft_printf("Outgoing rain mass flux through walls   :   %12.5e kg/s \n",
-             mf_rain_walls);
 }
 
 /*----------------------------------------------------------------------------*/

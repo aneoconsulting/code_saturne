@@ -44,6 +44,7 @@
 #include "bft/bft_error.h"
 
 #include "atmo/cs_atmo.h"
+#include "atmo/cs_atmo_chemistry.h"
 #include "base/cs_1d_wall_thermal.h"
 #include "base/cs_ale.h"
 #include "base/cs_base.h"
@@ -240,7 +241,7 @@ cs_parameters_error_header(cs_parameter_error_behavior_t   err_behavior,
 
   for (size_t i = 0; i < 80 && i < l; i++)
     underline[i] = '-';
-  underline[CS_MIN(l,80)] = '\0';
+  underline[cs::min(l, (size_t)80)] = '\0';
   cs_log_printf(log_id, "%s\n", underline);
 
   if (err_behavior > CS_WARNING)
@@ -692,7 +693,7 @@ cs_parameters_is_in_list_double(cs_parameter_error_behavior_t   err_behavior,
 
   if (enum_values != nullptr) {
     for (int i = 0; i < enum_size; i++) {
-      if (CS_ABS(param_value - enum_values[i]) > cs_math_epzero)
+      if (cs::abs(param_value - enum_values[i]) > cs_math_epzero)
         return;
     }
   }
@@ -743,7 +744,7 @@ cs_parameters_is_equal_double(cs_parameter_error_behavior_t   err_behavior,
                               double                          param_value,
                               double                          std_value)
 {
-  if (CS_ABS(param_value-std_value) > cs_math_epzero) {
+  if (cs::abs(param_value-std_value) > cs_math_epzero) {
 
     cs_parameters_error_header(err_behavior, section_desc);
 
@@ -854,7 +855,6 @@ cs_parameters_check(void)
 
   const cs_atmo_option_t *at_opt = cs_glob_atmo_option;
   const cs_time_scheme_t *time_scheme = cs_glob_time_scheme;
-  const cs_atmo_chemistry_t *at_chem = cs_glob_atmo_chemistry;
 
   if (cs_glob_param_cdo_mode == CS_PARAM_CDO_MODE_ONLY)
     return; /* Avoid the detection of false setting errors when using
@@ -2102,12 +2102,13 @@ cs_parameters_check(void)
                                     eqp->imligr,
                                     -1, 2);
 
-      cs_parameters_is_greater_double(CS_ABORT_DELAYED,
-                                      _(f_desc),
-                                      "equation param climgr "
-                                      "(gradient limitation coefficient)",
-                                      eqp->climgr,
-                                      1.);
+      if (eqp->climgr >= 0)
+        cs_parameters_is_greater_double(CS_ABORT_DELAYED,
+                                        _(f_desc),
+                                        "equation param climgr "
+                                        "(gradient limitation coefficient)",
+                                        eqp->climgr,
+                                        1.);
 
       cs_parameters_is_in_range_int(CS_ABORT_DELAYED,
                                     _(f_desc),
@@ -2126,15 +2127,16 @@ cs_parameters_check(void)
       CS_FREE(f_desc);
 
       if (   eqp->ischcv == 0
-          && CS_ABS(eqp->blencv) > cs_math_epzero) {
+          && cs::abs(eqp->blencv) > cs_math_epzero) {
         f_desc = _field_section_desc(f, "Second order linear upwind "
-                                        "enabled for variable ");
+                                        "enabled for variable");
 
-        cs_parameters_is_equal_int(CS_ABORT_DELAYED,
-                                   _(f_desc),
-                                   "equation param ircflu (fluxes reconstruction)",
-                                   eqp->ircflu,
-                                   1);
+        cs_parameters_is_equal_int
+          (CS_ABORT_DELAYED,
+           _(f_desc),
+           "equation param ircflu (fluxes reconstruction)",
+           eqp->ircflu,
+           1);
 
         CS_FREE(f_desc);
       }

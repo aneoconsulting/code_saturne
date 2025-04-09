@@ -62,6 +62,7 @@
 #include "alge/cs_grid.h"
 #include "base/cs_halo.h"
 #include "base/cs_log.h"
+#include "base/cs_math.h"
 #include "alge/cs_matrix.h"
 #include "alge/cs_matrix_default.h"
 #include "alge/cs_matrix_spmv_cuda.h"
@@ -376,6 +377,10 @@ static int _k_cycle_hpc_recurse_threshold = 256; /* under this size, coarsest
 static unsigned int _grid_max_level_for_device = 1; /* grids over this level are
                                                        solved on host only */
 
+/* Force GPU settings (for CPU/GPU comparisons) */
+
+constexpr bool _force_gpu_settings = false;
+
 /*============================================================================
  * Private function prototypes for recursive
  *============================================================================*/
@@ -423,7 +428,7 @@ _multigrid_info_init(cs_multigrid_info_t *info)
   info->n_max_iter[4] = 0;
   info->n_max_iter[5] = 0;
 
-  if (cs_get_device_id() > -1) {
+  if (cs_get_device_id() > -1 || _force_gpu_settings) {
     info->n_max_iter[3] = 2;
     info->n_max_iter[4] = 10;
     info->n_max_iter[5] = 10000;
@@ -621,8 +626,8 @@ _multigrid_setup_log(const cs_multigrid_t *mg)
 static void
 _multigrid_performance_log(const cs_multigrid_t *mg)
 {
-  unsigned long long n_builds_denom = CS_MAX(mg->info.n_calls[0], 1);
-  unsigned long long n_solves_denom = CS_MAX(mg->info.n_calls[1], 1);
+  unsigned long long n_builds_denom = cs::max(mg->info.n_calls[0], 1u);
+  unsigned long long n_solves_denom = cs::max(mg->info.n_calls[1], 1u);
   int n_lv_min = mg->info.n_levels[1];
   int n_lv_max = mg->info.n_levels[2];
   int n_lv_mean = (int)(mg->info.n_levels_tot / n_builds_denom);
@@ -920,8 +925,8 @@ _multigrid_add_level(cs_multigrid_t  *mg,
   if (mgd->n_levels == mgd->n_levels_alloc) {
 
     /* Max previous */
-    unsigned int n_lv_max_prev = CS_MAX(mg->info.n_levels[2],
-                                        mgd->n_levels);
+    unsigned int n_lv_max_prev = cs::max(mg->info.n_levels[2],
+                                         mgd->n_levels);
 
     if (mgd->n_levels_alloc == 0) {
       mgd->n_levels_alloc = n_lv_max_prev;
@@ -2047,7 +2052,7 @@ _multigrid_setup_sles(cs_multigrid_t  *mg,
     }
 
     int k = 0;
-    if (   cs_get_device_id() > -1
+    if (   (cs_get_device_id() > -1 || _force_gpu_settings)
         && i <= _grid_max_level_for_device)
       k = 3;
 
@@ -2137,7 +2142,7 @@ _multigrid_setup_sles(cs_multigrid_t  *mg,
     i = n_levels - 1;
 
     int k = 0;
-    if (   cs_get_device_id() > -1
+    if (   (cs_get_device_id() > -1 || _force_gpu_settings)
         && i <= _grid_max_level_for_device)
       k = 3;
 
@@ -3128,7 +3133,7 @@ _multigrid_v_cycle(cs_multigrid_t       *mg,
   for (level = 1; level < (int)(mgd->n_levels); level++) {
     cs_lnum_t n_cols_max
       = cs_grid_get_n_cols_max(mgd->grid_hierarchy[level]);
-    wr_size = CS_MAX(wr_size, (size_t)(n_cols_max*db_size));
+    wr_size = cs::max(wr_size, (size_t)(n_cols_max*db_size));
     wr_size = CS_SIMD_SIZE(wr_size);
   }
 
@@ -4900,7 +4905,7 @@ cs_multigrid_set_solver_options(cs_multigrid_t     *mg,
   info->precision_mult[1] = precision_mult_ascent;
   info->precision_mult[2] = precision_mult_coarse;
 
-  if (cs_get_device_id() > -1) {
+  if (cs_get_device_id() > -1 || _force_gpu_settings) {
     for (int i = 0; i < 3; i++) {
       info->type[i+3] = info->type[i];
       info->n_max_iter[i+3] = info->n_max_iter[i];
@@ -4993,7 +4998,7 @@ cs_multigrid_set_solver_options_d(cs_multigrid_t     *mg,
                                   int                 poly_degree_ascent,
                                   int                 poly_degree_coarse)
 {
-  if (mg == nullptr || cs_get_device_id() < 0)
+  if (mg == nullptr || (cs_get_device_id() < 0 && _force_gpu_settings == false))
     return;
 
   cs_multigrid_info_t  *info = &(mg->info);

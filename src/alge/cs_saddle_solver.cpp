@@ -50,6 +50,7 @@
 #include "alge/cs_blas.h"
 #include "cdo/cs_cdo_solve.h"
 #include "base/cs_log.h"
+#include "base/cs_math.h"
 #include "base/cs_mem.h"
 #include "base/cs_parameters.h"
 #include "cdo/cs_saddle_system.h"
@@ -171,40 +172,6 @@ _scalar_scaling(cs_saddle_solver_t  *solver,
 
   cs_array_real_scale(solver->n1_scatter_dofs, 1, nullptr, scalar, x1);
   cs_array_real_scale(solver->n2_scatter_dofs, 1, nullptr, scalar, x2);
-}
-
-/*----------------------------------------------------------------------------*/
-/*!
- * \brief Compute array index bounds for a local thread.
- *
- * When called inside an OpenMP parallel section, this will return the
- * start an past-the-end indexes for the array range assigned to that thread.
- * In other cases, the start index is 1, and the past-the-end index is n;
- *
- * \param[in]  n      size of an array
- * \param[out] s_id   start index for the current thread
- * \param[out] e_id   past-the-end index for the current thread
- */
-/*----------------------------------------------------------------------------*/
-
-static inline void
-_thread_range(cs_lnum_t   n,
-              cs_lnum_t  *s_id,
-              cs_lnum_t  *e_id)
-{
-#if defined(HAVE_OPENMP)
-  int t_id = omp_get_thread_num();
-  int n_t = omp_get_num_threads();
-  cs_lnum_t t_n = (n + n_t - 1) / n_t;
-  *s_id =  t_id    * t_n;
-  *e_id = (t_id+1) * t_n;
-  *s_id = cs_align(*s_id, CS_CL);
-  *e_id = cs_align(*e_id, CS_CL);
-  if (*e_id > n) *e_id = n;
-#else
-  *s_id = 0;
-  *e_id = n;
-#endif
 }
 
 /*----------------------------------------------------------------------------*/
@@ -3701,7 +3668,7 @@ cs_saddle_solver_notay(cs_saddle_solver_t  *solver,
   /* Prepare the solution and rhs arrays given to the solver */
 
   cs_real_t  *sol = nullptr;
-  CS_MALLOC(sol, CS_MAX(n_cols, n_scatter_dofs), cs_real_t);
+  CS_MALLOC(sol, cs::max(n_cols, n_scatter_dofs), cs_real_t);
 
   cs_real_t  *b = nullptr;
   CS_MALLOC(b, n_scatter_dofs, cs_real_t);
@@ -4529,7 +4496,7 @@ cs_saddle_solver_sles_full_system(cs_saddle_solver_t  *solver,
   /* Prepare the solution and rhs arrays given to the solver */
 
   cs_real_t  *sol = nullptr;
-  CS_MALLOC(sol, CS_MAX(n_cols, n_scatter_dofs), cs_real_t);
+  CS_MALLOC(sol, cs::max(n_cols, n_scatter_dofs), cs_real_t);
 
   cs_real_t  *b = nullptr;
   CS_MALLOC(b, n_scatter_dofs, cs_real_t);

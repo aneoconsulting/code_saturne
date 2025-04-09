@@ -1321,7 +1321,7 @@ cs_turb_compute_constants(int phase_id)
   /* In case of Rotta model (ie LRR + Cr2 = 0) compute
    * automatically the C0 constant */
   if ((cs_glob_turb_model->model == CS_TURB_RIJ_EPSILON_LRR) &&
-      (CS_ABS(cs_turb_crij2) < 1.e-12))
+      (cs::abs(cs_turb_crij2) < 1.e-12))
     cs_turb_crij_c0 = (cs_turb_crij1-1.0)*2.0/3.0;
 
   if (cs_glob_turb_model->model == CS_TURB_RIJ_EPSILON_SSG
@@ -1593,15 +1593,13 @@ cs_turb_model_log_setup(void)
       cs_log_printf(CS_LOG_SETUP, _("\n"));
 
   }
-  else if (   turb_model->model == CS_TURB_RIJ_EPSILON_LRR
-           || turb_model->model == CS_TURB_RIJ_EPSILON_SSG
-           || turb_model->model == CS_TURB_RIJ_EPSILON_EBRSM) {
+  else if (turb_model->order == CS_TURB_SECOND_ORDER) {
 
     cs_log_printf(CS_LOG_SETUP,
                   _("    uref:             %14.5e (Characteristic velocity)\n"
                     "    reinit_turb:      %14d (Advanced re-init)\n"
                     "    irijco:           %14d (Coupled resolution)\n"
-                    "    irijnu:           %14d (Matrix stabilization)\n"
+                    "    irijnu:           %14d (1: Stabilization, 2: Rusanov)\n"
                     "    irijrb:           %14d (Reconstruct at boundaries)\n"
                     "    has_buoyant_term: %14d (Account for gravity)\n"
                     "    iclsyr:           %14d (Symmetry implicitation)\n"
@@ -1640,11 +1638,6 @@ cs_turb_model_log_setup(void)
                       "    idifre:      %14d (Handle diffusion tensor)\n"),
                     cs_glob_turb_rans_model->irijec,
                     cs_glob_turb_rans_model->idifre);
-    }
-    else if (turb_model->model == CS_TURB_RIJ_EPSILON_EBRSM) {
-      cs_log_printf(CS_LOG_SETUP,
-                    _("    reinit_turb: %14d (turbulence reinitialization)\n"),
-                    cs_glob_turb_rans_model->reinit_turb);
     }
 
   }
@@ -2063,8 +2056,7 @@ cs_clip_turbulent_fluxes(int  flux_id,
   cs_lnum_t n_cells = cs_glob_mesh->n_cells;
 
   const cs_real_6_t *cvar_rij = (const cs_real_6_t *)CS_F_(rij)->val;
-  const cs_real_t *cvar_tt
-    = (const cs_real_t *)cs_field_by_id(variance_id)->val;
+  const cs_real_t *cvar_tt = cs_field_by_id(variance_id)->val;
   cs_real_3_t *cvar_rit = (cs_real_3_t *) cs_field_by_id(flux_id)->val;
   cs_real_3_t *cvar_clip_rit = nullptr;
 
@@ -2076,7 +2068,7 @@ cs_clip_turbulent_fluxes(int  flux_id,
   cs_lnum_t iclip = 0;
   cs_real_t flsq, maj;
   cs_real_33_t rij;
-  cs_real_33_t eigvect = {{1.0,0.0,0.0},{0.0,1.0,0.0},{0.0,0.0,1.0}};
+  cs_real_33_t eigvect = {{1.0,0.0,0.0}, {0.0,1.0,0.0}, {0.0,0.0,1.0}};
   cs_real_3_t eigval;
   cs_real_3_t rot_rit;
   cs_real_3_t rit;
@@ -2094,11 +2086,11 @@ cs_clip_turbulent_fluxes(int  flux_id,
     }
   }
 
-  cs_real_t rit_min_prcoord[3] = {l_threshold,l_threshold,l_threshold};
-  cs_real_t rit_max_prcoord[3] = {-l_threshold,-l_threshold,-l_threshold};
+  cs_real_t rit_min_prcoord[3] = {l_threshold, l_threshold, l_threshold};
+  cs_real_t rit_max_prcoord[3] = {-l_threshold, -l_threshold, -l_threshold};
 
-  cs_lnum_t iclip_tab_max[3] = {0,0,0};
-  cs_lnum_t iclip_tab_min[3] = {0,0,0};
+  cs_lnum_t iclip_tab_max[3] = {0, 0, 0};
+  cs_lnum_t iclip_tab_min[3] = {0, 0, 0};
 
   for (int cell_id = 0; cell_id < n_cells; cell_id++) {
     rij[0][0] = cvar_rij[cell_id][0];
@@ -2115,15 +2107,15 @@ cs_clip_turbulent_fluxes(int  flux_id,
     rit[1] = cvar_rit[cell_id][1];
     rit[2] = cvar_rit[cell_id][2];
 
-    cs_math_33_eig_val_vec(rij,tol_jacobi,eigval,eigvect);
-    cs_math_33_3_product(eigvect,cvar_rit[cell_id],rot_rit);
+    cs_math_33_eig_val_vec(rij, tol_jacobi, eigval, eigvect);
+    cs_math_33_3_product(eigvect, cvar_rit[cell_id], rot_rit);
 
-    for (int i = 0; i < 3; i++) {
-      rit_min_prcoord[i] = CS_MIN(rit_min_prcoord[i],rot_rit[i]);
-      rit_max_prcoord[i] = CS_MAX(rit_max_prcoord[i],rot_rit[i]);
+    for (cs_lnum_t i = 0; i < 3; i++) {
+      rit_min_prcoord[i] = cs::min(rit_min_prcoord[i], rot_rit[i]);
+      rit_max_prcoord[i] = cs::max(rit_max_prcoord[i], rot_rit[i]);
     }
 
-    for (int i = 0; i < 3; i++) {
+    for (cs_lnum_t i = 0; i < 3; i++) {
       flsq = pow(rot_rit[i],2);
       maj = eigval[i]*cvar_tt[cell_id];
       if ((flsq > 1.0e-12) && (flsq > maj)) {
@@ -2144,10 +2136,10 @@ cs_clip_turbulent_fluxes(int  flux_id,
     }
   }
 
-  cs_lnum_t iclip_max = iclip_tab_max[0] + iclip_tab_max[1]
-                      + iclip_tab_max[2];
-  cs_lnum_t iclip_min = iclip_tab_min[0] + iclip_tab_min[1]
-                      + iclip_tab_min[2];
+  cs_lnum_t iclip_max =   iclip_tab_max[0] + iclip_tab_max[1]
+                        + iclip_tab_max[2];
+  cs_lnum_t iclip_min =   iclip_tab_min[0] + iclip_tab_min[1]
+                        + iclip_tab_min[2];
 
   /* Save clippings for log */
   cs_log_iteration_clipping_field(flux_id,

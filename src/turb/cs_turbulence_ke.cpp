@@ -72,6 +72,7 @@
 #include "pprt/cs_physical_model.h"
 #include "base/cs_porous_model.h"
 #include "base/cs_prototypes.h"
+#include "base/cs_reducers.h"
 #include "base/cs_rotation.h"
 #include "base/cs_solid_zone.h"
 #include "base/cs_thermal_model.h"
@@ -614,8 +615,8 @@ cs_turbulence_ke(int              phase_id,
     ctx.parallel_for(n_cells, [=] CS_F_HOST_DEVICE (cs_lnum_t c_id) {
       /* y+ is bounded by 400, because in the Reichard profile,
          it corresponds to saturation (u>uref) */
-      cvar_al[c_id] = cs_math_fmax(fmin(cvar_al[c_id], 1. - exp(-400./50.)),
-                                   0.);
+      cvar_al[c_id] = cs::max(fmin(cvar_al[c_id], 1. - exp(-400./50.)),
+                              0.);
     });
 
     cs_field_current_to_previous(f_alpbl); // FIXME why here ?
@@ -640,10 +641,10 @@ cs_turbulence_ke(int              phase_id,
          conserved */
       cs_real_t limiter = 1.;
       if (xunorm > 1.e-12*uref) {
-        limiter = cs_math_fmin(utaurf/xunorm*(2.5*log(1. + 0.4*ypa)
-                                              +7.8*(1. - exp(-ypa/11.)
-                                              -(ypa/11.)*exp(-0.33*ypa))),
-                               1.);
+        limiter = cs::min(utaurf/xunorm*   (2.5*log(1. + 0.4*ypa)
+                                         + 7.8*(1. - exp(-ypa/11.)
+                                                -(ypa/11.)*exp(-0.33*ypa))),
+                          1.);
       }
 
       vel[c_id][0] = limiter*vel[c_id][0];
@@ -736,7 +737,7 @@ cs_turbulence_ke(int              phase_id,
   if (model == CS_TURB_K_EPSILON_LS) {
     ctx.parallel_for(n_cells, [=] CS_F_HOST_DEVICE (cs_lnum_t c_id) {
       strain[c_id] = sqrt(strain_sq[c_id]);
-      sqrt_k[c_id] = sqrt(cs_math_fabs(cvar_k[c_id]));
+      sqrt_k[c_id] = sqrt(cs::abs(cvar_k[c_id]));
     });
   }
 
@@ -755,8 +756,8 @@ cs_turbulence_ke(int              phase_id,
       cs_real_t rho    = cromo[c_id];
       cs_real_t xs     = sqrt(strain_sq[c_id]);
       cs_real_t xk   = cvar_k[c_id];
-      cs_real_t cmueta = cs_math_fmin(cmu*cvara_k[c_id]/cvara_ep[c_id]*xs,
-                                      sqrcmu);
+      cs_real_t cmueta = cs::min(cmu*cvara_k[c_id]/cvara_ep[c_id]*xs,
+                                 sqrcmu);
       prodk[c_id] = rho*cmueta*xs*cvara_k[c_id]
                   - d2s3*rho*xk*divu[c_id];
     });
@@ -897,7 +898,7 @@ cs_turbulence_ke(int              phase_id,
       cs_real_t xeps = cvar_ep[c_id];
       cs_real_t xk   = cvar_k[c_id];
 
-      cs_real_t xdist = cs_math_fmax(w_dist[c_id], cs_math_epzero);
+      cs_real_t xdist = cs::max(w_dist[c_id], cs_math_epzero);
       cs_real_t xrey  = rho*xdist*sqrt(xk)/viscl[c_id];
       cs_real_t xpk   = prodk[c_id];
       cs_real_t xpkp
@@ -1109,8 +1110,6 @@ cs_turbulence_ke(int              phase_id,
     ctx.parallel_for(n_cells, [=] CS_F_HOST_DEVICE (cs_lnum_t c_id) {
       cs_real_t rho   = cromo[c_id];
       cs_real_t visct = cpro_pcvto[c_id];
-      cs_real_t xeps  = cvara_ep[c_id];
-      cs_real_t xk    = cvara_k[c_id];
 
       /* Explicit Buoyant terms */
       gk[c_id] = -visct*grad_dot_g[c_id];
@@ -1128,7 +1127,6 @@ cs_turbulence_ke(int              phase_id,
   }
   else
     cs_arrays_set_value<cs_real_t, 1>(n_cells, 0., gk);
-
 
   /* In v2f, we store the production in prdv2f which will be complete further
      for containing the complete production term */
@@ -1282,7 +1280,7 @@ cs_turbulence_ke(int              phase_id,
         prdtke[c_id] = prodk[c_id] + gk[c_id];
         // Note: only to be consistent with previouls formulation
         // but not consistant with variant of ce3
-        prdeps[c_id] = prodk[c_id] + cs_math_fmax(gk[c_id], 0.);
+        prdeps[c_id] = prodk[c_id] + cs::max(gk[c_id], 0.);
       });
     }
     ctx.wait();
@@ -1336,8 +1334,8 @@ cs_turbulence_ke(int              phase_id,
         cs_real_t rho = crom[c_id];
         cs_real_t d_tt = xeps / xk;
         tinstk[c_id] += cell_f_vol[c_id] * (rho*d_tt
-                         + cs_math_fmax(d2s3*rho*divu[c_id], 0.)
-                         + cs_math_fmax(- gk[c_id] / xk, 0.));
+                                            + cs::max(d2s3*rho*divu[c_id], 0.)
+                                            + cs::max(- gk[c_id] / xk, 0.));
 
         cs_real_t ce3_loc = ce3;
         if (dissip_buo_mdl == 0 && gk[c_id] < 0.)
@@ -1351,8 +1349,8 @@ cs_turbulence_ke(int              phase_id,
                               *       div(u)
                               * as implicit contribution for eps
                               */
-                           + cs_math_fmax(d2s3*ce1rc[c_id]*rho*divu[c_id], 0.)
-                           + ce3_loc * d_tt * cs_math_fmax(-gk[c_id]/xeps, 0.));
+                           + cs::max(d2s3*ce1rc[c_id]*rho*divu[c_id], 0.)
+                           + ce3_loc * d_tt * cs::max(-gk[c_id]/xeps, 0.));
       });
     }
 
@@ -1377,18 +1375,17 @@ cs_turbulence_ke(int              phase_id,
 
       // TODO propose other models for G_epsilon (dissip_buo_mdl)
       smbre[c_id] = cell_f_vol[c_id] * d_tt
-                  *( ce1rc[c_id]*(prodk[c_id] + cs_math_fmax(gk[c_id], 0.))
+                  *( ce1rc[c_id]*(prodk[c_id] + cs::max(gk[c_id], 0.))
                    - ce2rc[c_id]*rho*xeps);
 
       /* Implicit part */
       tinstk[c_id] += cell_f_vol[c_id]
         * ( rho / fmax(ttke, cs_math_epzero * ttmin)
-          + d2s3 * rho * cs_math_fmax(divu[c_id], 0.)
-          + cs_math_fmax(-gk[c_id] / xk, 0.));
+          + d2s3 * rho * cs::max(divu[c_id], 0.)
+          + cs::max(-gk[c_id] / xk, 0.));
 
       tinste[c_id] += cell_f_vol[c_id] * d_tt * (rho * ce2rc[c_id]
-                      + rho*cs_math_fmax(d2s3*ce1rc[c_id]*ttke*divu[c_id], 0.)
-                      );
+                      + rho*cs::max(d2s3*ce1rc[c_id]*ttke*divu[c_id], 0.));
     });
 
   }
@@ -1416,18 +1413,18 @@ cs_turbulence_ke(int              phase_id,
         // TODO propose other models for G_epsilon (dissip_buo_mdl)
         smbre[c_id] =   cell_f_vol[c_id]
                       * d_tt*( ce1rc[c_id]
-                              * (prodk[c_id] + cs_math_fmax(gk[c_id], 0.))
+                              * (prodk[c_id] + cs::max(gk[c_id], 0.))
                              - ce2rc[c_id]*rho*xeps);
 
         /* Implicit part */
         tinstk[c_id] += cell_f_vol[c_id] * rho
           * ( 1./fmax(ttke, cs_math_epzero * ttmin)
-            + cs_math_fmax(d2s3 * divu[c_id], 0.)
+            + cs::max(d2s3 * divu[c_id], 0.)
             + e_term[c_id]); /* Note that e_term is positive */
         /* Note that ce2rc is positive */
         tinste[c_id] +=  rho * cell_f_vol[c_id] * d_tt
           * (   ce2rc[c_id]
-              + cs_math_fmax(d2s3*ce1*ttke*divu[c_id], 0.));
+              + cs::max(d2s3*ce1*ttke*divu[c_id], 0.));
       });
     }
     else if (cs_glob_turb_model->hybrid_turb == 4) {
@@ -1457,20 +1454,20 @@ cs_turbulence_ke(int              phase_id,
 
         // TODO propose other models for G_epsilon (dissip_buo_mdl)
         smbre[c_id] =   cell_f_vol[c_id] * d_tt
-                      * ( ce1rc[c_id]*(prodk[c_id]+cs_math_fmax(gk[c_id], 0.))
+                      * ( ce1rc[c_id]*(prodk[c_id]+cs::max(gk[c_id], 0.))
                         - ce2rc[c_id]*rho*xeps);
 
         /* Implicit part */
         tinstk[c_id] +=   rho*cell_f_vol[c_id]
-                        / cs_math_fmax(xtm, cs_math_epzero * ttmin);
+                        / cs::max(xtm, cs_math_epzero * ttmin);
 
-        tinstk[c_id] += cs_math_fmax(d2s3*rho*cell_f_vol[c_id]*divu[c_id], 0.);
+        tinstk[c_id] += cs::max(d2s3*rho*cell_f_vol[c_id]*divu[c_id], 0.);
         /* Note that e_term is positive */
         tinstk[c_id] += e_term[c_id]*rho*cell_f_vol[c_id];
         /* Note that ce2rc is positive */
         tinste[c_id] += rho*cell_f_vol[c_id] * d_tt * ( ce2rc[c_id]
-                          + cs_math_fmax(d2s3 * ce1rc[c_id] * ttke * divu[c_id],
-                                         0.));
+                          + cs::max(d2s3 * ce1rc[c_id] * ttke * divu[c_id],
+                                    0.));
       });
     }
 
@@ -1558,8 +1555,8 @@ cs_turbulence_ke(int              phase_id,
       smbre[c_id] += usimpe[c_id]*cvara_ep[c_id] + usexpe[c_id];
 
       /* Implicit part */
-      tinstk[c_id] += cs_math_fmax(-usimpk[c_id], 0.);
-      tinste[c_id] += cs_math_fmax(-usimpe[c_id], 0.);
+      tinstk[c_id] += cs::max(-usimpk[c_id], 0.);
+      tinste[c_id] += cs::max(-usimpe[c_id], 0.);
     });
 
   }
@@ -1594,11 +1591,11 @@ cs_turbulence_ke(int              phase_id,
 
         /* Implicit source terms on k,
          * Note: we implicit lag_st_k if negative */
-        tinstk[c_id] += cs_math_fmax(-st_k/cvara_k[c_id], 0.);
-        tinstk[c_id] += cs_math_fmax(-st_i, 0.);
+        tinstk[c_id] += cs::max(-st_k/cvara_k[c_id], 0.);
+        tinstk[c_id] += cs::max(-st_i, 0.);
 
         /* Implicit source terms on epsilon */
-        tinste[c_id] += cs_math_fmax(-ce4 * st_k / cvara_k[c_id], 0.);
+        tinste[c_id] += cs::max(-ce4 * st_k / cvara_k[c_id], 0.);
 
       });
 
@@ -1832,7 +1829,7 @@ cs_turbulence_ke(int              phase_id,
   }
 
   /* k-Epsilon coupling (kecou == 1)
-   * ================================*/
+   * =============================== */
 
   /* Second order is not taken into account */
   if (cs_glob_turb_rans_model->ikecou == 1) {
@@ -1853,7 +1850,7 @@ cs_turbulence_ke(int              phase_id,
         smbre[c_id] *= romvsd;
 
         cs_real_t a11 = 1./dt[c_id] - 2.*cvara_k[c_id]/cvara_ep[c_id]
-                                    *cmu*cs_math_fmin(prdtke[c_id]/visct, 0.)
+                                      *cmu*cs::min(prdtke[c_id]/visct, 0.)
                                     + divp23;
         cs_real_t a12 = 1.;
         cs_real_t a21 = - ce1rc[c_id]*cmu*prdeps[c_id]/visct
@@ -1891,7 +1888,7 @@ cs_turbulence_ke(int              phase_id,
   }
 
   /* Finalization of the Right Hand Side when activating 2nd time order
-   * ===================================================================*/
+   * ================================================================== */
 
   if (istprv >= 0) {
     cs_real_t thetp1 = 1. + thets;
@@ -2161,10 +2158,10 @@ cs_turbulence_ke_clip(int        phase_id,
   cs_real_t *cvar_ep = (cs_real_t *)f_eps->val;
   cs_real_t *viscl   =  (cs_real_t *)f_mu->val;
 
+  cs_dispatch_context ctx;
+
   const cs_equation_param_t *eqp
     = cs_field_get_equation_param_const(f_k);
-
-  int iwarnk = eqp->verbosity;
 
   /* Small value to avoid exactly zero values */
 
@@ -2189,26 +2186,19 @@ cs_turbulence_ke_clip(int        phase_id,
   /* Save min and max for log
    * ======================== */
 
-  const cs_real_t l_threshold = 1.e12;
-  cs_real_t *cvar_var = nullptr;
-  cs_real_t var;
-  cs_real_t vmax[2], vmin[2];
+  struct cs_data_4r rd;
+  struct cs_reduce_min2r_max2r reducer;
 
-  for (int ii = 0; ii < 2; ii++ ) {
-    if (ii == 0)
-      cvar_var = cvar_k;
-    else if (ii == 1)
-      cvar_var = cvar_ep;
+  ctx.parallel_for_reduce
+    (n_cells, rd, reducer,
+     [=] CS_F_HOST_DEVICE (cs_lnum_t c_id, cs_data_4r &res) {
+    res.r[0] = cvar_k[c_id];
+    res.r[1] = cvar_k[c_id];
+    res.r[2] = cvar_ep[c_id];
+    res.r[3] = cvar_ep[c_id];
+  });
 
-    vmin[ii] =  l_threshold;
-    vmax[ii] = -l_threshold;
-
-    for (cs_lnum_t c_id = 0; c_id < n_cells; c_id++) {
-      var = cvar_var[c_id];
-      vmin[ii] = CS_MIN(vmin[ii], var);
-      vmax[ii] = CS_MAX(vmax[ii], var);
-    }
-  }
+  ctx.wait();
 
   if (cpro_k_clipped != nullptr) {
     cs_array_real_fill_zero(n_cells, cpro_k_clipped);
@@ -2222,22 +2212,27 @@ cs_turbulence_ke_clip(int        phase_id,
    * ===================================== */
 
   cs_gnum_t iclpke = 0;
-  cs_lnum_t iclpmn[2] = {0, 0};
-  cs_real_t xk, xe, xkmin, xepmin, xkm, xepm;
 
-  if (iwarnk >= 2 || cs_glob_turb_rans_model->iclkep == 1) {
+  const cs_lnum_t ke_clip_method = cs_glob_turb_rans_model->iclkep;
+
+  if (eqp->verbosity >= 2 || cs_glob_turb_rans_model->iclkep == 1) {
 
     if (iclip == 1) {
 
-      xkm = 1296.*sqrt(cs_turb_cmu)/cs_math_pow2(almax);
-      xepm = 46656.*cs_turb_cmu/cs_math_pow4(almax);
-      for (cs_lnum_t c_id = 0; c_id < n_cells; c_id++) {
-        xk = cvar_k[c_id];
-        xe = cvar_ep[c_id];
-        xkmin = xkm * cs_math_pow2(viscl[c_id] / crom[c_id]);
-        xepmin = xepm * cs_math_pow3(viscl[c_id] / crom[c_id]);
+      cs_real_t xkm = 1296.*sqrt(cs_turb_cmu)/cs_math_pow2(almax);
+      cs_real_t xepm = 46656.*cs_turb_cmu/cs_math_pow4(almax);
+
+      ctx.parallel_for_reduce_sum
+        (n_cells, iclpke, [=] CS_F_HOST_DEVICE
+         (cs_lnum_t c_id,
+          CS_DISPATCH_REDUCER_TYPE(cs_gnum_t) &sum) {
+
+        cs_real_t xk = cvar_k[c_id];
+        cs_real_t xe = cvar_ep[c_id];
+        cs_real_t xkmin = xkm * cs_math_pow2(viscl[c_id] / crom[c_id]);
+        cs_real_t xepmin = xepm * cs_math_pow3(viscl[c_id] / crom[c_id]);
         if (xk <= xkmin || xe <= xepmin) {
-          if (cs_glob_turb_rans_model->iclkep == 1) {
+          if (ke_clip_method == 1) {
             if (clip_k_id >= 0)
               cpro_k_clipped[c_id] = xkmin - xk;
             cvar_k[c_id]  = xkmin;
@@ -2245,32 +2240,37 @@ cs_turbulence_ke_clip(int        phase_id,
               cpro_e_clipped[c_id] = xepmin - xe;
             cvar_ep[c_id] = xepmin;
           }
-          iclpke += 1;
+          sum += 1;
         }
-      }
+      });
 
     }
     else if (iclip == 0) {
 
-      xkmin = 1296. * sqrt(cs_turb_cmu) / cs_math_pow2(almax)
-                    * cs_math_pow2(viscl0/ro0);
-      xepmin = 46656. * cs_turb_cmu/cs_math_pow4(almax)
-                      * cs_math_pow3(viscl0/ro0);
-      for (cs_lnum_t c_id = 0; c_id < n_cells; c_id++) {
-        xk = cvar_k[c_id];
-        xe = cvar_ep[c_id];
-        if (xk <= xkmin || xe <= xepmin) {
-          if (cs_glob_turb_rans_model->iclkep == 1) {
-            cvar_k[c_id]  = xkmin;
+      cs_real_t xkm = 1296. * sqrt(cs_turb_cmu) / cs_math_pow2(almax)
+        * cs_math_pow2(viscl0/ro0);
+      cs_real_t xepm = 46656. * cs_turb_cmu/cs_math_pow4(almax)
+        * cs_math_pow3(viscl0/ro0);
+
+      ctx.parallel_for_reduce_sum
+        (n_cells, iclpke, [=] CS_F_HOST_DEVICE
+         (cs_lnum_t c_id,
+          CS_DISPATCH_REDUCER_TYPE(cs_gnum_t) &sum) {
+
+        cs_real_t xk = cvar_k[c_id];
+        cs_real_t xe = cvar_ep[c_id];
+        if (xk <= xkm || xe <= xepm) {
+          if (ke_clip_method == 1) {
+            cvar_k[c_id]  = xkm;
             if (clip_k_id >= 0)
-              cpro_k_clipped[c_id] = xkmin - xk;
-            cvar_ep[c_id] = xepmin;
+              cpro_k_clipped[c_id] = xkm - xk;
+            cvar_ep[c_id] = xepm;
             if (clip_e_id >= 0)
-              cpro_e_clipped[c_id] = xepmin - xe;
+              cpro_e_clipped[c_id] = xepm - xe;
           }
-          iclpke += 1;
+          sum += 1;
         }
-      }
+      });
 
     }
     else
@@ -2278,16 +2278,12 @@ cs_turbulence_ke_clip(int        phase_id,
                 _("Call of %s with option = %d"),
                 __func__, iclip);
 
-    /* save clip counts for log */
-
-    if (cs_glob_turb_rans_model->iclkep == 1) {
-      iclpmn[0] = iclpke;
-      iclpmn[1] = iclpke;
-    }
+    ctx.wait();
 
     /* logging */
 
-    if (iwarnk >= 2) {
+    if (eqp->verbosity >= 2) {
+
       cs_parall_sum(1, CS_GNUM_TYPE, &iclpke);
 
       cs_log_printf(CS_LOG_DEFAULT,
@@ -2301,43 +2297,49 @@ cs_turbulence_ke_clip(int        phase_id,
   /* "standard" clipping ICLKEP = 0
    * ============================== */
 
-  cs_lnum_t iclpk2 = 0, iclpe2 = 0;
+  struct cs_data_2i rd_sum;
+  rd_sum.i[0] = 0;
+  rd_sum.i[1] = 0;
+  struct cs_reduce_sum2i reducer_sum;
 
   if (cs_glob_turb_rans_model->iclkep == 0) {
 
-    for (cs_lnum_t c_id = 0; c_id < n_cells; c_id++) {
-      xk = cvar_k[c_id];
-      xe = cvar_ep[c_id];
+    ctx.parallel_for_reduce
+      (n_cells, rd_sum, reducer_sum, [=] CS_F_HOST_DEVICE
+       (cs_lnum_t c_id, cs_data_2i &res) {
+
+      res.i[0] = 0, res.i[1] = 0;
+
+      cs_real_t xk = cvar_k[c_id];
+      cs_real_t xe = cvar_ep[c_id];
       if (fabs(xk) <= epz2) {
-        iclpk2 = iclpk2 + 1;
+        res.i[0] = 1;
         if (clip_k_id >= 0)
           cpro_k_clipped[c_id] = epz2 - cvar_k[c_id];
-        cvar_k[c_id] = CS_MAX(cvar_k[c_id],epz2);
+        cvar_k[c_id] = cs::max(cvar_k[c_id],epz2);
       }
       else if(xk <= 0.) {
-        iclpk2 = iclpk2 + 1;
+        res.i[0] = 1;
         if (clip_k_id >= 0)
           cpro_k_clipped[c_id] = -xk;
         cvar_k[c_id] = -xk;
       }
       if (fabs(xe) <= epz2) {
-        iclpe2 = iclpe2 + 1;
+        res.i[1] = 1;
         if (clip_e_id >= 0)
           cpro_e_clipped[c_id] = epz2 - cvar_ep[c_id];
-        cvar_ep[c_id] = CS_MAX(cvar_ep[c_id], epz2);
+        cvar_ep[c_id] = cs::max(cvar_ep[c_id], epz2);
       }
       else if(xe <= 0.) {
-        iclpe2 = iclpe2 + 1;
+        res.i[1] = 1;
         if (clip_e_id >= 0)
           cpro_e_clipped[c_id] = - xe;
         cvar_ep[c_id] = - xe;
       }
-    }
+    });
 
-    /* save clip counts for log */
+    ctx.wait();
 
-    iclpmn[0] = iclpk2;
-    iclpmn[1] = iclpe2;
   }
 
   cs_lnum_t iclpmx[1] = {0};
@@ -2350,11 +2352,11 @@ cs_turbulence_ke_clip(int        phase_id,
       id = f_eps->id;
 
     cs_log_iteration_clipping_field(id,
-                                    iclpmn[ii],
+                                    rd_sum.i[ii],
                                     0,
-                                    vmin + ii,
-                                    vmax + ii,
-                                    iclpmn + ii,
+                                    rd.r + 2*ii,
+                                    rd.r + 2*ii + 1,
+                                    rd_sum.i + ii,
                                     iclpmx);
   }
 }

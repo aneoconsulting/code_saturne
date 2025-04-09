@@ -47,7 +47,7 @@
 #include "base/cs_assert.h"
 #include "atmo/cs_at_data_assim.h"
 #include "atmo/cs_atmo.h"
-#include "atmo/cs_atmo_aerosol.h"
+#include "atmo/cs_atmo_chemistry.h"
 #include "atmo/cs_atmo_source_terms.h"
 #include "atmo/cs_atmo_profile_std.h"
 #include "alge/cs_blas.h"
@@ -192,11 +192,11 @@ _init_sgdh_diff(const cs_field_t *f,
   /* Variable Schmidt number */
   else if (cpro_turb_schmidt != nullptr)
     for (cs_lnum_t c_id = 0; c_id < cs_glob_mesh->n_cells; c_id++)
-      sgdh_diff[c_id] =   cs_math_fmax(visct[c_id], 0.)
+      sgdh_diff[c_id] =   cs::max(visct[c_id], 0.)
                         / cpro_turb_schmidt[c_id];
   else
     for (cs_lnum_t c_id = 0; c_id < cs_glob_mesh->n_cells; c_id++)
-      sgdh_diff[c_id] =   cs_math_fmax(visct[c_id], 0.)
+      sgdh_diff[c_id] =   cs::max(visct[c_id], 0.)
                         / turb_schmidt;
 }
 
@@ -359,11 +359,11 @@ _production_and_dissipation_terms(const cs_field_t  *f,
         const cs_real_t prod = -2*cs_math_3_dot_product(grad[c_id], xut[c_id]);
         if (f_produc != nullptr )
           f_produc->val[c_id] = prod;
-        rhs[c_id] += cs_math_fmax(prod * cprovol, 0.);
+        rhs[c_id] += cs::max(prod * cprovol, 0.);
 
         /* Implicit "production" term when negative, but check if the
          * variance is non-zero */
-        if (   (cvar_var[c_id] > cs_math_epzero*cs_math_fabs(prod*dt[c_id]))
+        if (   (cvar_var[c_id] > cs_math_epzero*cs::abs(prod*dt[c_id]))
             && (prod*cprovol < 0.)) {
           fimp[c_id] -= prod * cprovol / cvar_var[c_id];
           rhs[c_id] += prod * cprovol;
@@ -1030,7 +1030,6 @@ cs_solve_equation_scalar(cs_field_t        *f,
   cs_real_t *fimp, *rhs;
   CS_MALLOC_HD(rhs, n_cells_ext, cs_real_t, cs_alloc_mode);
   CS_MALLOC_HD(fimp, n_cells_ext, cs_real_t, cs_alloc_mode);
-  //CS_MALLOC(fimp, n_cells_ext, cs_real_t);
 
   cs_array_real_fill_zero(n_cells, rhs);
   cs_array_real_fill_zero(n_cells, fimp);
@@ -1164,7 +1163,7 @@ cs_solve_equation_scalar(cs_field_t        *f,
       /* User source term */
       rhs[c_id] += fimp[c_id] * cvara_var[c_id];
       /* Diagonal */
-      fimp[c_id] = cs_math_fmax(-fimp[c_id], 0.0);
+      fimp[c_id] = cs::max(-fimp[c_id], 0.0);
     }
   }
 
@@ -1430,7 +1429,7 @@ cs_solve_equation_scalar(cs_field_t        *f,
       cs_real_t *sti = cs_field_by_name("lagr_st_imp_temperature")->val;
       for (cs_lnum_t c_id = 0; c_id < n_cells; c_id++) {
         rhs[c_id] += ste[c_id] * cell_f_vol[c_id];
-        fimp[c_id] += cs_math_fmax(sti[c_id], 0.0) * cell_f_vol[c_id];
+        fimp[c_id] += cs::max(sti[c_id], 0.0) * cell_f_vol[c_id];
       }
     }
     /* When solving in enthalpy, no clear way to implicit Lagrangian source
@@ -1531,7 +1530,6 @@ cs_solve_equation_scalar(cs_field_t        *f,
   /* Initialize turbulent diffusivity for SGDH model */
   cs_real_t *sgdh_diff;
   CS_MALLOC_HD(sgdh_diff, n_cells_ext, cs_real_t, cs_alloc_mode);
-  //CS_MALLOC(sgdh_diff, n_cells_ext, cs_real_t);
 
   _init_sgdh_diff(f, sgdh_diff);
 
@@ -1783,7 +1781,7 @@ cs_solve_equation_scalar(cs_field_t        *f,
     /* Test minimum liquid water to carry out nucleation */
     cs_real_t qliqmax = 0;
     for (cs_lnum_t c_id = 0; c_id < n_cells; c_id++)
-      qliqmax = cs_math_fmax(cpro_liqwt[c_id], qliqmax);
+      qliqmax = cs::max(cpro_liqwt[c_id], qliqmax);
 
     cs_parall_max(1, CS_REAL_TYPE, &qliqmax);
 
@@ -2080,7 +2078,7 @@ cs_solve_equation_vector(cs_field_t       *f,
         /* User explicit source terms */
         rhs[c_id][j] += fimp[c_id][j][j] * cvara_var[c_id][j];
         /* Diagonal */
-        fimp[c_id][j][j] = cs_math_fmax(-fimp[c_id][j][j], 0);
+        fimp[c_id][j][j] = cs::max(-fimp[c_id][j][j], 0);
       }
     }
   }

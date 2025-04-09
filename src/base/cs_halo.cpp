@@ -261,7 +261,7 @@ _exchange_send_shift(cs_halo_t  *halo)
 
   /* Exchange local range with neighbor ranks */
 
-  const int local_rank = CS_MAX(cs_glob_rank_id, 0);
+  const int local_rank = cs::max(cs_glob_rank_id, 0);
 
   for (int i = 0; i < halo->n_c_domains; i++) {
     int rank_id = halo->c_domain_rank[i];
@@ -383,7 +383,7 @@ _halo_sync_start_one_sided(const cs_halo_t  *halo,
 
   MPI_Datatype mpi_datatype = cs_datatype_to_mpi[hs->data_type];
 
-  const int local_rank = CS_MAX(cs_glob_rank_id, 0);
+  const int local_rank = cs::max(cs_glob_rank_id, 0);
 
   /* Get data from distant ranks */
 
@@ -656,7 +656,7 @@ cs_halo_create_complete(cs_halo_t  *halo)
 
   /* Create group for one-sided communication */
   if (_halo_comm_mode > CS_HALO_COMM_P2P) {
-    const int local_rank = CS_MAX(cs_glob_rank_id, 0);
+    const int local_rank = cs::max(cs_glob_rank_id, 0);
     int n_group_ranks = 0;
     int *group_ranks = nullptr;
     CS_MALLOC(group_ranks, halo->n_c_domains + 1, int);
@@ -725,7 +725,7 @@ cs_halo_create_complete(cs_halo_t  *halo)
              s_id < e_id;
              s_id += block_size) {
           send_blocks[n_blocks*2] = s_id;
-          send_blocks[n_blocks*2+1] = CS_MIN(s_id + block_size, e_id);
+          send_blocks[n_blocks*2+1] = cs::min(s_id + block_size, e_id);
           n_blocks += 1;
         }
 
@@ -920,7 +920,7 @@ cs_halo_create_from_rank_neighbors(const cs_rank_neighbors_t  *rn,
   /* Exchange local range with neighbor ranks */
 
   int request_count = 0;
-  const int local_rank = CS_MAX(cs_glob_rank_id, 0);
+  const int local_rank = cs::max(cs_glob_rank_id, 0);
 
   for (int i = 0; i < rn->size; i++) {
     MPI_Irecv(rank_count + rn->size + i,
@@ -1783,7 +1783,7 @@ cs_halo_sync_start(const cs_halo_t  *halo,
   MPI_Datatype mpi_datatype = cs_datatype_to_mpi[_hs->data_type];
 
   int request_count = 0;
-  const int local_rank = CS_MAX(cs_glob_rank_id, 0);
+  const int local_rank = cs::max(cs_glob_rank_id, 0);
 
   /* Receive data from distant ranks */
 

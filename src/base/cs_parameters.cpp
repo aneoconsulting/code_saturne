@@ -54,6 +54,7 @@
 #include "alge/cs_gradient.h"
 #include "base/cs_log.h"
 #include "base/cs_map.h"
+#include "base/cs_math.h"
 #include "mesh/cs_mesh_location.h"
 #include "base/cs_post.h"
 #include "base/cs_parall.h"
@@ -324,50 +325,6 @@ BEGIN_C_DECLS
  * Type definitions
  *============================================================================*/
 
-/*----------------------------------------------------------------------------
- * Structure of variable calculation options mappable to Fortran
- *----------------------------------------------------------------------------*/
-
-typedef struct {
-
-  int     iwarni;
-  int     iconv;
-  int     istat;
-  int     idircl;
-  int     ndircl;
-  int     idiff;
-  int     idifft;
-  int     idften;
-  int     iswdyn;
-  int     ischcv;
-  int     ibdtso;
-  int     isstpc;
-  int     nswrgr;
-  int     nswrsm;
-  int     imvisf;
-  int     imrgra;
-  int     imligr;
-  int     ircflu;
-  int     iwgrec;       /* gradient calculation
-                           - 0: standard (default)
-                           - 1: weighted (could be used with imvisf = 1) */
-  int     icoupl;       /* internal coupling
-                           - -1: not coupled (default)
-                           -  1: coupled                                 */
-
-  double  theta;
-  double  blencv;
-  double  blend_st;
-  double  epsilo;
-  double  epsrsm;
-  double  epsrgr;
-  double  climgr;
-  double  relaxv;
-
-} cs_f_var_cal_opt_t;
-
-/*----------------------------------------------------------------------------*/
-
 /* Definition of user variable */
 
 typedef struct {
@@ -400,7 +357,7 @@ static cs_equation_param_t _equation_param_default
    .name = nullptr,
    .type = CS_EQUATION_N_TYPES,
    .dim = 1,
-   {.verbosity = 0},
+   .verbosity = 0,
 
    .flag = 0,
    .post_flag = 0,
@@ -427,15 +384,17 @@ static cs_equation_param_t _equation_param_default
    .ircflu = 1,
    .iwgrec = 0,
    .icoupl = -1,
-   {.theta = 1},
+   .theta = 1,
    .blencv = 1.,
    .blend_st = 0.,
    .epsilo = 1.e-5,
    .epsrsm = 1.e-4,
    .epsrgr = 1.e-4,
-   .climgr = 1.5,
+   .climgr = -1.,
+   .d_climgr = 1.5,
    .b_climgr = 1.,
    .relaxv = 1.,
+   .d_gradient_r = 2,
    .b_gradient_r = 2,
    .b_diff_flux_rc = 1,
 
@@ -489,12 +448,13 @@ static cs_equation_param_t _equation_param_default
    .incremental_algo_type = CS_PARAM_N_NL_ALGOS,
    .incremental_algo_cvg =
    {.atol = -1., .rtol = -1., .dtol = -1., .n_max_iter = -1},
-   .incremental_relax_factor = -1.,
-   .incremental_anderson_param = {.n_max_dir = 0, .starting_iter = 0,
-     .max_cond = -1., .beta = 0., .dp_type = CS_PARAM_N_DOTPROD_TYPES },
-    .time_control_owner = false,
-    .time_control = nullptr
-  };
+    .incremental_relax_factor = -1.,
+    .incremental_anderson_param = {.n_max_dir = 0, .starting_iter = 0,
+                                   .max_cond = -1., .beta = 0.,
+                                   .dp_type = CS_PARAM_N_DOTPROD_TYPES},
+   .time_control_owner = false,
+   .time_control = nullptr
+};
 
 /* Space discretisation options structure and associated pointer */
 
@@ -621,9 +581,11 @@ _log_func_var_cal_opt(const void *t)
   cs_log_printf(CS_LOG_SETUP, fmt_r, "epsrsm", _t->epsrsm);
   cs_log_printf(CS_LOG_SETUP, fmt_r, "epsrgr", _t->epsrgr);
   cs_log_printf(CS_LOG_SETUP, fmt_r, "climgr", _t->climgr);
+  cs_log_printf(CS_LOG_SETUP, fmt_r, "d_climgr", _t->d_climgr);
   cs_log_printf(CS_LOG_SETUP, fmt_r, "b_climgr", _t->b_climgr);
   cs_log_printf(CS_LOG_SETUP, fmt_r, "relaxv", _t->relaxv);
 
+  cs_log_printf(CS_LOG_SETUP, fmt_i, "d_gradient_r", _t->d_gradient_r);
   cs_log_printf(CS_LOG_SETUP, fmt_i, "b_gradient_r", _t->b_gradient_r);
   cs_log_printf(CS_LOG_SETUP, fmt_i, "b_diff_flux_rc", _t->b_diff_flux_rc);
 }
@@ -1534,7 +1496,7 @@ cs_parameters_add_boundary_temperature(void)
 
         int k_vis = cs_field_key_id("post_vis");
         int f_vis = cs_field_get_key_int(f, k_vis);
-        f_vis = CS_MAX(f_vis, 1);
+        f_vis = cs::max(f_vis, 1);
         cs_field_set_key_int(bf, k_vis, f_vis);
 
       }
@@ -1663,7 +1625,7 @@ cs_parameters_global_complete(void)
     cs_velocity_pressure_param_t *vp_param
       = cs_get_glob_velocity_pressure_param();
     cs_time_control_t *vp_tc = &(vp_param->time_control);
-    vp_tc->interval_nt = -1;
+    cs_time_control_init_by_time_step(vp_tc, -1, -1, -1, false, false);
   }
 
   /* Physical properties */
@@ -2339,7 +2301,7 @@ cs_parameters_eqp_complete(void)
       }
     }
     if (eqp_vel != nullptr)
-      vp_param->arak = vp_param->arak/CS_MAX(eqp_vel->relaxv, cs_math_epzero);
+      vp_param->arak = vp_param->arak/cs::max(eqp_vel->relaxv, cs_math_epzero);
   }
 
   /* With a staggered approach, no Rhie and Chow correction is needed. */
@@ -2372,7 +2334,7 @@ cs_parameters_eqp_complete(void)
         }
         /* Minimum for variances is 0 or greater */
         /* Set min clipping to 0 */
-        scminp = CS_MAX(0., scminp);
+        scminp = cs::max(0., scminp);
         cs_field_set_key_double(f_sca, kscmin, scminp);
       }
     }

@@ -60,6 +60,7 @@
 #include "base/cs_parall.h"
 #include "base/cs_physical_constants.h"
 #include "base/cs_prototypes.h"
+#include "base/cs_reducers.h"
 #include "base/cs_rotation.h"
 #include "alge/cs_sles_default.h"
 #include "base/cs_turbomachinery.h"
@@ -1020,14 +1021,12 @@ cs_vof_log_mass_budget(const cs_mesh_t             *m,
   const cs_lnum_t n_i_faces = m->n_i_faces;
   const cs_lnum_t n_b_faces = m->n_b_faces;
 
-  const cs_lnum_2_t *i_face_cells = (const cs_lnum_2_t *)m->i_face_cells;
+  const cs_lnum_2_t *i_face_cells = m->i_face_cells;
   const cs_lnum_t *b_face_cells = m->b_face_cells;
 
   const cs_real_t *restrict cell_f_vol = mq->cell_vol;
-  const cs_real_3_t *restrict i_face_cog
-    = (const cs_real_3_t *)mq->i_face_cog;
-  const cs_real_3_t *restrict b_face_cog
-    = (const cs_real_3_t *)mq->b_face_cog;
+  const cs_real_3_t *restrict i_face_cog = mq->i_face_cog;
+  const cs_real_3_t *restrict b_face_cog = mq->b_face_cog;
 
   const cs_real_3_t *restrict i_f_face_normal
     = (const cs_real_3_t *)mq->i_face_normal;
@@ -1045,6 +1044,7 @@ cs_vof_log_mass_budget(const cs_mesh_t             *m,
   cs_real_t *cpro_rom = CS_F_(rho)->val;
   cs_real_t *cproa_rom = CS_F_(rho)->val_pre;
   cs_real_t *bpro_rom = CS_F_(rho_b)->val;
+  const cs_real_t *dt = CS_F_(dt)->val;
 
   int icorio = cs_glob_physical_constants->icorio;
   cs_turbomachinery_model_t iturbo = cs_turbomachinery_get_model();
@@ -1129,40 +1129,48 @@ cs_vof_log_mass_budget(const cs_mesh_t             *m,
     b_massflux = b_massflux_abs;
   }
 
-  /* (Absolute) Mass flux divergence */
-
-  cs_real_t *divro;
-  CS_MALLOC_HD(divro, n_cells_with_ghosts, cs_real_t, cs_alloc_mode);
-  cs_divergence(m,
-                1, /* initialize to 0 */
-                i_massflux,
-                b_massflux,
-                divro);
-
   if (icorio == 1 || iturbo > CS_TURBOMACHINERY_NONE) {
     CS_FREE_HD(i_massflux_abs);
     CS_FREE_HD(b_massflux_abs);
   }
 
-  /* Unsteady term  and mass budget */
+  /* Unsteady term and mass budget */
 
-  cs_real_t glob_m_budget = 0.;
-  // TODO: Reduction for GPU
-  for (cs_lnum_t c_id = 0; c_id < n_cells; c_id++) {
-    cs_real_t tinsro =  cell_f_vol[c_id]
-                      * (cpro_rom[c_id]-cproa_rom[c_id]) / CS_F_(dt)->val[c_id];
+  if (cs_log_default_is_active()) {
 
-    glob_m_budget += tinsro + divro[c_id];
-  }
+    /* (Absolute) Mass flux divergence */
 
-  cs_parall_sum(1, CS_REAL_TYPE, &glob_m_budget);
+    cs_real_t *divro;
+    CS_MALLOC_HD(divro, n_cells_with_ghosts, cs_real_t, cs_alloc_mode);
+    cs_divergence(m,
+                  1, /* initialize to 0 */
+                  i_massflux,
+                  b_massflux,
+                  divro);
 
-  if (cs_log_default_is_active())
+    double glob_m_budget = 0.;
+
+    ctx.parallel_for_reduce_sum
+      (n_cells, glob_m_budget, [=] CS_F_HOST_DEVICE
+       (cs_lnum_t c_id,
+        CS_DISPATCH_REDUCER_TYPE(double) &sum) {
+
+      cs_real_t tinsro = cell_f_vol[c_id] * (cpro_rom[c_id]-cproa_rom[c_id]) / dt[c_id];
+
+      sum += (tinsro + divro[c_id]);
+    });
+
+    ctx.wait();
+
+    cs_parall_sum(1, CS_DOUBLE, &glob_m_budget);
+
     cs_log_printf(CS_LOG_DEFAULT,
                   _("   ** VOF model, mass balance: %12.4e\n\n"),
                   glob_m_budget);
 
-  CS_FREE_HD(divro);
+    CS_FREE_HD(divro);
+  }
+
 }
 
 /*----------------------------------------------------------------------------*/
@@ -1240,7 +1248,7 @@ cs_vof_surface_tension(const cs_mesh_t             *m,
 
   cs_real_t *cvar_voidf = CS_F_(void_f)->val;
   ctx.parallel_for(n_cells, [=] CS_F_HOST_DEVICE (cs_lnum_t  c_id) {
-    pvar[c_id] = cs_math_fmin(cs_math_fmax(1.-cvar_voidf[c_id], 0.), 1.);
+    pvar[c_id] = cs::min(cs::max(1.-cvar_voidf[c_id], 0.), 1.);
   });
 
   ctx.wait();
@@ -1477,11 +1485,17 @@ cs_vof_deshpande_drift_flux(const cs_mesh_t             *m,
   const cs_real_t delta = 1.e-8/pow(tot_vol/n_g_cells,(1./3.));
 
   /* Compute the max of flux/Surf over the entire domain */
-  cs_real_t maxfluxsurf = 0.; // TODO: Max reduction for GPU
-  for (cs_lnum_t f_id = 0; f_id < n_i_faces; f_id++) {
-    if (maxfluxsurf < std::abs(i_volflux[f_id])/i_face_surf[f_id])
-      maxfluxsurf = std::abs(i_volflux[f_id])/i_face_surf[f_id];
-  }
+  cs_real_t maxfluxsurf;
+  struct cs_reduce_max1r reducer;
+
+  ctx.parallel_for_reduce
+    (n_i_faces, maxfluxsurf, reducer,
+     [=] CS_F_HOST_DEVICE (cs_lnum_t f_id, cs_real_t &res) {
+
+    res = cs::abs(i_volflux[f_id])/i_face_surf[f_id];
+  });
+
+  ctx.wait();
 
   cs_parall_max(1, CS_REAL_TYPE, &maxfluxsurf);
 
@@ -1492,8 +1506,8 @@ cs_vof_deshpande_drift_flux(const cs_mesh_t             *m,
     cs_lnum_t cell_id2 = i_face_cells[f_id][1];
 
     cs_real_t fluxfactor
-      = cs_math_fmin(cdrift*std::abs(i_volflux[f_id])/i_face_surf[f_id],
-                     maxfluxsurf);
+      = cs::min(cdrift*std::abs(i_volflux[f_id])/i_face_surf[f_id],
+                maxfluxsurf);
 
     cs_real_t gradface[3], normalface[3];
 
@@ -1893,7 +1907,7 @@ cs_vof_solve_void_fraction(int  iterns)
       else
         dtmaxl = rho1 * (1.0 - cvara_voidf[c_id]) / gamcav[c_id];
 
-      dtmaxg = cs_math_fmin(dtmaxl, dtmaxg);
+      dtmaxg = cs::min(dtmaxl, dtmaxg);
 
     }
 
@@ -2048,21 +2062,21 @@ cs_vof_solve_void_fraction(int  iterns)
   /* Clipping: only if min/max principle is not satisfied for cavitation
      ------------------------------------------------------------------- */
 
-  cs_lnum_t iclmax = 0;
-  cs_lnum_t iclmin = 0;
-
   if (  (i_vof_mass_transfer != 0 && dt[0] > dtmaxg)
       || i_vof_mass_transfer == 0) {
 
     /* Compute min and max */
-    cs_real_t vmin = cvar_voidf[0];
-    cs_real_t vmax = cvar_voidf[0];
+    struct cs_data_2r rd;
+    struct cs_reduce_min1r_max1r reducer;
 
-    // TODO: max reduction on GPU
-    for (cs_lnum_t c_id = 0; c_id < n_cells; c_id++) {
-      vmin = cs_math_fmin(vmin, cvar_voidf[c_id]);
-      vmax = cs_math_fmax(vmax, cvar_voidf[c_id]);
-    }
+    ctx.parallel_for_reduce
+      (n_cells, rd, reducer,
+       [=] CS_F_HOST_DEVICE (cs_lnum_t c_id, cs_data_2r &res) {
+      res.r[0] = cvar_voidf[c_id];
+      res.r[1] = cvar_voidf[c_id];
+    });
+
+    ctx.wait();
 
     /* Get the min and max clipping */
 
@@ -2080,37 +2094,48 @@ cs_vof_solve_void_fraction(int  iterns)
       cs_arrays_set_value<cs_real_t, 1>(n_cells, 0., voidf_clipped);
     }
 
+    struct cs_data_2i rd_sum;
+    rd_sum.i[0] = 0;
+    rd_sum.i[1] = 0;
+    struct cs_reduce_sum2i reducer_sum;
+
     if (scmaxp > scminp) {
-#     pragma omp parallel for reduction(+:iclmax, iclmin)  \
-        if (n_cells > CS_THR_MIN)
-      for (cs_lnum_t c_id = 0; c_id < n_cells; c_id++) {
+
+      ctx.parallel_for_reduce
+        (n_cells, rd_sum, reducer_sum,
+         [=] CS_F_HOST_DEVICE (cs_lnum_t c_id, cs_data_2i &res) {
+
+        res.i[0] = 0, res.i[1] = 0;
+
         if (cvar_voidf[c_id] > scmaxp) {
-          iclmax += + 1;
+          res.i[0] = 1;
 
           if (clip_voidf_id >= 0)
             voidf_clipped[c_id] = cvar_voidf[c_id] - scmaxp;
 
           cvar_voidf[c_id] = scmaxp;
         }
+
         if (cvar_voidf[c_id] < scminp) {
-          iclmin += 1;
+          res.i[1] = 1;
 
           if (clip_voidf_id >= 0)
             voidf_clipped[c_id] = cvar_voidf[c_id] - scminp;
 
           cvar_voidf[c_id] = scminp;
         }
-      }
+      });
 
+      ctx.wait();
     }
 
     cs_log_iteration_clipping_field(volf2->id,
-                                    iclmin,
-                                    iclmax,
-                                    &vmin,
-                                    &vmax,
-                                    &iclmin,
-                                    &iclmax);
+                                    rd_sum.i[1],
+                                    rd_sum.i[0],
+                                    &rd.r[0],
+                                    &rd.r[1],
+                                    &rd_sum.i[1],
+                                    &rd_sum.i[0]);
 
   }
 
@@ -2194,8 +2219,8 @@ cs_cavitation_compute_source_term(const cs_real_t  pressure[],
 
   ctx.parallel_for(n_cells, [=] CS_F_HOST_DEVICE (cs_lnum_t c_id) {
     const cs_real_t w = voidf[c_id] * (1. - voidf[c_id]);
-    cs_real_t condens = -cond * cs_math_fmax(0., pressure[c_id] - presat) * w;
-    cs_real_t vaporis = -cvap * cs_math_fmin(0., pressure[c_id] - presat) * w;
+    cs_real_t condens = -cond * cs::max(0., pressure[c_id] - presat) * w;
+    cs_real_t vaporis = -cvap * cs::min(0., pressure[c_id] - presat) * w;
 
     gamcav[c_id] = condens + vaporis;
 

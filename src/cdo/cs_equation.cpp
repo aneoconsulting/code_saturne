@@ -226,7 +226,7 @@ _prepare_fb_solving(void      *eq_to_cast,
   assert(f_values != nullptr);
 
   cs_real_t *x = nullptr;
-  BFT_MALLOC(x, CS_MAX(n_dofs, cs_matrix_get_n_columns(matrix)), cs_real_t);
+  BFT_MALLOC(x, cs::max(n_dofs, cs_matrix_get_n_columns(matrix)), cs_real_t);
 
   /* x and the right-hand side are a "gathered" view of field->val and the
    * right-hand side respectively through the range set operation.
@@ -3451,8 +3451,6 @@ cs_equation_compute_boundary_diff_flux(const cs_equation_t       *eq,
 
   const char fmsg[] = " %s: (Eq. %s) Stop computing the diffusive flux.\n"
                       " This functionality is not available for this scheme.";
-  const char lmsg[] = " %s: (Eq. %s) Stop computing the diffusive flux.\n"
-                      " This mesh location is not available for this scheme.";
 
   if (eq == nullptr)
     bft_error(__FILE__, __LINE__, 0, _err_empty_eq, __func__);

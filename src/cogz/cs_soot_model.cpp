@@ -251,7 +251,7 @@ cs_soot_production(int        f_id,
         cexp = volume[c_id] * aa;
       }
       smbrs[c_id] += cexp + cimp * cvara_scal[c_id];
-      rovsdt[c_id] += cs_math_fmax(-cimp, 0.);
+      rovsdt[c_id] += cs::max(-cimp, 0.);
     }
 
   }
@@ -272,8 +272,8 @@ cs_soot_production(int        f_id,
     if (f_id == CS_F_(fsm)->id) {
 
       cs_real_t *wsf, *wso;
-      BFT_MALLOC(wsf, n_cells, cs_real_t);
-      BFT_MALLOC(wso, n_cells, cs_real_t);
+      CS_MALLOC(wsf, n_cells, cs_real_t);
+      CS_MALLOC(wso, n_cells, cs_real_t);
 
       cs_array_real_fill_zero(n_cells, wso);
       cs_array_real_fill_zero(n_cells, wsf);
@@ -307,12 +307,12 @@ cs_soot_production(int        f_id,
           wso[c_id] = -rho * a0 * cxo2 * sqrt(temp) * exp(-19670./temp) * as;
         }
         smbrs[c_id]  += (wsf[c_id] + wso[c_id] *zetas) * volume[c_id];
-        rovsdt[c_id] += cs_math_fmax(-wso[c_id], 0.) * volume[c_id];
+        rovsdt[c_id] += cs::max(-wso[c_id], 0.) * volume[c_id];
       }
 
       /* Free memory */
-      BFT_FREE(wsf);
-      BFT_FREE(wso);
+      CS_FREE(wsf);
+      CS_FREE(wso);
 
     }
 

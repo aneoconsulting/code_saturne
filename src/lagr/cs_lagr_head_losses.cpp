@@ -106,8 +106,8 @@ _porcel(cs_real_t         mdiam[],
   cs_real_t *surfbn = cs_glob_mesh_quantities->b_face_surf;
   cs_real_t *volume = cs_glob_mesh_quantities->cell_vol;
 
-  const cs_real_3_t *restrict i_face_normal
-    = (const cs_real_3_t *restrict)cs_glob_mesh_quantities->i_face_normal;
+  const cs_nreal_3_t *restrict i_face_u_normal
+    = cs_glob_mesh_quantities->i_face_u_normal;
   cs_lnum_t *ifabor = cs_glob_mesh->b_face_cells;
 
   cs_lagr_boundary_interactions_t
@@ -143,9 +143,9 @@ _porcel(cs_real_t         mdiam[],
   cs_real_t    *masflu, *depvol;
 
   cs_field_t *f_wall_dist = cs_field_by_name("wall_distance");
-  BFT_MALLOC(q, ncelet, cs_real_3_t);
-  BFT_MALLOC(masflu, ncelet, cs_real_t);
-  BFT_MALLOC(depvol, ncelet, cs_real_t);
+  CS_MALLOC(q, ncelet, cs_real_3_t);
+  CS_MALLOC(masflu, ncelet, cs_real_t);
+  CS_MALLOC(depvol, ncelet, cs_real_t);
 
   /* Compute  n = Grad(DISTPW)/|Grad(DISTPW)|
    * ======================================== */
@@ -157,15 +157,15 @@ _porcel(cs_real_t         mdiam[],
                            1,     /* inc */
                            q);
 
-  /* Normalisation (caution, gradient can be zero sometimes) */
+  /* Normalization (caution, gradient can be zero sometimes) */
 
   for (cs_lnum_t iel = 0; iel < ncel; iel++) {
 
-    cs_real_t xnorme = CS_MAX(cs_math_3_norm(q[iel]),
+    cs_real_t xnorm = cs::max(cs_math_3_norm(q[iel]),
                               cs_math_epzero);
 
     for (cs_lnum_t isou = 0; isou < 3; isou++)
-      q[iel][isou] /= xnorme;
+      q[iel][isou] /= xnorm;
 
   }
 
@@ -185,7 +185,7 @@ _porcel(cs_real_t         mdiam[],
   /* volume of the deposited particles
      (calculated from mean deposit height)*/
   for (cs_lnum_t iel = 0; iel < ncelet; iel++)
-    depvol[iel]    = 0.0;
+    depvol[iel] = 0.0;
 
   indic = 0;
   for (cs_lnum_t ifac = 0; ifac < nfabor; ifac++) {
@@ -224,8 +224,8 @@ _porcel(cs_real_t         mdiam[],
       cs_lnum_t iel1  = cs_glob_mesh->i_face_cells[ifac][0];
       cs_lnum_t iel2  = cs_glob_mesh->i_face_cells[ifac][1];
 
-      cs_real_t prod1 = cs_math_3_dot_product(q[iel1], i_face_normal[ifac]);
-      cs_real_t prod2 =-cs_math_3_dot_product(q[iel2], i_face_normal[ifac]);
+      cs_real_t prod1 =  cs_math_3_dot_product(q[iel1], i_face_u_normal[ifac]);
+      cs_real_t prod2 = -cs_math_3_dot_product(q[iel2], i_face_u_normal[ifac]);
 
       if (porosi[iel1] < cs_glob_lagr_clogging_model->mporos && prod1 > epsi) {
         masflu[iel1] -=   (porosi[iel1] - cs_glob_lagr_clogging_model->mporos)
@@ -274,9 +274,9 @@ _porcel(cs_real_t         mdiam[],
 
   /* Free memory */
 
-  BFT_FREE(masflu);
-  BFT_FREE(depvol);
-  BFT_FREE(q);
+  CS_FREE(masflu);
+  CS_FREE(depvol);
+  CS_FREE(q);
 }
 
 /*! (DOXYGEN_SHOULD_SKIP_THIS) \endcond */
@@ -333,7 +333,7 @@ cs_lagr_head_losses(cs_lnum_t        n_hl_cells,
    * ====================================================================*/
 
   cs_real_t *mdiam;
-  BFT_MALLOC(mdiam, ncelet, cs_real_t);
+  CS_MALLOC(mdiam, ncelet, cs_real_t);
 
   /* cs_lnum_t poro_id; */
   /* field_get_id_try ("clogging_porosity", &poro_id); */
@@ -343,7 +343,7 @@ cs_lagr_head_losses(cs_lnum_t        n_hl_cells,
 
   cs_real_t *lporo;
   if (f_poro == nullptr)
-    BFT_MALLOC(lporo, ncelet, cs_real_t);
+    CS_MALLOC(lporo, ncelet, cs_real_t);
   else
     lporo = f_poro->val;
 
@@ -382,9 +382,9 @@ cs_lagr_head_losses(cs_lnum_t        n_hl_cells,
   }
 
   if (f_poro == nullptr)
-    BFT_FREE(lporo);
+    CS_FREE(lporo);
 
-  BFT_FREE(mdiam);
+  CS_FREE(mdiam);
 }
 
 /*----------------------------------------------------------------------------*/

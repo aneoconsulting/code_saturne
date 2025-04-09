@@ -48,6 +48,7 @@
 
 #include "base/cs_base.h"
 #include "base/cs_log.h"
+#include "base/cs_math.h"
 #include "base/cs_mem.h"
 #include "cdo/cs_param_cdo.h"
 
@@ -858,55 +859,6 @@ cs_param_sles_set_precond(const char       *keyval,
     case CS_PARAM_SOLVER_CLASS_HYPRE:
       slesp->amg_type = CS_PARAM_AMG_HYPRE_BOOMER_V;
       cs_param_sles_boomeramg_reset(slesp);
-      break;
-
-    default:
-      ierr = 2;
-      return ierr;
-
-    } /* End of switch */
-
-  }
-  else if (strcmp(keyval, "amg_block") == 0 ||
-           strcmp(keyval, "block_amg") == 0) {
-
-    slesp->precond = CS_PARAM_PRECOND_AMG;
-    slesp->precond_block_type = CS_PARAM_PRECOND_BLOCK_DIAG;
-    slesp->need_flexible      = true;
-
-    cs_param_solver_class_t  ret_class =
-      cs_param_sles_check_class(slesp->solver_class);
-
-    /* Set the default AMG choice according to the class of solver */
-
-    switch (ret_class) {
-
-    case CS_PARAM_SOLVER_CLASS_CS:
-      cs_param_sles_amg_inhouse_reset(slesp, false, false); // precond; v-cycle
-      break;
-
-    case CS_PARAM_SOLVER_CLASS_PETSC:
-      slesp->amg_type = CS_PARAM_AMG_PETSC_GAMG_V;
-      break;
-
-    case CS_PARAM_SOLVER_CLASS_HYPRE:
-      slesp->amg_type = CS_PARAM_AMG_HYPRE_BOOMER_V;
-
-      if (cs_param_sles_hypre_from_petsc())
-        slesp->solver_class = CS_PARAM_SOLVER_CLASS_PETSC;
-      else { /* No block is used in this case */
-
-        slesp->solver_class = CS_PARAM_SOLVER_CLASS_HYPRE;
-        slesp->precond_block_type = CS_PARAM_PRECOND_BLOCK_NONE;
-
-        cs_base_warn(__FILE__, __LINE__);
-        cs_log_printf(CS_LOG_WARNINGS,
-                      "%s(): SLES \"%s\". Switch to HYPRE.\n"
-                      "No block preconditioner will be used.",
-                      __func__, sles_name);
-        cs_log_printf_flush(CS_LOG_WARNINGS);
-
-      }
       break;
 
     default:
@@ -1956,7 +1908,7 @@ cs_param_sles_mumps_advanced(cs_param_sles_t                *slesp,
   mumpsp->keep_ordering = keep_ordering;
   mumpsp->mem_coef = mem_coef;
   mumpsp->blr_threshold = blr_threshold;
-  mumpsp->ir_steps = CS_MAX(ir_steps, -ir_steps);
+  mumpsp->ir_steps = cs::max(ir_steps, -ir_steps);
   mumpsp->mem_usage = mem_usage;
   mumpsp->advanced_optim = advanced_optim;
 }

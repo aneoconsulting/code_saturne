@@ -798,7 +798,7 @@ _scalar_gradient_clipping(const cs_mesh_t              *m,
 
   const cs_halo_t *halo = m->halo;
 
-  if (clip_mode < 0)
+  if (clip_mode < 0 || climgp < 0)
     return;
 
   /* The gradient and the variable must be already synchronized */
@@ -1072,7 +1072,6 @@ _scalar_gradient_clipping(const cs_mesh_t              *m,
  * parameters:
  *   m              <-- pointer to associated mesh structure
  *   fvq            <-- pointer to associated finite volume quantities
- *   cpl            <-- structure associated with internal coupling, or nullptr
  *   w_stride       <-- stride for weighting coefficient
  *   hyd_p_flag     <-- flag for hydrostatic pressure
  *   inc            <-- if 0, solve on increment; 1 otherwise
@@ -1087,7 +1086,6 @@ _scalar_gradient_clipping(const cs_mesh_t              *m,
 static void
 _initialize_scalar_gradient(const cs_mesh_t                *m,
                             const cs_mesh_quantities_t     *fvq,
-                            const cs_internal_coupling_t   *cpl,
                             int                             w_stride,
                             int                             hyd_p_flag,
                             cs_real_t                       inc,
@@ -1127,14 +1125,6 @@ _initialize_scalar_gradient(const cs_mesh_t                *m,
     = (const cs_real_3_t *)fvq->b_face_normal;
   const cs_real_3_t *restrict i_face_cog = fvq->i_face_cog;
   const cs_real_3_t *restrict b_face_cog = fvq->b_face_cog;
-
-  cs_lnum_t   cpl_stride = 0;
-  const bool _coupled_faces[1] = {false};
-  const bool  *coupled_faces = _coupled_faces;
-  if (cpl != nullptr) {
-    cpl_stride = 1;
-    coupled_faces = (const bool *)cpl->coupled_faces;
-  }
 
   const cs_real_t *c_weight_s = nullptr;
   const cs_real_6_t *c_weight_t = nullptr;
@@ -1368,11 +1358,6 @@ _initialize_scalar_gradient(const cs_mesh_t                *m,
 
     } /* loop on thread groups */
 
-    /* Contribution from coupled faces */
-    if (cpl != nullptr)
-      cs_internal_coupling_initialize_scalar_gradient
-        (cpl, c_weight, pvar, grad);
-
     /* Contribution from boundary faces */
 
 #   pragma omp parallel for
@@ -1381,9 +1366,6 @@ _initialize_scalar_gradient(const cs_mesh_t                *m,
       for (cs_lnum_t f_id = b_group_index[t_id*2];
            f_id < b_group_index[t_id*2 + 1];
            f_id++) {
-
-        if (coupled_faces[f_id * cpl_stride])
-          continue;
 
         cs_lnum_t ii = b_face_cells[f_id];
 
@@ -1588,7 +1570,6 @@ _renormalize_scalar_gradient(const cs_mesh_t                *m,
  * parameters:
  *   m    <--  mesh
  *   fvq  <--  mesh quantities
- *   ce   <--  coupling entity
  *   gq   <->  gradient quantities
  *
  * returns:
@@ -1598,7 +1579,6 @@ _renormalize_scalar_gradient(const cs_mesh_t                *m,
 static cs_real_33_t *
 _compute_cell_cocg_it(const cs_mesh_t               *m,
                       const cs_mesh_quantities_t    *fvq,
-                      const cs_internal_coupling_t  *ce,
                       cs_gradient_quantities_t      *gq)
 {
   /* Local variables */
@@ -1666,11 +1646,6 @@ _compute_cell_cocg_it(const cs_mesh_t               *m,
     }
   }
 
-  /* Contribution for internal coupling */
-  if (ce != nullptr) {
-    cs_internal_coupling_it_cocg_contribution(ce, cocg);
-  }
-
   /* 3x3 Matrix inversion */
 
 # pragma omp parallel for
@@ -1690,8 +1665,7 @@ _compute_cell_cocg_it(const cs_mesh_t               *m,
  * parameters:
  *   m               <-- pointer to associated mesh structure
  *   fvq             <-- pointer to associated finite volume quantities
- *   cpl             <-- structure associated with internal coupling, or nullptr
- *   w_stride       <-- stride for weighting coefficient
+ *   w_stride        <-- stride for weighting coefficient
  *   var_name        <-- variable name
  *   gradient_info   <-- pointer to performance logging structure, or nullptr
  *   nswrgp          <-- number of sweeps for gradient reconstruction
@@ -1710,7 +1684,6 @@ _compute_cell_cocg_it(const cs_mesh_t               *m,
 static void
 _iterative_scalar_gradient(const cs_mesh_t                *m,
                            const cs_mesh_quantities_t     *fvq,
-                           const cs_internal_coupling_t   *cpl,
                            int                             w_stride,
                            const char                     *var_name,
                            cs_gradient_info_t             *gradient_info,
@@ -1769,20 +1742,11 @@ _iterative_scalar_gradient(const cs_mesh_t                *m,
     return;
   }
 
-  int gq_id = (cpl == nullptr) ? 0 : cpl->id+1;
-  cs_gradient_quantities_t  *gq = _gradient_quantities_get(gq_id);
+  cs_gradient_quantities_t  *gq = _gradient_quantities_get(0);
 
   cs_real_33_t *restrict cocg = gq->cocg_it;
   if (cocg == nullptr)
-    cocg = _compute_cell_cocg_it(m, fvq, cpl, gq);
-
-  cs_lnum_t   cpl_stride = 0;
-  const bool _coupled_faces[1] = {false};
-  const bool  *coupled_faces = _coupled_faces;
-  if (cpl != nullptr) {
-    cpl_stride = 1;
-    coupled_faces = (const bool *)cpl->coupled_faces;
-  }
+    cocg = _compute_cell_cocg_it(m, fvq, gq);
 
   const cs_real_t *c_weight_s = nullptr;
   const cs_real_6_t *c_weight_t = nullptr;
@@ -2074,15 +2038,6 @@ _iterative_scalar_gradient(const cs_mesh_t                *m,
 
       } /* loop on thread groups */
 
-      /* Contribution from coupled faces */
-      if (cpl != nullptr)
-        cs_internal_coupling_iterative_scalar_gradient
-          (cpl,
-           c_weight,
-           grad,
-           pvar,
-           rhs);
-
       /* Contribution from boundary faces */
 
 #     pragma omp parallel for
@@ -2091,9 +2046,6 @@ _iterative_scalar_gradient(const cs_mesh_t                *m,
         for (cs_lnum_t f_id = b_group_index[t_id*2];
              f_id < b_group_index[t_id*2 + 1];
              f_id++) {
-
-          if (coupled_faces[f_id * cpl_stride])
-            continue;
 
           cs_lnum_t c_id = b_face_cells[f_id];
 
@@ -2848,7 +2800,6 @@ _lsq_scalar_gradient(const cs_mesh_t                *m,
  * parameters:
  *   m              <-- pointer to associated mesh structure
  *   fvq            <-- pointer to associated finite volume quantities
- *   cpl            <-- structure associated with internal coupling, or nullptr
  *   halo_type      <-- halo type (extended or not)
  *   recompute_cocg <-- flag to recompute cocg
  *   hyd_p_flag     <-- flag for hydrostatic pressure
@@ -3257,7 +3208,6 @@ _lsq_scalar_gradient_hyd_p(const cs_mesh_t                *m,
  * parameters:
  *   m              <-- pointer to associated mesh structure
  *   fvq            <-- pointer to associated finite volume quantities
- *   cpl            <-- structure associated with internal coupling, or nullptr
  *   halo_type      <-- halo type (extended or not)
  *   hyd_p_flag     <-- flag for hydrostatic pressure
  *   inc            <-- if 0, solve on increment; 1 otherwise
@@ -3601,7 +3551,6 @@ _lsq_scalar_gradient_hyd_p_gather(const cs_mesh_t                *m,
  * parameters:
  *   m              <-- pointer to associated mesh structure
  *   fvq            <-- pointer to associated finite volume quantities
- *   cpl            <-- structure associated with internal coupling, or nullptr
  *   inc            <-- if 0, solve on increment; 1 otherwise
  *   bc_coeffs      <-- B.C. structure for boundary face normals
  *   pvar           <-- variable
@@ -3614,7 +3563,6 @@ _lsq_scalar_gradient_hyd_p_gather(const cs_mesh_t                *m,
 static void
 _lsq_scalar_gradient_ani(const cs_mesh_t               *m,
                          const cs_mesh_quantities_t    *fvq,
-                         const cs_internal_coupling_t  *cpl,
                          cs_real_t                      inc,
                          const cs_field_bc_coeffs_t    *bc_coeffs,
                          const cs_real_t                pvar[],
@@ -3643,14 +3591,6 @@ _lsq_scalar_gradient_ani(const cs_mesh_t               *m,
   const cs_real_t *restrict b_dist = fvq->b_dist;
   const cs_rreal_3_t *restrict diipb = fvq->diipb;
   const cs_real_t *restrict weight = fvq->weight;
-
-  cs_lnum_t   cpl_stride = 0;
-  const bool _coupled_faces[1] = {false};
-  const bool  *coupled_faces = _coupled_faces;
-  if (cpl != nullptr) {
-    cpl_stride = 1;
-    coupled_faces = (const bool *)cpl->coupled_faces;
-  }
 
   cs_real_4_t  *restrict rhsv;
   CS_MALLOC(rhsv, n_cells_ext, cs_real_4_t);
@@ -3748,9 +3688,6 @@ _lsq_scalar_gradient_ani(const cs_mesh_t               *m,
     for (cs_lnum_t f_id = b_group_index[t_id*2];
          f_id < b_group_index[t_id*2 + 1];
          f_id++) {
-
-      if (coupled_faces[f_id * cpl_stride])
-        continue;
 
       cs_real_t dsij[3];
 
@@ -4810,20 +4747,6 @@ _fv_vtx_based_scalar_gradient(const cs_mesh_t                *m,
 
   /* Vertex values are not needed after this stage */
 
-  cs_real_t mean[4] = {0, 0, 0, 0};
-  for (cs_lnum_t i = 0; i < n_cells; i++)
-    mean[0] += c_var[i];
-  mean[0] /= n_cells;
-  for (cs_lnum_t i = 0; i < m->n_vertices; i++)
-    mean[1] += v_var[i];
-  mean[1] /= m->n_vertices;
-  for (cs_lnum_t i = 0; i < m->n_i_faces; i++)
-    mean[2] += i_f_var[i];
-  mean[2] /= m->n_i_faces;
-  for (cs_lnum_t i = 0; i < m->n_b_faces; i++)
-    mean[3] += b_f_var[i];
-  mean[3] /= m->n_b_faces;
-
   CS_FREE(v_var);
 
   /* Case with hydrostatic pressure
@@ -5086,7 +5009,7 @@ _strided_gradient_clipping(const cs_mesh_t              *m,
 
   const cs_halo_t *halo = m->halo;
 
-  if (clip_mode < 0)
+  if (clip_mode < 0 || climgp < 0)
     return;
 
   /* The gradient and the variable must be already synchronized */
@@ -5403,7 +5326,6 @@ _strided_gradient_clipping(const cs_mesh_t              *m,
  * parameters:
  *   m              <-- pointer to associated mesh structure
  *   fvq            <-- pointer to associated finite volume quantities
- *   cpl            <-- structure associated with internal coupling, or nullptr
  *   halo_type      <-- halo type (extended or not)
  *   inc            <-- if 0, solve on increment; 1 otherwise
  *   bc_coeffs_v    <-- B.C. structure for boundary face normals
@@ -5415,7 +5337,6 @@ _strided_gradient_clipping(const cs_mesh_t              *m,
 static void
 _initialize_vector_gradient(const cs_mesh_t              *m,
                             const cs_mesh_quantities_t   *fvq,
-                            const cs_internal_coupling_t *cpl,
                             cs_halo_type_t                halo_type,
                             int                           inc,
                             const cs_field_bc_coeffs_t   *bc_coeffs_v,
@@ -5453,14 +5374,6 @@ _initialize_vector_gradient(const cs_mesh_t              *m,
     = (const cs_real_3_t *)fvq->i_face_normal;
   const cs_real_3_t *restrict b_f_face_normal
     = (const cs_real_3_t *)fvq->b_face_normal;
-
-  cs_lnum_t   cpl_stride = 0;
-  const bool _coupled_faces[1] = {false};
-  const bool  *coupled_faces = _coupled_faces;
-  if (cpl != nullptr) {
-    cpl_stride = 1;
-    coupled_faces = (const bool *)cpl->coupled_faces;
-  }
 
   /* Computation without reconstruction */
   /*------------------------------------*/
@@ -5521,11 +5434,6 @@ _initialize_vector_gradient(const cs_mesh_t              *m,
 
   } /* End of loop on thread groups */
 
-  /* Contribution from coupled faces */
-  if (cpl != nullptr)
-    cs_internal_coupling_initialize_vector_gradient
-      (cpl, c_weight, pvar, grad);
-
   /* Boundary face treatment */
 
 # pragma omp parallel for
@@ -5534,9 +5442,6 @@ _initialize_vector_gradient(const cs_mesh_t              *m,
     for (cs_lnum_t f_id = b_group_index[t_id*2];
          f_id < b_group_index[t_id*2 + 1];
          f_id++) {
-
-      if (coupled_faces[f_id * cpl_stride])
-        continue;
 
       cs_lnum_t c_id = b_face_cells[f_id];
 
@@ -5860,7 +5765,6 @@ _reconstruct_strided_gradient
  * parameters:
  *   m              <-- pointer to associated mesh structure
  *   fvq            <-> pointer to associated finite volume quantities
- *   cpl            <-> structure associated with internal coupling, or nullptr
  *   var_name       <-- variable's name
  *   gradient_info  <-- pointer to performance logging structure, or nullptr
  *   halo_type      <-- halo type (extended or not)
@@ -5877,7 +5781,6 @@ _reconstruct_strided_gradient
 static void
 _iterative_vector_gradient(const cs_mesh_t               *m,
                            const cs_mesh_quantities_t    *fvq,
-                           const cs_internal_coupling_t  *cpl,
                            const char                    *var_name,
                            cs_gradient_info_t            *gradient_info,
                            cs_halo_type_t                 halo_type,
@@ -5926,20 +5829,11 @@ _iterative_vector_gradient(const cs_mesh_t               *m,
   const cs_rreal_3_t *restrict diipb = fvq->diipb;
   const cs_real_3_t *restrict dofij = fvq->dofij;
 
-  int gq_id = (cpl == nullptr) ? 0 : cpl->id+1;
-  cs_gradient_quantities_t  *gq = _gradient_quantities_get(gq_id);
+  cs_gradient_quantities_t  *gq = _gradient_quantities_get(0);
 
   cs_real_33_t *restrict cocg = gq->cocg_it;
   if (cocg == nullptr)
-    cocg = _compute_cell_cocg_it(m, fvq, cpl, gq);
-
-  cs_lnum_t   cpl_stride = 0;
-  const bool _coupled_faces[1] = {false};
-  const bool  *coupled_faces = _coupled_faces;
-  if (cpl != nullptr) {
-    cpl_stride = 1;
-    coupled_faces = (const bool *)cpl->coupled_faces;
-  }
+    cocg = _compute_cell_cocg_it(m, fvq, gq);
 
   CS_MALLOC(rhs, n_cells_ext, cs_real_33_t);
 
@@ -6027,11 +5921,6 @@ _iterative_vector_gradient(const cs_mesh_t               *m,
 
       } /* loop on thread groups */
 
-      /* Contribution from coupled faces */
-      if (cpl != nullptr)
-        cs_internal_coupling_iterative_vector_gradient
-          (cpl, c_weight, grad, pvar, rhs);
-
       /* Boundary face treatment */
 
 #     pragma omp parallel for
@@ -6040,9 +5929,6 @@ _iterative_vector_gradient(const cs_mesh_t               *m,
         for (cs_lnum_t f_id = b_group_index[t_id*2];
              f_id < b_group_index[t_id*2 + 1];
              f_id++) {
-
-          if (coupled_faces[f_id * cpl_stride])
-            continue;
 
           cs_lnum_t c_id = b_face_cells[f_id];
 
@@ -6218,7 +6104,7 @@ _iterative_tensor_gradient(const cs_mesh_t              *m,
 
   cs_real_33_t *restrict cocg = gq->cocg_it;
   if (cocg == nullptr)
-    cocg = _compute_cell_cocg_it(m, fvq, nullptr, gq);
+    cocg = _compute_cell_cocg_it(m, fvq, gq);
 
   CS_MALLOC(rhs, n_cells_ext, cs_real_63_t);
 
@@ -7402,8 +7288,7 @@ _gradient_scalar(const char                    *var_name,
 
   /* Update of local BC. coefficients for internal coupling */
 
-  if (   cpl != nullptr
-      && gradient_type != CS_GRADIENT_GREEN_ITER) {
+  if (cpl != nullptr) {
 
     if (bc_coeffs_loc == nullptr) {
       cs_real_t *bc_coeff_a = bc_coeffs->a;
@@ -7449,7 +7334,6 @@ _gradient_scalar(const char                    *var_name,
   case CS_GRADIENT_GREEN_ITER:
     _initialize_scalar_gradient(mesh,
                                 fvq,
-                                cpl,
                                 w_stride,
                                 hyd_p_flag,
                                 inc,
@@ -7461,7 +7345,6 @@ _gradient_scalar(const char                    *var_name,
 
     _iterative_scalar_gradient(mesh,
                                fvq,
-                               cpl,
                                w_stride,
                                var_name,
                                gradient_info,
@@ -7480,7 +7363,6 @@ _gradient_scalar(const char                    *var_name,
   case CS_GRADIENT_GREEN_R:
     _initialize_scalar_gradient(mesh,
                                 fvq,
-                                cpl,
                                 w_stride,
                                 hyd_p_flag,
                                 inc,
@@ -7516,7 +7398,6 @@ _gradient_scalar(const char                    *var_name,
       if (w_stride == 6 && c_weight != nullptr)
         _lsq_scalar_gradient_ani(mesh,
                                  fvq,
-                                 cpl,
                                  inc,
                                  bc_coeffs,
                                  var,
@@ -7639,8 +7520,6 @@ _gradient_scalar(const char                    *var_name,
  * \param[in]       val_f           face value for gradient computation
  * \param[in]       c_weight        weighted gradient coefficient variable,
  *                                  or nullptr
- * \param[in]       cpl             structure associated with internal coupling,
- *                                  or nullptr
  * \param[out]      grad            gradient
                                     (\f$ \der{u_i}{x_j} \f$ is grad[][i][j])
  */
@@ -7661,7 +7540,6 @@ _gradient_vector(const char                     *var_name,
                  const cs_real_3_t     *restrict var,
                  const cs_real_t                 val_f[][3],
                  const cs_real_t       *restrict c_weight,
-                 const cs_internal_coupling_t   *cpl,
                  cs_real_33_t          *restrict grad)
 {
   const cs_mesh_t  *mesh = cs_glob_mesh;
@@ -7678,7 +7556,6 @@ _gradient_vector(const char                     *var_name,
 
     _initialize_vector_gradient(mesh,
                                 fvq,
-                                cpl,
                                 halo_type,
                                 inc,
                                 bc_coeffs_v,
@@ -7691,7 +7568,6 @@ _gradient_vector(const char                     *var_name,
     if (n_r_sweeps > 1)
       _iterative_vector_gradient(mesh,
                                  fvq,
-                                 cpl,
                                  var_name,
                                  gradient_info,
                                  halo_type,
@@ -8646,8 +8522,7 @@ cs_gradient_vector(const char                    *var_name,
 
   cs_real_3_t *bc_coeff_loc_cpl_a = nullptr;
 
-  if (   cpl != nullptr
-      && gradient_type != CS_GRADIENT_GREEN_ITER) {
+  if (cpl != nullptr) {
 
     if (bc_coeffs_v != nullptr) {
 
@@ -8678,8 +8553,7 @@ cs_gradient_vector(const char                    *var_name,
                                                       var,
                                                       c_weight);
 
-      cpl = nullptr;  /* Coupling not needed in lower functions in this case.
-                       * TODO check for reconstruction case */
+      cpl = nullptr;  /* Coupling not needed in lower functions in this case. */
     }
   }
 
@@ -8802,7 +8676,6 @@ cs_gradient_vector(const char                    *var_name,
                    (const cs_real_3_t *)var,
                    (const cs_real_3_t *)val_f,
                    (const cs_real_t *)c_weight,
-                   cpl,
                    gradv);
 
   CS_FREE_HD(val_ip);
@@ -9081,7 +8954,7 @@ cs_gradient_scalar_synced_input(const char                 *var_name,
   if (hyd_p_flag == 1) {
     bool on_device = cs_mem_is_device_ptr(f_ext);
     const cs_halo_t *halo = cs_glob_mesh->halo;
-    cs_halo_sync_r(halo, CS_HALO_STANDARD, on_device, f_ext);
+    cs_halo_sync_r(halo, halo_type, on_device, f_ext);
   }
 
   t0 = cs_timer_time();
@@ -9163,7 +9036,6 @@ cs_gradient_vector_synced_input(const char                 *var_name,
                                 const cs_real_t             var[][3],
                                 const cs_real_t             val_f[][3],
                                 const cs_real_t             c_weight[],
-                                const cs_internal_coupling_t  *cpl,
                                 cs_real_t                   grad[][3][3])
 {
   cs_gradient_info_t *gradient_info = nullptr;
@@ -9192,7 +9064,6 @@ cs_gradient_vector_synced_input(const char                 *var_name,
                    var,
                    val_f,
                    c_weight,
-                   cpl,
                    grad);
 
   t1 = cs_timer_time();
