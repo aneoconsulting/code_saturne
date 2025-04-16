@@ -292,7 +292,6 @@ _equation_iterative_solve_strided(int                   idtvar,
   cs_mesh_quantities_t *mq = cs_glob_mesh_quantities;
   const cs_halo_t *halo = cs_glob_mesh->halo;
 
-
   CS_PROFILE_MARK_LINE();
 
   int iconvp = eqp->iconv;
