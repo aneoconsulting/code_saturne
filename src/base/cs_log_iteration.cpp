@@ -46,7 +46,7 @@
 #include "base/cs_array_reduce.h"
 #include "base/cs_base.h"
 #include "alge/cs_blas.h"
-#include "ctwr/cs_ctwr.h"
+#include "base/cs_dispatch.h"
 #include "base/cs_fan.h"
 #include "base/cs_field.h"
 #include "base/cs_field_pointer.h"
@@ -62,12 +62,15 @@
 #include "pprt/cs_physical_model.h"
 #include "base/cs_prototypes.h"
 #include "base/cs_range_set.h"
+#include "base/cs_reducers.h"
 #include "base/cs_time_moment.h"
 #include "base/cs_time_plot.h"
 #include "base/cs_time_step.h"
 #include "lagr/cs_lagr_stat.h"
 #include "lagr/cs_lagr_log.h"
 #include "fvm/fvm_convert_array.h"
+
+#include "ctwr/cs_ctwr.h"
 
 /*----------------------------------------------------------------------------
  * Header for the current file
@@ -720,6 +723,8 @@ _log_fields_and_functions(void)
     }
   }
 
+  cs_dispatch_context ctx;
+
   /* Loop on locations */
 
   for (int loc_id = 0; loc_id < n_locations; loc_id++) {
@@ -751,7 +756,7 @@ _log_fields_and_functions(void)
       case CS_MESH_LOCATION_INTERIOR_FACES:
         n_g_elts = m->n_g_i_faces;
         weight = mq->i_face_surf;
-        cs_array_reduce_sum_l(_n_elts, 1, nullptr, weight, &total_weight);
+        cs_array_reduce_sum_l<1>(ctx, _n_elts, nullptr, weight, &total_weight);
         cs_parall_sum(1, CS_DOUBLE, &total_weight);
         have_weight = 1;
         break;
@@ -759,7 +764,7 @@ _log_fields_and_functions(void)
       case CS_MESH_LOCATION_BOUNDARY_FACES:
         n_g_elts = m->n_g_b_faces;
         weight = mq->b_face_surf;
-        cs_array_reduce_sum_l(_n_elts, 1, nullptr, weight, &total_weight);
+        cs_array_reduce_sum_l<1>(ctx, _n_elts, nullptr, weight, &total_weight);
         cs_parall_sum(1, CS_DOUBLE, &total_weight);
         have_weight = 1;
         break;
@@ -800,7 +805,7 @@ _log_fields_and_functions(void)
           }
 
           if (have_weight) {
-            cs_array_reduce_sum_l(_n_elts, 1, elt_ids, weight, &total_weight);
+            cs_array_reduce_sum_l<1>(ctx, _n_elts, elt_ids, weight, &total_weight);
             cs_parall_sum(1, CS_DOUBLE, &total_weight);
           }
         }
@@ -917,7 +922,8 @@ _log_fields_and_functions(void)
       }
 
       if (use_weight) {
-        cs_array_reduce_simple_stats_l_w(_n_elts,
+        cs_array_reduce_simple_stats_l_w(ctx,
+                                         _n_elts,
                                          f_dim,
                                          nullptr,
                                          elt_ids,
@@ -956,7 +962,8 @@ _log_fields_and_functions(void)
           _n_cur_elts = m->vtx_range_set->n_elts[0];
         }
 
-        cs_array_reduce_simple_stats_l(_n_cur_elts,
+        cs_array_reduce_simple_stats_l(ctx,
+                                       _n_cur_elts,
                                        f_dim,
                                        nullptr,
                                        field_val,
@@ -1162,6 +1169,10 @@ _log_sstats(void)
   cs_parall_sum(_sstats_val_size, CS_DOUBLE, vsum);
   cs_parall_sum(_sstats_val_size, CS_DOUBLE, wsum);
 
+  /* Create dispatch context */
+
+  cs_dispatch_context ctx;
+
   /* Loop on statistics */
 
   int sstat_cat_start = 0;
@@ -1226,7 +1237,7 @@ _log_sstats(void)
           n_g_elts = m->n_g_i_faces;
           weight = mq->i_face_surf;
           if (_interior_surf < 0) {
-            cs_array_reduce_sum_l(_n_elts, 1, nullptr, weight, &_interior_surf);
+            cs_array_reduce_sum_l<1>(ctx, _n_elts, nullptr, weight, &_interior_surf);
             cs_parall_sum(1, CS_DOUBLE, &_interior_surf);
             if (_interior_surf < 0) _interior_surf = 0; /* just to be safe */
           }
@@ -1237,7 +1248,7 @@ _log_sstats(void)
           n_g_elts = m->n_g_b_faces;
           weight = mq->b_face_surf;
           if (_boundary_surf < 0) {
-            cs_array_reduce_sum_l(_n_elts, 1, nullptr, weight, &_boundary_surf);
+            cs_array_reduce_sum_l<1>(ctx, _n_elts, nullptr, weight, &_boundary_surf);
             cs_parall_sum(1, CS_DOUBLE, &_boundary_surf);
             if (_boundary_surf < 0) _boundary_surf = 0; /* just to be safe */
           }
@@ -1769,11 +1780,11 @@ cs_log_equation_convergence_info_write(void)
 
   cs_log_printf(CS_LOG_DEFAULT, _("%s\n%s\n%s\n"), line, title, line);
 
+  cs_dispatch_context ctx;
+
   /* Print convergence information for each solved field */
   for (int f_id = 0; f_id < n_fields; f_id++) {
     cs_field_t *f = cs_field_by_id(f_id);
-    cs_real_t dervar[9], varres[9], varnrm[9];
-    assert(f->dim <= 9);
 
     int log_flag = cs_field_get_key_int(f, keylog);
 
@@ -1799,25 +1810,33 @@ cs_log_equation_convergence_info_write(void)
     if (sinfo->n_it < 0)
       continue;
 
-    const int dim = f->dim;
+    const cs_lnum_t dim = f->dim;
     cs_real_t *dt = CS_F_(dt)->val;
 
+    cs_real_t dervar;
+
     /* Pressure time drift (computed in cs_pressure_correction.c) */
-    dervar[0] = sinfo->derive;
+    dervar = sinfo->derive;
 
     /* Time drift for cell based variables (except pressure) */
     if (   cs_glob_physical_model_flag[CS_COMPRESSIBLE] > -1
-           || strcmp(f->name, "pressure") != 0) {
-      for (int isou = 0; isou < dim; isou++) {
-        for (int c_id = 0; c_id < n_cells; c_id++)
-          w1[c_id] =   (f->val[dim*c_id + isou] - f->val_pre[dim*c_id + isou])
-            / sqrt(dt[c_id]);
+        || strcmp(f->name, "pressure") != 0) {
+      const cs_real_t *val = f->val, *val_pre = f->val_pre;
 
-        dervar[isou] = cs_gres(n_cells, cell_vol, w1, w1);
-      }
+      struct cs_double_n<2> rd;
+      struct cs_reduce_sum_n<2> reducer;
+      ctx.parallel_for_reduce(n_cells, rd, reducer, [=] CS_F_HOST_DEVICE
+                              (cs_lnum_t c_id, cs_double_n<2> &sum) {
+        cs_real_t d_c = 0;
+        for (cs_lnum_t i = 0; i < dim; i++)
+          d_c += cs_math_pow2(val[dim*c_id + i] - val_pre[dim*c_id + i]);
+        sum.r[0] = d_c / dt[c_id] * cell_vol[c_id];
+        sum.r[1] = cell_vol[c_id];
+      });
+      ctx.wait();
+      cs_parall_sum(2, CS_DOUBLE, rd.r);
+      dervar = rd.r[0] / rd.r[1];
 
-      for (int isou = 1; isou < dim; isou++)
-        dervar[0] += dervar[isou];
       /* We don't update the sinfo attribute since it may not be
        * updated at each time step (only when logging)
        * NOTE: it should be added in the bindings again
@@ -1826,34 +1845,40 @@ cs_log_equation_convergence_info_write(void)
     }
 
     /* L2 time normalized residual */
-    for (int isou = 0; isou < dim; isou++) {
-      for (int c_id = 0; c_id < n_cells; c_id++) {
-        w1[c_id] =   (f->val[dim*c_id + isou] - f->val_pre[dim*c_id + isou])
-                   / dt[c_id];
-        w2[c_id] = f->val[dim * c_id + isou];
+
+    struct cs_double_n<3> rd;
+    struct cs_reduce_sum_n<3> reducer;
+    const cs_real_t *val = f->val, *val_pre = f->val_pre;
+
+    ctx.parallel_for_reduce(n_cells, rd, reducer, [=] CS_F_HOST_DEVICE
+                            (cs_lnum_t c_id, cs_double_n<3> &sum) {
+      cs_real_t s0 = 0., s1 = 0.;
+      for (cs_lnum_t i = 0; i < dim; i++) {
+        s0 += cs_math_pow2(val[dim*c_id + i] - val_pre[dim*c_id + i]);
+        s1 += cs_math_pow2(val[dim*c_id + i]);
       }
+      sum.r[0] = s0 / cs_math_pow2(dt[c_id]) * cell_vol[c_id];
+      sum.r[1] = s1 * cell_vol[c_id];
+      sum.r[2] = cell_vol[c_id];
+    });
+    ctx.wait();
+    cs_parall_sum(3, CS_DOUBLE, rd.r);
 
-      varres[isou] = cs_gres(n_cells, cell_vol, w1, w1);
-      varnrm[isou] = cs_gres(n_cells, cell_vol, w2, w2);
+    cs_real_t varres = rd.r[0] / rd.r[2];
+    cs_real_t varnrm = rd.r[1] / rd.r[2];
 
-      if (isou > 0) {
-        varres[0] += varres[isou];
-        varnrm[0] += varnrm[isou];
-      }
-    }
-
-    if (varnrm[0] > 0.)
-      varres[0] = varres[0] / varnrm[0];
+    if (varnrm > 0.)
+      varres = varres / varnrm;
     /* We don't update the sinfo attribute since it may not be
      * updated at each time step (only when logging)
      * NOTE: it should be added in the bindings again
      * if needed */
-    sinfo->l2residual = sqrt(cs::abs(varres[0]));
+    sinfo->l2residual = sqrt(cs::abs(varres));
 
     char var_log[128];
     snprintf(var_log, 127, "%12.5e %7d   %12.5e %12.5e %12.5e",
              sinfo->rhs_norm, sinfo->n_it, sinfo->res_norm,
-             dervar[0], sqrt(cs::abs(varres[0])));
+             dervar, sqrt(cs::abs(varres)));
 
     strcat(chain, var_log);
 
@@ -1956,7 +1981,7 @@ cs_log_iteration_add_array(const char                     *name,
                            const char                     *category,
                            const cs_mesh_location_type_t   loc_id,
                            bool                            is_intensive,
-                           int                             dim,
+                           const int                       dim,
                            const cs_real_t                 val[])
 {
   /* Initialize if necessary */
@@ -2069,8 +2094,11 @@ cs_log_iteration_add_array(const char                     *name,
   const cs_lnum_t *n_elts = cs_mesh_location_get_n_elts(loc_id);
   const cs_lnum_t *elt_list = cs_mesh_location_get_elt_ids_try(loc_id);
 
+  cs_dispatch_context ctx;
+
   if (have_weight)
-    cs_array_reduce_simple_stats_l_w(n_elts[0],
+    cs_array_reduce_simple_stats_l_w(ctx,
+                                     n_elts[0],
                                      dim,
                                      elt_list,
                                      elt_list,
@@ -2081,7 +2109,8 @@ cs_log_iteration_add_array(const char                     *name,
                                      _sstats_vsum + v_idx,
                                      _sstats_wsum + v_idx);
   else {
-    cs_array_reduce_simple_stats_l(n_elts[0],
+    cs_array_reduce_simple_stats_l(ctx,
+                                   n_elts[0],
                                    dim,
                                    elt_list,
                                    val,

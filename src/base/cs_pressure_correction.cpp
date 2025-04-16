@@ -41,47 +41,52 @@
 #include "bft/bft_error.h"
 #include "bft/bft_printf.h"
 
-#include "atmo/cs_air_props.h"
-#include "cdo/cs_cdo_headers.h"
+#include "alge/cs_blas.h"
+
 #include "base/cs_ale.h"
 #include "base/cs_array.h"
-#include "atmo/cs_atmo.h"
-#include "alge/cs_balance.h"
 #include "base/cs_base_accel.h"
-#include "alge/cs_blas.h"
 #include "base/cs_boundary_conditions.h"
 #include "base/cs_boundary_conditions_set_coeffs.h"
-#include "cfbl/cs_cf_thermo.h"
-#include "alge/cs_convection_diffusion.h"
-#include "alge/cs_divergence.h"
 #include "base/cs_equation_iterative_solve.h"
-#include "alge/cs_face_viscosity.h"
 #include "base/cs_field.h"
 #include "base/cs_field_default.h"
 #include "base/cs_field_operator.h"
 #include "base/cs_field_pointer.h"
-#include "alge/cs_gradient.h"
 #include "base/cs_halo.h"
-#include "lagr/cs_lagr.h"
 #include "base/cs_log.h"
-#include "alge/cs_matrix_building.h"
 #include "base/cs_mem.h"
-#include "mesh/cs_mesh_location.h"
 #include "base/cs_parall.h"
 #include "base/cs_parameters.h"
 #include "base/cs_physical_constants.h"
-#include "pprt/cs_physical_model.h"
 #include "base/cs_porous_model.h"
 #include "base/cs_post.h"
 #include "base/cs_prototypes.h"
+#include "base/cs_reducers.h"
 #include "base/cs_sat_coupling.h"
-#include "alge/cs_sles_default.h"
 #include "base/cs_thermal_model.h"
 #include "base/cs_time_step.h"
 #include "base/cs_velocity_pressure.h"
 #include "base/cs_vof.h"
 #include "base/cs_volume_mass_injection.h"
 #include "base/cs_wall_condensation.h"
+
+#include "alge/cs_balance.h"
+#include "alge/cs_convection_diffusion.h"
+#include "alge/cs_divergence.h"
+#include "alge/cs_face_viscosity.h"
+#include "alge/cs_gradient.h"
+#include "alge/cs_matrix_building.h"
+#include "alge/cs_sles_default.h"
+
+#include "cdo/cs_cdo_headers.h"
+#include "mesh/cs_mesh_location.h"
+#include "lagr/cs_lagr.h"
+
+#include "pprt/cs_physical_model.h"
+#include "atmo/cs_air_props.h"
+#include "atmo/cs_atmo.h"
+#include "cfbl/cs_cf_thermo.h"
 
 #if defined(DEBUG) && !defined(NDEBUG)
 #include "cdo/cs_dbg.h"
@@ -329,8 +334,17 @@ _hydrostatic_pressure_compute(const cs_mesh_t       *m,
 
   cs_divergence(m, 1, iflux, bflux, div_fext);
 
+  double rd2;
+  ctx.parallel_for_reduce_sum(n_cells, rd2, [=] CS_F_HOST_DEVICE
+                              (cs_lnum_t c_id,
+                               CS_DISPATCH_REDUCER_TYPE(double) &sum) {
+    sum += cs_math_pow2(div_fext[c_id]);
+  });
+  ctx.wait();
+  cs_parall_sum(1, CS_DOUBLE, &rd2);
+
   cs_real_t residual = 0;
-  const cs_real_t rnorm = sqrt(cs_gdot(n_cells, div_fext, div_fext));
+  const cs_real_t rnorm = sqrt(rd2);
 
   /* Loops on non-orthogonalities (resolution)
      ----------------------------------------- */
@@ -366,15 +380,19 @@ _hydrostatic_pressure_compute(const cs_mesh_t       *m,
                            viscce,
                            rhs);
 
-    ctx.parallel_for(n_cells, [=] CS_F_HOST_DEVICE (cs_lnum_t c_id) {
+    ctx.parallel_for_reduce_sum(n_cells, rd2, [=] CS_F_HOST_DEVICE
+                                (cs_lnum_t c_id,
+                                 CS_DISPATCH_REDUCER_TYPE(double) &sum) {
       rhs[c_id] = -div_fext[c_id] - rhs[c_id];
+      sum += cs_math_pow2(rhs[c_id]);
     });
 
     ctx.wait();
 
     /* Convergence test */
 
-    residual = sqrt(cs_gdot(n_cells, rhs, rhs));
+    cs_parall_sum(1, CS_DOUBLE, &rd2);
+    residual = sqrt(rd2);
 
     if (eqp_pr->verbosity > 1)
       bft_printf(_("hydrostatic_p: sweep = %d RHS residual = %10.14le"
@@ -827,7 +845,9 @@ _pressure_correction_fv(int                   iterns,
 
   /* Standard initialization */
 
-  cs_arrays_set_value<cs_real_t, 1>(n_i_faces, 0., iflux);
+  ctx.parallel_for(n_i_faces, [=] CS_F_HOST_DEVICE (cs_lnum_t f_id) {
+    iflux[f_id] = 0.;
+  });
 
   if (vp_param->staggered == 0) {
     ctx_c.parallel_for(n_b_faces, [=] CS_F_HOST_DEVICE (cs_lnum_t f_id) {
@@ -1049,7 +1069,10 @@ _pressure_correction_fv(int                   iterns,
   cs_real_t *rovsdt;
   CS_MALLOC_HD(rovsdt, n_cells_ext, cs_real_t, cs_alloc_mode);
 
-  cs_arrays_set_value<cs_real_t, 1>(n_cells_ext, 0., rovsdt);
+  ctx.parallel_for(n_cells_ext, [=] CS_F_HOST_DEVICE (cs_lnum_t c_id) {
+    rovsdt[c_id] = 0.;
+  });
+  ctx.wait();
 
   /* Compressible scheme implicit part;
      Getting the thermal parameters */
@@ -1382,7 +1405,11 @@ _pressure_correction_fv(int                   iterns,
   }
 
   else {
-    cs_arrays_set_value<cs_real_t, 1>(3*n_cells, 0., (cs_real_t *)wrk);
+    ctx.parallel_for(n_cells, [=] CS_F_HOST_DEVICE (cs_lnum_t c_id) {
+      for (cs_lnum_t ii = 0; ii < 3; ii++) {
+        wrk[c_id][ii] = 0.;
+      }
+    });
   }
 
   ctx.parallel_for(n_cells, [=] CS_F_HOST_DEVICE (cs_lnum_t c_id) {
@@ -1951,14 +1978,21 @@ _pressure_correction_fv(int                   iterns,
 
   /* It is: div(dt/rho*rho grad P) + div(rho u*) - Gamma
      NB: if iphydr=1, div(rho u*) contains div(dt d fext).  */
-  ctx.parallel_for(n_cells, [=] CS_F_HOST_DEVICE (cs_lnum_t c_id) {
+
+  double rd2;
+  ctx.parallel_for_reduce_sum(n_cells, rd2, [=] CS_F_HOST_DEVICE
+                              (cs_lnum_t c_id,
+                               CS_DISPATCH_REDUCER_TYPE(double) &sum) {
     res[c_id] += cpro_divu[c_id];
+    sum += cs_math_pow2(res[c_id]);
   });
 
   ctx.wait();
 
   /* Pressure norm */
-  cs_real_t rnormp = sqrt(cs_gdot(n_cells, res, res));
+
+  cs_parall_sum(1, CS_DOUBLE, &rd2);
+  cs_real_t rnormp = sqrt(rd2);
 
   if (eqp_p->verbosity >= 2)
     cs_log_printf(CS_LOG_DEFAULT,
@@ -2042,25 +2076,34 @@ _pressure_correction_fv(int                   iterns,
   }
 
   if (eqp_p->iswdyn >= 1) {
-    ctx.parallel_for(n_cells, [=] CS_F_HOST_DEVICE (cs_lnum_t c_id) {
+    ctx.parallel_for_reduce_sum(n_cells, rd2, [=] CS_F_HOST_DEVICE
+                                (cs_lnum_t c_id,
+                                 CS_DISPATCH_REDUCER_TYPE(double) &sum) {
       /* Dynamic relaxation: stores the initial rhs */
       rhs0[c_id] = rhs[c_id];
 
       /* Finalize the rhs initialization */
       rhs[c_id] = -rhs[c_id] - cpro_divu[c_id] - rovsdt[c_id]*phi[c_id];
+
+      sum += cs_math_pow2(rhs[c_id]);
     });
   }
   else {
     /* Finalize the rhs initialization */
-    ctx.parallel_for(n_cells, [=] CS_F_HOST_DEVICE (cs_lnum_t c_id) {
+    ctx.parallel_for_reduce_sum(n_cells, rd2, [=] CS_F_HOST_DEVICE
+                                (cs_lnum_t c_id,
+                                 CS_DISPATCH_REDUCER_TYPE(double) &sum) {
       rhs[c_id] = -rhs[c_id] - cpro_divu[c_id] - rovsdt[c_id]*phi[c_id];
+
+      sum += cs_math_pow2(rhs[c_id]);
     });
   }
 
   ctx.wait();
 
   /* Right hand side residual */
-  cs_real_t residual = sqrt(cs_gdot(n_cells, rhs, rhs));
+  cs_parall_sum(1, CS_DOUBLE, &rd2);
+  cs_real_t residual = sqrt(rd2);
 
   sinfo->rhs_norm = residual;
 
@@ -2181,20 +2224,28 @@ _pressure_correction_fv(int                   iterns,
                                            weighf, weighb,
                                            adxk);
 
-      ctx.parallel_for(n_cells, [=] CS_F_HOST_DEVICE (cs_lnum_t c_id) {
+      struct cs_data_2r rd;
+      struct cs_reduce_sum2r reducer;
+
+      ctx.parallel_for_reduce(n_cells, rd, reducer, [=] CS_F_HOST_DEVICE
+                              (cs_lnum_t c_id, cs_data_2r &sum) {
         adxk[c_id] = - adxk[c_id];
+
+        sum.r[0] = adxk[c_id] * adxk[c_id];
+        sum.r[1] = rhs[c_id] * adxk[c_id];
       });
 
       ctx.wait();
+      cs_parall_sum(2, CS_DOUBLE, rd.r);
 
       // ||E.dx^(k-1)-E.0||^2
       cs_real_t nadxkm1 = nadxk;
 
       // ||E.dx^k-E.0||^2
-      nadxk = cs_gdot(n_cells, adxk, adxk);
+      nadxk = rd.r[0];
 
       // < E.dx^k-E.0; r^k >
-      cs_real_t paxkrk = cs_gdot(n_cells, rhs, adxk);
+      cs_real_t paxkrk = rd.r[1];
 
       // Relaxation with respect to dx^k and dx^(k-1)
 
@@ -2204,11 +2255,17 @@ _pressure_correction_fv(int                   iterns,
 
       if (eqp_p->iswdyn >= 2) {
 
-        // < E.dx^(k-1)-E.0; r^k >
-        paxm1rk = cs_gdot(n_cells, rhs, adxkm1);
+        ctx.parallel_for_reduce(n_cells, rd, reducer, [=] CS_F_HOST_DEVICE
+                                (cs_lnum_t c_id, cs_data_2r &sum) {
+          sum.r[0] = rhs[c_id] * adxkm1[c_id];
+          sum.r[1] = adxk[c_id] * adxkm1[c_id];
+        });
 
-        // < E.dx^(k-1)-E.0; E.dx^k -E.0 >
-        paxm1ax = cs_gdot(n_cells, adxk, adxkm1);
+        ctx.wait();
+        cs_parall_sum(2, CS_DOUBLE, rd.r);
+
+        paxm1rk = rd.r[0];   // < E.dx^(k-1)-E.0; r^k >
+        paxm1ax = rd.r[1];   // < E.dx^(k-1)-E.0; E.dx^k -E.0 >
         cs_real_t paxm1ax2 = cs_math_pow2(paxm1ax);
 
         if (   nadxkm1 > 1.e-30*rnorm2
@@ -2341,14 +2398,18 @@ _pressure_correction_fv(int                   iterns,
                                            rhs);
     }
 
-    ctx.parallel_for(n_cells, [=] CS_F_HOST_DEVICE (cs_lnum_t c_id) {
+    ctx.parallel_for_reduce_sum(n_cells, rd2, [=] CS_F_HOST_DEVICE
+                                (cs_lnum_t c_id,
+                                 CS_DISPATCH_REDUCER_TYPE(double) &sum) {
       rhs[c_id] = - cpro_divu[c_id] - rhs[c_id] - rovsdt[c_id]*phi[c_id];
+      sum += cs_math_pow2(rhs[c_id]);
     });
 
     ctx.wait();
 
     /* Convergence test */
-    residual = sqrt(cs_gdot(n_cells, rhs, rhs));
+    cs_parall_sum(1, CS_DOUBLE, &rd2);
+    residual = sqrt(rd2);
 
     /*  Writing */
     sinfo->n_it += niterf;
@@ -2635,7 +2696,9 @@ _pressure_correction_fv(int                   iterns,
     if (f_cflp != nullptr) {
       cflp = f_cflp->val;
 
-      cs_arrays_set_value<cs_real_t, 1>(n_cells_ext, 0., cflp);
+      ctx.parallel_for(n_cells_ext, [=] CS_F_HOST_DEVICE (cs_lnum_t c_id) {
+        cflp[c_id] = 0.;
+      });
 
       ctx.wait();
 
@@ -2806,6 +2869,8 @@ _pressure_correction_cdo(cs_real_t              vel[][3],
 
   cs_real_3_t  *gradp = (cs_real_3_t*) prcdo->pressure_gradient->val;
 
+  cs_dispatch_context ctx;
+
   if (   ts->nt_cur <= ts->nt_ini
       && iphydr == 0 && idilat <= 1
       && compressible_flag < 0
@@ -2822,14 +2887,14 @@ _pressure_correction_cdo(cs_real_t              vel[][3],
 
   const cs_real_t arak = vp_param->arak;
 
-# pragma omp parallel for if (n_cells > CS_THR_MIN)
-  for (cs_lnum_t c_id = 0; c_id < n_cells; c_id++) {
+  ctx.parallel_for(n_cells, [=] CS_F_HOST_DEVICE (cs_lnum_t c_id) {
     for (cs_lnum_t j = 0; j < 3; j++)
       wrk[c_id][j] = vel[c_id][j] + arak*gradp[c_id][j]*dt[c_id]/crom[c_id];
-  }
+  });
+  ctx.wait();
 
   /* Sync for parallelism and periodicity */
-  bool on_device = false;
+  const bool on_device = ctx.use_gpu();
   cs_halo_sync_r(m->halo, on_device, wrk);
 
   {
@@ -2880,12 +2945,18 @@ _pressure_correction_cdo(cs_real_t              vel[][3],
                 bmasfl,
                 divu);
 
-  for (cs_lnum_t c_id = 0; c_id < n_cells; c_id++)
+  double rd2;
+  ctx.parallel_for_reduce_sum(n_cells, rd2, [=] CS_F_HOST_DEVICE
+                              (cs_lnum_t c_id,
+                               CS_DISPATCH_REDUCER_TYPE(double) &sum) {
     divu[c_id] *= -1;
+    sum += cs_math_pow2(divu[c_id]);
+  });
 
   /* Compute and set the right-hand side residual */
 
-  cs_real_t residual = sqrt(cs_gdot(n_cells, divu, divu));
+  cs_parall_sum(1, CS_DOUBLE, &rd2);
+  cs_real_t residual = sqrt(rd2);
 
   sinfo->rhs_norm = residual;
 

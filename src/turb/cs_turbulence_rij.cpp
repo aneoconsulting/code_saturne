@@ -72,6 +72,7 @@
 #include "pprt/cs_physical_model.h"
 #include "base/cs_porous_model.h"
 #include "base/cs_prototypes.h"
+#include "base/cs_reducers.h"
 #include "base/cs_rotation.h"
 #include "base/cs_solid_zone.h"
 #include "base/cs_thermal_model.h"
@@ -218,7 +219,7 @@ _sym_33_eigen(const cs_real_t  m[6],
  */
 /*----------------------------------------------------------------------------*/
 
-static cs_real_t
+static CS_F_HOST_DEVICE cs_real_t
 _sign(cs_real_t  a,
       cs_real_t  b)
 
@@ -289,62 +290,6 @@ _clip_alpha(const int          f_id,
                                   iclpmx[0],
                                   vmin, vmax,
                                   iclpmn, iclpmx);
-}
-
-/*----------------------------------------------------------------------------*/
-/*!
- * \brief Compute (rank-local) minima and maxima of Rij and epsilon.
- *
- * \param[in]   n_cells   number of cells
- * \param[in]   cvar_rij  Rij values
- * \param[in]   cvar_ep   epsilon values
- * \param[out]  vmin      local minima for Rij (0-5) and epsilon (6)
- * \param[out]  vmax      local maxima for Rij (0-5) and epsilon (6)
- */
-/*----------------------------------------------------------------------------*/
-
-static void
-_rij_min_max(cs_lnum_t        n_cells,
-             const cs_real_t  cvar_rij[][6],
-             const cs_real_t  cvar_ep[],
-             cs_real_t        vmin[7],
-             cs_real_t        vmax[7])
-{
-  for (int ii = 0; ii < 7; ii++) {
-    vmin[ii] = cs_math_big_r;
-    vmax[ii] = -cs_math_big_r;
-  }
-
-# pragma omp parallel if(n_cells > CS_THR_MIN)
-  {
-    cs_lnum_t s_id, e_id;
-    cs_parall_thread_range(n_cells, sizeof(cs_real_t), &s_id, &e_id);
-
-    cs_real_t t_vmin[7], t_vmax[7];
-    for (int ii = 0; ii < 7; ii++) {
-      t_vmin[ii] = cs_math_big_r;
-      t_vmax[ii] = -cs_math_big_r;
-    }
-
-    for (cs_lnum_t c_id = s_id; c_id < e_id; c_id++) {
-      for (cs_lnum_t ii = 0; ii < 6; ii++) {
-        t_vmin[ii] = cs::min(t_vmin[ii], cvar_rij[c_id][ii]);
-        t_vmax[ii] = cs::max(t_vmax[ii], cvar_rij[c_id][ii]);
-      }
-    }
-    for (cs_lnum_t c_id = s_id; c_id < e_id; c_id++) {
-      t_vmin[6] = cs::min(t_vmin[6], cvar_ep[c_id]);
-      t_vmax[6] = cs::max(t_vmax[6], cvar_ep[c_id]);
-    }
-
-    #pragma omp critical
-    {
-      for (int ii = 0; ii < 7; ii++) {
-        vmin[ii] = cs::min(vmin[ii], t_vmin[ii]);
-        vmax[ii] = cs::max(vmax[ii], t_vmax[ii]);
-      }
-    }
-  }
 }
 
 /*----------------------------------------------------------------------------*/
@@ -436,11 +381,15 @@ _compute_up_rhop(int                 phase_id,
           up_rhop[c_id][i] = factor * xut[c_id][i];
 
       });
-      ctx.wait();
     }
     else { // beta = 0
-      cs_arrays_set_value<cs_real_t, 1>(3*n_cells, 0., (cs_real_t *)up_rhop);
+      ctx.parallel_for(n_cells, [=] CS_F_HOST_DEVICE (cs_lnum_t c_id) {
+        up_rhop[c_id][0] = 0.;
+        up_rhop[c_id][1] = 0.;
+        up_rhop[c_id][2] = 0.;
+      });
     }
+    ctx.wait();
   }
 
   /* Note that the buoyant term is normally expressed in term of
@@ -494,7 +443,12 @@ _compute_up_rhop(int                 phase_id,
         }
 
         else { // beta = 0
-          cs_arrays_set_value<cs_real_t, 1>(3*n_cells, 0., (cs_real_t *)up_rhop);
+          ctx.parallel_for(n_cells, [=] CS_F_HOST_DEVICE (cs_lnum_t c_id) {
+            up_rhop[c_id][0] = 0.;
+            up_rhop[c_id][1] = 0.;
+            up_rhop[c_id][2] = 0.;
+          });
+          ctx.wait();
         }
       }
 
@@ -511,7 +465,10 @@ _compute_up_rhop(int                 phase_id,
       cs_real_t *coefb;
       CS_MALLOC_HD(coefb, n_b_faces, cs_real_t, cs_alloc_mode);
 
-      cs_arrays_set_value<cs_real_t, 1>(n_b_faces, 0., coefb);
+      ctx.parallel_for(n_b_faces, [=] CS_F_HOST_DEVICE (cs_lnum_t face_id) {
+        coefb[face_id] = 0.;
+      });
+      ctx.wait();
 
       cs_field_bc_coeffs_t bc_coeffs_loc;
       cs_field_bc_coeffs_init(&bc_coeffs_loc);
@@ -2532,7 +2489,11 @@ _solve_epsilon(int              phase_id,
   const cs_real_t thets = time_scheme->thetst;
   const cs_real_t thetv = eqp->theta;
 
-  cs_arrays_set_value<cs_real_t, 1>(n_cells, 0., rhs, fimp);
+  ctx.parallel_for(n_cells, [=] CS_F_HOST_DEVICE (cs_lnum_t c_id) {
+    rhs[c_id] = 0.;
+    fimp[c_id] = 0.;
+  });
+  ctx.wait();
 
   /* Work arrays */
   cs_real_t *w1;
@@ -2565,9 +2526,10 @@ _solve_epsilon(int              phase_id,
     });
   }
   else {
+    const cs_real_t zero_threshold = cs_math_zero_threshold;
     ctx.parallel_for(n_cells, [=] CS_F_HOST_DEVICE (cs_lnum_t c_id) {
       rhs[c_id]  += fimp[c_id]*cvara_ep[c_id];
-      fimp[c_id]  = cs::max(-fimp[c_id], cs_math_zero_threshold);
+      fimp[c_id]  = cs::max(-fimp[c_id], zero_threshold);
     });
   }
 
@@ -2580,6 +2542,7 @@ _solve_epsilon(int              phase_id,
       && (cs_glob_lagr_source_terms->ltsdyn == 1)) {
 
     const cs_real_t ce4 = cs_turb_ce4;
+    const cs_real_t zero_threshold = cs_math_zero_threshold;
 
     const cs_real_6_t *lagr_st_rij
       = (const cs_real_6_t *)cs_field_by_name("lagr_st_rij")->val;
@@ -2597,7 +2560,7 @@ _solve_epsilon(int              phase_id,
 
       /* equiv:                    -cs_turb_ce4 * st_eps * / (k/eps) */
       fimp[c_id] += cs::max(-ce4 * st_eps / k * cvara_ep[c_id],
-                            cs_math_zero_threshold);
+                            zero_threshold);
     });
   }
   ctx.wait();
@@ -2976,9 +2939,15 @@ cs_turbulence_rij(int phase_id)
 
   /* Source terms for Rij
    * -------------------- */
-
-  cs_arrays_set_value<cs_real_t, 1>(6*n_cells, 0., (cs_real_t*)rhs);
-  cs_arrays_set_value<cs_real_t, 1>(36*n_cells, 0., (cs_real_t*)fimp);
+  ctx.parallel_for(n_cells, [=] CS_F_HOST_DEVICE (cs_lnum_t c_id) {
+    for (int ii = 0; ii < 6; ii++) {
+      rhs[c_id][ii] = 0.;
+      for (int jj = 0; jj < 6; jj++) {
+        fimp[c_id][ii][jj] = 0.;
+      }
+    }
+  });
+  ctx.wait();
 
   cs_user_source_terms(cs_glob_domain,
                        f_rij->id,
@@ -3705,7 +3674,10 @@ cs_turbulence_rij_solve_alpha(int        f_id,
   CS_MALLOC_HD(viscf, n_i_faces, cs_real_t, cs_alloc_mode);
   CS_MALLOC_HD(viscb, n_b_faces, cs_real_t, cs_alloc_mode);
 
-  cs_arrays_set_value<cs_real_t, 1>(n_cells, 1., w1);
+  ctx.parallel_for(n_cells, [=] CS_F_HOST_DEVICE (cs_lnum_t c_id) {
+    w1[c_id] = 0.;
+  });
+  ctx.wait();
 
   cs_face_viscosity(m,
                     fvq,
@@ -3873,7 +3845,10 @@ cs_turbulence_rij_init_by_ref_quantities(cs_real_t  uref,
 
   if (cs_glob_turb_model->model == CS_TURB_RIJ_EPSILON_EBRSM) {
     cs_real_t *cvar_al = CS_F_(alp_bl)->val;
-    cs_arrays_set_value<cs_real_t, 1>(n_cells, 1., cvar_al);
+    ctx.parallel_for(n_cells, [=] CS_F_HOST_DEVICE (cs_lnum_t c_id) {
+      cvar_al[c_id] = 0.;
+    });
+    ctx.wait();
   }
 }
 
@@ -3925,20 +3900,31 @@ cs_turbulence_rij_clip(int        phase_id,
                             (cs_real_t *)cpro_rij_clipped);
   }
 
+  cs_dispatch_context ctx;
+
   /* Compute and store Min Max values for the log. */
 
-  cs_real_t vmin[7], vmax[7];
-  _rij_min_max(n_cells, cvar_rij, cvar_ep, vmin, vmax);
+  struct cs_data_14r rd;
+  struct cs_reduce_min7r_max7r reducer;
+
+  ctx.parallel_for_reduce
+    (n_cells, rd, reducer,
+     [=] CS_F_HOST_DEVICE (cs_lnum_t c_id, cs_data_14r &res) {
+    for (cs_lnum_t ii = 0; ii < 6; ii++) {
+      res.r[ii] = cvar_rij[c_id][ii];
+      res.r[ii + 7] = cvar_rij[c_id][ii];
+    }
+    res.r[6] = cvar_ep[c_id];
+    res.r[13] = cvar_ep[c_id];
+  });
+
+  ctx.wait();
 
   /* Clipping (modified to avoid exactly zero values) */
 
   const cs_real_t varrel = 1.1;
   const cs_real_t eigen_tol = 1.e-4;
   const cs_real_t epz2 = cs_math_pow2(cs_math_epzero);
-
-  cs_lnum_t icltot = 0;
-  cs_lnum_t iclrij[6] = {0, 0, 0, 0, 0, 0};
-  cs_lnum_t iclep[1] = {0};
 
   /* Compute the maximal value of each of the diagonal components over the
    * entire domain. A reference value "rijref", used to determine if a value is
@@ -3947,8 +3933,8 @@ cs_turbulence_rij_clip(int        phase_id,
 
   cs_real_t rijmax[3] = {0, 0, 0};
   for (cs_lnum_t i = 0; i < 3; i++) {
-    if (vmax[i] > rijmax[i])
-      rijmax[i] = vmax[i];
+    if (rd.r[i + 7] > rijmax[i])
+      rijmax[i] = rd.r[i + 7];
   }
 
   cs_parall_max(3, CS_REAL_TYPE, rijmax);
@@ -3959,171 +3945,169 @@ cs_turbulence_rij_clip(int        phase_id,
   cs_lnum_t solid_stride = 1;
   int *c_is_solid_zone_flag = cs_solid_zone_flag(cs_glob_mesh);
   const int c_is_solid_ref[1] = {0};
-  const int *c_is_solid = c_is_solid_zone_flag;
-  if (c_is_solid == nullptr) {
-    c_is_solid = c_is_solid_ref;
+  if (c_is_solid_zone_flag == nullptr) {
+    if (cs_alloc_mode > CS_ALLOC_HOST) {
+      CS_MALLOC_HD(c_is_solid_zone_flag, 1, int, cs_alloc_mode);
+      c_is_solid_zone_flag[0] = 0;
+    }
     solid_stride = 0;
   }
+  const int *c_is_solid = c_is_solid_zone_flag;
+  if (c_is_solid == nullptr)
+    c_is_solid = c_is_solid_ref;
 
-# pragma omp parallel if(n_cells > CS_THR_MIN)
-  {
-    cs_lnum_t t_icltot = 0;
-    cs_lnum_t t_iclrij[6] = {0, 0, 0, 0, 0, 0};
-    cs_lnum_t t_iclep[1] = {0};
+  cs_lnum_t iclep = 0;
+  struct cs_data_7i rd_sum;
+  for (int j = 0; j < 7; j++)
+    rd_sum.i[j] = 0.;
+  struct cs_reduce_sum7i reducer_sum;
 
-    cs_lnum_t s_id, e_id;
-    cs_parall_thread_range(n_cells, sizeof(cs_real_t), &s_id, &e_id);
+  if (is_rij_clipped > -1) {
+    ctx.parallel_for_reduce
+      (n_cells, rd_sum, reducer_sum, [=] CS_F_HOST_DEVICE
+       (cs_lnum_t c_id, cs_data_7i &res) {
 
-    if (is_rij_clipped > -1) {
-      for (cs_lnum_t c_id = s_id; c_id < e_id; c_id++) {
+       for (int j = 0; j < 7; j++)
+         res.i[j] = 0;
 
-        int is_clipped = 0;
+      /* Special case for solid cells (which are set to 0 but should
+         not count as clippings) */
 
-        /* Special case for solid cells (which are set to 0 but should
-           not count as clippings) */
-
-        if (c_is_solid[solid_stride*c_id]) {
-          for (cs_lnum_t ij = 0; ij < 6; ij++)
-            cvar_rij[c_id][ij] = 0;
-          continue;
-        }
-
-        /* Check if R is positive and ill-conditioned (since the former
-         * will induce the latter after clipping...) */
-
-        const cs_real_t trrij = cs_math_6_trace(cvar_rij[c_id]);
-
-        if (trrij <= cs_math_epzero*trref) {
-          for (cs_lnum_t i = 0; i < 3; i++) {
-            if (cpro_rij_clipped != nullptr) {
-              cpro_rij_clipped[c_id][i]
-                = cvar_rij[c_id][i] - cs_math_epzero*rijref;
-              cpro_rij_clipped[c_id][i+3] = cvar_rij[c_id][i+3];
-            }
-
-            cvar_rij[c_id][i] = cs_math_epzero*rijref;
-            cvar_rij[c_id][i+3] = 0.0;
-
-            t_iclrij[i]++;
-            t_iclrij[i+3]++;
-          }
-
-          is_clipped = 1;
-        }
-        else {
-          cs_real_t tensor[6];
-          for (cs_lnum_t ij = 0; ij < 6; ij++)
-            tensor[ij] = cvar_rij[c_id][ij]/trrij;
-
-          cs_real_t eigen_vals[3];
-          _sym_33_eigen(tensor, eigen_vals);
-
-          cs_real_t eigen_min = eigen_vals[0];
-          cs_real_t eigen_max = eigen_vals[0];
-          for (cs_lnum_t i = 1; i < 3; i++) {
-            eigen_min = cs::min(eigen_min, eigen_vals[i]);
-            eigen_max = cs::max(eigen_max, eigen_vals[i]);
-          }
-
-          /* If negative eigenvalue, return to isotropy */
-
-          if (   (eigen_min <= eigen_tol*eigen_max)
-              || (eigen_min < cs_math_epzero)) {
-
-            is_clipped = 1;
-
-            eigen_min = cs::min(eigen_min, -eigen_tol);
-            cs_real_t eigen_offset
-              = cs::min(-eigen_min/(1.0/3.0-eigen_min)+0.1, 1.0);
-
-            for (cs_lnum_t ij = 0; ij < 6; ij++) {
-              cvar_rij[c_id][ij] = (1.0-eigen_offset)*cvar_rij[c_id][ij];
-
-              if (ij < 3)
-                cvar_rij[c_id][ij] += trrij*(eigen_offset+eigen_tol)/3.;
-
-              if (cpro_rij_clipped != nullptr)
-                cpro_rij_clipped[c_id][ij] = eigen_offset*cvar_rij[c_id][ij];
-
-              t_iclrij[ij]++;
-            }
-          }
-        }
-
-        /* Enforce Cauchy Schwartz inequality (only for x, y, z directions) */
-
-        cs_real_t cvar_var1, cvar_var2;
-        for (cs_lnum_t ij = 3; ij < 6; ij++) {
-          if (ij == 3) {
-            cvar_var1 = cvar_rij[c_id][0];
-            cvar_var2 = cvar_rij[c_id][1];
-          }
-          else if (ij == 4) {
-            cvar_var1 = cvar_rij[c_id][1];
-            cvar_var2 = cvar_rij[c_id][2];
-          }
-          else if (ij == 5) {
-            cvar_var1 = cvar_rij[c_id][0];
-            cvar_var2 = cvar_rij[c_id][2];
-          }
-
-          const cs_real_t rijmin = sqrt(cvar_var1*cvar_var2);
-          if (rijmin < cs::abs(cvar_rij[c_id][ij])) {
-            is_clipped = 1;
-            if (cpro_rij_clipped != nullptr)
-              cpro_rij_clipped[c_id][ij] = cvar_rij[c_id][ij];
-            cvar_rij[c_id][ij] =   _sign(1., cvar_rij[c_id][ij])
-                                 * rijmin/(1.+cs_math_epzero);
-            t_iclrij[ij]++;
-          }
-        }
-        t_icltot += is_clipped;
-
-      }  /* End of loop on cells */
-    }
-
-    /* Epsilon */
-    if (is_eps_clipped > -1) {
-      for (cs_lnum_t c_id = s_id; c_id < e_id; c_id++) {
-
-        /* Special case for solid cells (which are set to 0 but should
-           not count as clippings) */
-
-        if (c_is_solid[solid_stride*c_id]) {
-          cvar_ep[c_id] = 1e-12;
-          continue;
-        }
-
-        if (cs::abs(cvar_ep[c_id]) < epz2) {
-          t_iclep[0]++;
-          if (cpro_eps_clipped != nullptr)
-            cpro_eps_clipped[c_id] = cs::abs(cvar_ep[c_id]-epz2);
-          cvar_ep[c_id] = cs::max(cvar_ep[c_id],epz2);
-        }
-        else if (cvar_ep[c_id] <= 0) {
-          t_iclep[0]++;
-          if (cpro_eps_clipped != nullptr)
-            cpro_eps_clipped[c_id] = 2*cs::abs(cvar_ep[c_id]);
-          cvar_ep[c_id] = cs::min(cs::abs(cvar_ep[c_id]),
-                                  varrel*cs::abs(cvara_ep[c_id]));
-        }
-
+      if (c_is_solid[solid_stride*c_id]) {
+        for (cs_lnum_t ij = 0; ij < 6; ij++)
+          cvar_rij[c_id][ij] = 0;
+        return;
       }
-    }
 
-    /* Sum over threads */
+      /* Check if R is positive and ill-conditioned (since the former
+       * will induce the latter after clipping...) */
 
-    for (cs_lnum_t ij = 0; ij < 6; ij++) {
-      #pragma omp atomic
-      iclrij[ij] += t_iclrij[ij];
-    }
+      const cs_real_t trrij = cs_math_6_trace(cvar_rij[c_id]);
 
-    #pragma omp atomic
-    iclep[0] += t_iclep[0];
+      if (trrij <= cs_math_epzero*trref) {
+        for (cs_lnum_t i = 0; i < 3; i++) {
+          if (cpro_rij_clipped != nullptr) {
+            cpro_rij_clipped[c_id][i]
+              = cvar_rij[c_id][i] - cs_math_epzero*rijref;
+            cpro_rij_clipped[c_id][i+3] = cvar_rij[c_id][i+3];
+          }
 
-    #pragma omp atomic
-    icltot += t_icltot;
+          cvar_rij[c_id][i] = cs_math_epzero*rijref;
+          cvar_rij[c_id][i+3] = 0.0;
+
+          res.i[i] = 1;
+          res.i[i+3] = 1;
+        }
+
+        res.i[6] = 1;
+      }
+      else {
+        cs_real_t tensor[6];
+        for (cs_lnum_t ij = 0; ij < 6; ij++)
+          tensor[ij] = cvar_rij[c_id][ij]/trrij;
+
+        cs_real_t eigen_vals[3];
+        _sym_33_eigen(tensor, eigen_vals);
+
+        cs_real_t eigen_min = eigen_vals[0];
+        cs_real_t eigen_max = eigen_vals[0];
+        for (cs_lnum_t i = 1; i < 3; i++) {
+          eigen_min = cs::min(eigen_min, eigen_vals[i]);
+          eigen_max = cs::max(eigen_max, eigen_vals[i]);
+        }
+
+        /* If negative eigenvalue, return to isotropy */
+
+        if (   (eigen_min <= eigen_tol*eigen_max)
+            || (eigen_min < cs_math_epzero)) {
+
+          res.i[6] = 1;
+
+          eigen_min = cs::min(eigen_min, -eigen_tol);
+          cs_real_t eigen_offset
+            = cs::min(-eigen_min/(1.0/3.0-eigen_min)+0.1, 1.0);
+
+          for (cs_lnum_t ij = 0; ij < 6; ij++) {
+            cvar_rij[c_id][ij] = (1.0-eigen_offset)*cvar_rij[c_id][ij];
+
+            if (ij < 3)
+              cvar_rij[c_id][ij] += trrij*(eigen_offset+eigen_tol)/3.;
+
+            if (cpro_rij_clipped != nullptr)
+              cpro_rij_clipped[c_id][ij] = eigen_offset*cvar_rij[c_id][ij];
+
+            res.i[ij] = 1;
+          }
+        }
+      }
+
+      /* Enforce Cauchy Schwartz inequality (only for x, y, z directions) */
+
+      cs_real_t cvar_var1, cvar_var2;
+      for (cs_lnum_t ij = 3; ij < 6; ij++) {
+        if (ij == 3) {
+          cvar_var1 = cvar_rij[c_id][0];
+          cvar_var2 = cvar_rij[c_id][1];
+        }
+        else if (ij == 4) {
+          cvar_var1 = cvar_rij[c_id][1];
+          cvar_var2 = cvar_rij[c_id][2];
+        }
+        else if (ij == 5) {
+          cvar_var1 = cvar_rij[c_id][0];
+          cvar_var2 = cvar_rij[c_id][2];
+        }
+
+        const cs_real_t rijmin = sqrt(cvar_var1*cvar_var2);
+        if (rijmin < cs::abs(cvar_rij[c_id][ij])) {
+          res.i[6] = 1;
+          if (cpro_rij_clipped != nullptr)
+            cpro_rij_clipped[c_id][ij] = cvar_rij[c_id][ij];
+          cvar_rij[c_id][ij] = _sign(1., cvar_rij[c_id][ij])
+                               * rijmin/(1.+cs_math_epzero);
+          res.i[ij] = 1;
+        }
+      }
+
+    });  /* End of loop on cells */
   }
+
+  /* Epsilon */
+  if (is_eps_clipped > -1) {
+    ctx.parallel_for_reduce_sum
+      (n_cells, iclep, [=] CS_F_HOST_DEVICE
+       (cs_lnum_t c_id,
+        CS_DISPATCH_REDUCER_TYPE(cs_lnum_t) &sum) {
+
+      /* Special case for solid cells (which are set to 0 but should
+         not count as clippings) */
+
+      const cs_lnum_t ind = solid_stride*c_id;
+      if (c_is_solid[ind]) {
+        cvar_ep[c_id] = 1e-12;
+        return;
+      }
+
+      if (cs::abs(cvar_ep[c_id]) < epz2) {
+        sum += 1;
+        if (cpro_eps_clipped != nullptr)
+          cpro_eps_clipped[c_id] = cs::abs(cvar_ep[c_id]-epz2);
+        cvar_ep[c_id] = cs::max(cvar_ep[c_id],epz2);
+      }
+      else if (cvar_ep[c_id] <= 0) {
+        sum += 1;
+        if (cpro_eps_clipped != nullptr)
+          cpro_eps_clipped[c_id] = 2*cs::abs(cvar_ep[c_id]);
+        cvar_ep[c_id] = cs::min(cs::abs(cvar_ep[c_id]),
+                                varrel*cs::abs(cvara_ep[c_id]));
+      }
+
+    });
+  }
+
+  ctx.wait();
+
+  cs_parall_sum(1, CS_GNUM_TYPE, &iclep);
 
   CS_FREE(c_is_solid_zone_flag);
 
@@ -4131,11 +4115,13 @@ cs_turbulence_rij_clip(int        phase_id,
 
   cs_lnum_t iclrij_max[6] = {0, 0, 0, 0, 0, 0}, iclep_max[1] = {0};
 
-  cs_log_iteration_clipping_field(f_rij->id, icltot, 0,
-                                  vmin, vmax, iclrij, iclrij_max);
+  cs_log_iteration_clipping_field(f_rij->id, rd_sum.i[6], 0,
+                                  rd.r,
+                                  rd.r + 7, rd_sum.i, iclrij_max);
 
-  cs_log_iteration_clipping_field(f_eps->id, iclep[0], 0,
-                                  vmin+6, vmax+6, iclep, iclep_max);
+  cs_log_iteration_clipping_field(f_eps->id, iclep, 0,
+                                  rd.r + 6,
+                                  rd.r + 13, &iclep, iclep_max);
 }
 
 /*----------------------------------------------------------------------------*/

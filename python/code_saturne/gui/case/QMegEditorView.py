@@ -105,7 +105,7 @@ class QMegHighlighter(QSyntaxHighlighter):
          'acos', 'asin', 'atan', 'atan2', 'cosh', 'sinh',
          'tanh', 'abs', 'mod', 'int', 'min', 'max',
          'square_norm',
-         'pi', 'e', 'while', 'if', 'else'
+         'pi', 'e', 'while', 'if', 'else', 'FOR_RANGE'
     ]
 
     operators = [
@@ -264,6 +264,7 @@ class QMegEditorView(QDialog, Ui_QMegDialog):
                   "<b><code> + - * / ^ </code></b><br>"\
                   "<b><code>! &lt; &gt; &lt;= &gt;= == != && || </code></b><br>"\
                   "<b><code>while if else</code></b><br>"\
+                  "<b><code>FOR_RANGE(var_name,var_start,var_stop)</code></b><br>"\
                   "")
 
         # lay out the text
@@ -325,7 +326,7 @@ class QMegEditorView(QDialog, Ui_QMegDialog):
         self.pushButton_curl_close.clicked.connect(lambda :self._addOperator("}"))
 
         self.pushButton_power.clicked.connect(lambda :self._addOperator("^"))
-        self.pushButton_pi.clicked.connect(lambda :self._addOperator("Pi"))
+        self.pushButton_pi.clicked.connect(lambda :self._addOperator("pi"))
 
         self.pushButton_if.clicked.connect(lambda :self._addOperator("if ()"))
 
