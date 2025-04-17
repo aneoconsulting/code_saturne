@@ -3994,7 +3994,7 @@ cs_boundary_conditions_update_bc_coeff_face_values
 
   /* Mute coefa when inc = 0 */
   if (inc == 0 && cpl == nullptr) {
-
+    NVTX_RANGE_LINE();
     CS_MALLOC(bc_coeffs_loc, 1, cs_field_bc_coeffs_t);
     cs_field_bc_coeffs_shallow_copy(bc_coeffs, bc_coeffs_loc);
 
@@ -4013,7 +4013,7 @@ cs_boundary_conditions_update_bc_coeff_face_values
   /* Update of local BC. coefficients for internal coupling */
 
   if (cpl != nullptr) {
-
+    NVTX_RANGE_LINE();
     CS_MALLOC(bc_coeffs_loc, 1, cs_field_bc_coeffs_t);
     cs_field_bc_coeffs_shallow_copy(bc_coeffs, bc_coeffs_loc);
 
@@ -4034,6 +4034,7 @@ cs_boundary_conditions_update_bc_coeff_face_values
 
     bc_coeffs = bc_coeffs_loc;
 
+    NVTX_RANGE_LINE();
     cs_internal_coupling_update_bc_coeffs_strided<stride>(ctx,
                                                           bc_coeffs,
                                                           cpl,
@@ -4043,7 +4044,7 @@ cs_boundary_conditions_update_bc_coeff_face_values
                                                           pvar,
                                                           gweight);
   }
-
+  NVTX_RANGE_LINE();
   /* Compute variable at position I' from bc_coeffs */
 
   cs_gradient_boundary_iprime_lsq_strided<stride>(ctx,
@@ -4060,6 +4061,7 @@ cs_boundary_conditions_update_bc_coeff_face_values
                                                   val_ip,
                                                   val_ip_lim);
 
+  NVTX_RANGE_LINE();
   /* Boundary conditions */
   var_t *coefa = (var_t *)bc_coeffs->a;
   var_t *cofaf = (var_t *)bc_coeffs->af;
@@ -4072,7 +4074,7 @@ cs_boundary_conditions_update_bc_coeff_face_values
   const int ircflb = (ircflp > 0) ? eqp->b_diff_flux_rc : 0;
 
   if (ircflb == 0) { // no reconstruction for flux (I = I_prime)
-
+    NVTX_RANGE_LINE();
     ctx.parallel_for(n_b_faces, [=] CS_F_HOST_DEVICE (cs_lnum_t face_id) {
       const cs_lnum_t c_id = b_face_cells[face_id];
 
@@ -4101,7 +4103,7 @@ cs_boundary_conditions_update_bc_coeff_face_values
   }
 
   else if (ircflb > 0) {
-
+    NVTX_RANGE_LINE();
     ctx.parallel_for(n_b_faces, [=] CS_F_HOST_DEVICE (cs_lnum_t face_id) {
 
       // reconstruction for gradient (use of variable at I' position)
@@ -4136,7 +4138,7 @@ cs_boundary_conditions_update_bc_coeff_face_values
   }
 
   ctx.wait();
-
+  NVTX_RANGE_LINE();
   if (bc_coeffs_loc != nullptr) {
     CS_FREE_HD(bc_coeffs_loc->a);
      if (cpl != nullptr)
@@ -4144,6 +4146,7 @@ cs_boundary_conditions_update_bc_coeff_face_values
     CS_FREE(bc_coeffs_loc);
   }
   CS_FREE_HD(val_ip_lim);
+  NVTX_RANGE_LINE();
 }
 
 /*----------------------------------------------------------------------------*/
