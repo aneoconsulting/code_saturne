@@ -38,6 +38,7 @@
  *  Local headers
  *----------------------------------------------------------------------------*/
 
+#include "base/cs_profiling.h"
 #include "bft/bft_error.h"
 #include "bft/bft_printf.h"
 
@@ -2359,6 +2360,9 @@ cs_halo_sync(const cs_halo_t        *halo,
              [[maybe_unused]] bool   on_device,
              T                       val[])
 {
+  CS_PROFILE_FUNC_RANGE();
+  CS_PROFILE_MARK_LINE();
+
   if (halo == nullptr)
     return;
 
@@ -2411,6 +2415,9 @@ cs_halo_sync(const cs_halo_t       *halo,
              [[maybe_unused]] bool  on_device,
              T                      val[][Stride])
 {
+  CS_PROFILE_FUNC_RANGE();
+  CS_PROFILE_MARK_LINE();
+
   if (halo == nullptr)
     return;
 
@@ -2478,6 +2485,9 @@ cs_halo_sync(const cs_halo_t  *halo,
              bool              on_device,
              T                 val[])
 {
+  CS_PROFILE_FUNC_RANGE();
+  CS_PROFILE_MARK_LINE();
+
   cs_halo_sync(halo, CS_HALO_STANDARD, on_device, val);
 }
 
@@ -2496,6 +2506,9 @@ cs_halo_sync(const cs_halo_t  *halo,
              bool              on_device,
              T                 val[][Stride])
 {
+  CS_PROFILE_FUNC_RANGE();
+  CS_PROFILE_MARK_LINE();
+
   cs_halo_sync(halo, CS_HALO_STANDARD, on_device, val);
 }
 
@@ -2536,6 +2549,9 @@ cs_halo_sync_r(const cs_halo_t       *halo,
                [[maybe_unused]]bool   on_device,
                T                      val[][3])
 {
+  CS_PROFILE_FUNC_RANGE();
+  CS_PROFILE_MARK_LINE();
+
   if (halo == nullptr)
     return;
 
@@ -2607,6 +2623,9 @@ cs_halo_sync_r(const cs_halo_t  *halo,
                bool              on_device,
                T                 val[][3])
 {
+  CS_PROFILE_FUNC_RANGE();
+  CS_PROFILE_MARK_LINE();
+
   cs_halo_sync_r(halo, CS_HALO_STANDARD, on_device, val);
 }
 
@@ -2642,6 +2661,9 @@ cs_halo_sync_r(const cs_halo_t       *halo,
                [[maybe_unused]]bool   on_device,
                T                      val[][6])
 {
+  CS_PROFILE_FUNC_RANGE();
+  CS_PROFILE_MARK_LINE();
+
   if (halo == nullptr)
     return;
 
@@ -2714,6 +2736,9 @@ cs_halo_sync_r(const cs_halo_t  *halo,
                bool              on_device,
                T                 val[][6])
 {
+  CS_PROFILE_FUNC_RANGE();
+  CS_PROFILE_MARK_LINE();
+
   cs_halo_sync_r(halo, CS_HALO_STANDARD, on_device, val);
 }
 
@@ -2749,6 +2774,9 @@ cs_halo_sync_r(const cs_halo_t       *halo,
                [[maybe_unused]]bool   on_device,
                T                      val[][3][3])
 {
+  CS_PROFILE_FUNC_RANGE();
+  CS_PROFILE_MARK_LINE();
+
   if (halo == nullptr)
     return;
 
