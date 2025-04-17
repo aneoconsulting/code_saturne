@@ -22,7 +22,7 @@
 #elif CS_PROFILING == CS_PROFILING_NVTX
 
 #include <nvtx3/nvtx3.hpp>
-#include <sstream>
+#include <string>
 
 #define CS_PROFILE_FUNC_RANGE NVTX3_FUNC_RANGE
 
