@@ -3506,6 +3506,15 @@ _multigrid_v_cycle_pc(cs_multigrid_t        *mg,
                       [[maybe_unused]]void  *aux_vectors,
                       void                  *aux_vectors_h)
 {
+#if CS_PROFILING == CS_PROFILING_NVTX
+  static int call_id = -1;
+  char       nvtx_name[48];
+  call_id++;
+  if (call_id == 2) {
+    nvtxMark("Enter multigrid cycle");
+  }
+#endif
+
   CS_PROFILE_FUNC_RANGE();
 
   int level, coarsest_level;
@@ -3942,7 +3951,6 @@ _multigrid_v_cycle_pc(cs_multigrid_t        *mg,
 #if CS_PROFILING == CS_PROFILING_NVTX
   if (call_id == 2) {
     nvtxMark("Exit multigrid cycle");
-    cudaProfilerStop();
   }
 #endif
 
