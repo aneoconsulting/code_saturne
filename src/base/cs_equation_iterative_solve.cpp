@@ -260,26 +260,6 @@ _clear_bc_coeffs_solve(cs_bc_coeffs_solve_t  &c)
  *                               (if iescap >= 0)
  */
 /*----------------------------------------------------------------------------*/
-#if defined(HAVE_CUDA) && defined(CS_ENABLE_NVTX)
-  #include <nvtx3/nvtx3.hpp>
-  #include <sstream>
-
-  #define CONCATENATE_DETAIL(x, y) x##y
-  #define CONCATENATE(x, y) CONCATENATE_DETAIL(x, y)
-  #define STRINGIFY_DETAIL(x) #x
-  #define STRINGIFY(x) STRINGIFY_DETAIL(x)
-
-  #define NVTX_RANGE_LINE() \
-    nvtx3::scoped_range CONCATENATE(__nvtx_range_, __LINE__)(                                      \
-    (std::string(__FUNCTION__) + ":" + STRINGIFY(__LINE__)).c_str()                                \
-  )
-
-  #define NVTX_MARK NVTX3_FUNC_RANGE
-#else
-  #define NVTX_MARK()
-  #define NVTX_RANGE_LINE()
-#endif
-
 template <cs_lnum_t stride>
 static void
 _equation_iterative_solve_strided(int                   idtvar,
@@ -313,8 +293,10 @@ _equation_iterative_solve_strided(int                   idtvar,
   /* Local variables */
   cs_mesh_quantities_t *mq = cs_glob_mesh_quantities;
   const cs_halo_t *halo = cs_glob_mesh->halo;
-  NVTX_MARK()
-  NVTX_RANGE_LINE();
+
+  CS_PROFILE_FUNC_RANGE();
+
+  CS_PROFILE_MARK_LINE();
 
   int iconvp = eqp->iconv;
   int idiffp = eqp->idiff;
@@ -397,10 +379,10 @@ _equation_iterative_solve_strided(int                   idtvar,
   var_t *b_pvar = nullptr;
   cs_field_t *i_vf = nullptr;
   cs_field_t *b_vf = nullptr;
-  NVTX_RANGE_LINE();
+  CS_PROFILE_MARK_LINE();
   /* Storing face values for kinetic energy balance and initialize them */
   if (CS_F_(vel) != nullptr && CS_F_(vel)->id == f_id) {
-    NVTX_RANGE_LINE();
+    CS_PROFILE_MARK_LINE();
     i_vf = cs_field_by_name_try("inner_face_velocity");
     if (i_vf != nullptr) {
       ctx.parallel_for(3*n_i_faces, [=] CS_F_HOST_DEVICE (cs_lnum_t face_id) {
@@ -408,7 +390,7 @@ _equation_iterative_solve_strided(int                   idtvar,
       });
       i_pvar = (var_t *)i_vf->val;
     }
-    NVTX_RANGE_LINE();
+    CS_PROFILE_MARK_LINE();
     b_vf = cs_field_by_name_try("boundary_face_velocity");
     if (b_vf != nullptr) {
       ctx.parallel_for(3*n_b_faces, [=] CS_F_HOST_DEVICE (cs_lnum_t face_id) {
@@ -418,7 +400,7 @@ _equation_iterative_solve_strided(int                   idtvar,
     }
 
     ctx.wait();
-    NVTX_RANGE_LINE();
+    CS_PROFILE_MARK_LINE();
   }
 
   /* solving info */
@@ -462,7 +444,7 @@ _equation_iterative_solve_strided(int                   idtvar,
 
   /* For steady computations, the diagonal is relaxed */
   cs_real_t relaxp = (idtvar < 0) ? eqp->relaxv : 1.;
-  NVTX_RANGE_LINE();
+  CS_PROFILE_MARK_LINE();
   cs_matrix_compute_coeffs<stride>(a,
                            f,
                            iconvp,
@@ -488,7 +470,7 @@ _equation_iterative_solve_strided(int                   idtvar,
 
   const int ircflp = eqp->ircflu;
   const int ircflb = (ircflp > 0) ? eqp->b_diff_flux_rc : 0;
-  NVTX_RANGE_LINE();
+  CS_PROFILE_MARK_LINE();
   cs_bc_coeffs_solve_t bc_coeffs_solve;
   _init_bc_coeffs_solve(bc_coeffs_solve,
                         n_b_faces,
@@ -522,7 +504,7 @@ _equation_iterative_solve_strided(int                   idtvar,
     cs_boundary_conditions_update_bc_coeff_face_values<stride>
       (ctx, f, bc_coeffs, inc, eqp, pvara,
        val_ip, val_f, val_f_lim, val_f_d, val_f_d_lim);
-    NVTX_RANGE_LINE();
+    CS_PROFILE_MARK_LINE();
     if (stride == 3)
       cs_balance_vector(idtvar,
                         f_id,
@@ -568,18 +550,18 @@ _equation_iterative_solve_strided(int                   idtvar,
                         icvflb,
                         icvfli,
                         (cs_real_6_t *)smbrp);
-    NVTX_RANGE_LINE();
+    CS_PROFILE_MARK_LINE();
     /* Save (1-theta)* face_value at previous time step if needed */
     if (i_vf != nullptr && b_vf != nullptr) {
       cs_field_current_to_previous(i_vf);
       cs_field_current_to_previous(b_vf);
     }
-    NVTX_RANGE_LINE();
+    CS_PROFILE_MARK_LINE();
     eqp->theta = thetap;
   }
 
   /* Before looping, the RHS without reconstruction is stored in smbini */
-  NVTX_RANGE_LINE();
+  CS_PROFILE_MARK_LINE();
   cs_lnum_t has_dc = mq->has_disable_flag;
   ctx_c.parallel_for(n_cells, [=] CS_F_HOST_DEVICE (cs_lnum_t c_id) {
     for (cs_lnum_t i = 0; i < stride; i++) {
@@ -587,7 +569,7 @@ _equation_iterative_solve_strided(int                   idtvar,
       smbrp[c_id][i] = 0.;
     }
   });
-  NVTX_RANGE_LINE();
+  CS_PROFILE_MARK_LINE();
   /* pvar is initialized on n_cells_ext to avoid a synchronization */
   ctx.parallel_for(n_cells_ext, [=] CS_F_HOST_DEVICE (cs_lnum_t c_id) {
     for (cs_lnum_t i = 0; i < stride; i++)
@@ -597,7 +579,7 @@ _equation_iterative_solve_strided(int                   idtvar,
   /* Synchronize before next major operation */
   ctx.wait();
   ctx_c.wait();
-  NVTX_RANGE_LINE();
+  CS_PROFILE_MARK_LINE();
   /* In the following, cs_balance is called with inc=1,
    * except for Weight Matrix (nswrsp=-1) */
   inc = 1;
@@ -606,11 +588,11 @@ _equation_iterative_solve_strided(int                   idtvar,
     eqp->nswrsm = 1;
     inc = 0;
   }
-  NVTX_RANGE_LINE();
+  CS_PROFILE_MARK_LINE();
   cs_boundary_conditions_update_bc_coeff_face_values<stride>
     (ctx, f, bc_coeffs, inc, eqp, pvar,
      val_ip, val_f, val_f_lim, val_f_d, val_f_d_lim);
-  NVTX_RANGE_LINE();
+  CS_PROFILE_MARK_LINE();
   /*  Incrementation and rebuild of right hand side */
 
   /*  We enter with an explicit SMB based on PVARA.
@@ -622,7 +604,7 @@ _equation_iterative_solve_strided(int                   idtvar,
    * When building the implicit part of the rhs, one
    * has to impose 1 on mass accumulation. */
   imasac = 1;
-  NVTX_RANGE_LINE();
+  CS_PROFILE_MARK_LINE();
   if (stride == 3)
     cs_balance_vector(idtvar,
                       f_id,
@@ -671,7 +653,7 @@ _equation_iterative_solve_strided(int                   idtvar,
 
   if (CS_F_(vel) != nullptr && CS_F_(vel)->id == f_id) {
     cs_field_t *f_ex = cs_field_by_name_try("velocity_explicit_balance");
-    NVTX_RANGE_LINE();
+    CS_PROFILE_MARK_LINE();
     if (f_ex != nullptr) {
       cs_real_3_t *cpro_cv_df_v = (cs_real_3_t *)f_ex->val;
       ctx.parallel_for(n_cells, [=] CS_F_HOST_DEVICE (cs_lnum_t c_id) {
@@ -680,7 +662,7 @@ _equation_iterative_solve_strided(int                   idtvar,
       });
     }
   }
-  NVTX_RANGE_LINE();
+  CS_PROFILE_MARK_LINE();
   /* Dynamic relaxation */
   if (iswdyp >= 1) {
     ctx.parallel_for_reduce_sum(n_cells, residu, [=] CS_F_HOST_DEVICE
@@ -726,9 +708,9 @@ _equation_iterative_solve_strided(int                   idtvar,
   }
 
   ctx.wait();
-  NVTX_RANGE_LINE();
+  CS_PROFILE_MARK_LINE();
   cs_parall_sum(1, CS_DOUBLE, &residu);
-  NVTX_RANGE_LINE();
+  CS_PROFILE_MARK_LINE();
 
   /* --- Right hand side residual */
   residu = sqrt(residu);
@@ -744,7 +726,7 @@ _equation_iterative_solve_strided(int                   idtvar,
 
   // Number of local ghost cells may be different from that of mesh
   // in case of internal coupling.
-  NVTX_RANGE_LINE();
+  CS_PROFILE_MARK_LINE();
   cs_lnum_t n_cols = cs_matrix_get_n_columns(a);
 
   var_t *w1, *w2;
@@ -756,7 +738,7 @@ _equation_iterative_solve_strided(int                   idtvar,
   struct cs_double_n<stride> rd;
   struct cs_reduce_sum_nr<stride> reducer;
 
-  NVTX_RANGE_LINE();
+  CS_PROFILE_MARK_LINE();
   ctx.parallel_for_reduce(n_cells, rd, reducer, [=] CS_F_HOST_DEVICE
                           (cs_lnum_t c_id, cs_double_n<stride> &res) {
     cs_real_t c_vol = cell_vol[c_id];
@@ -764,7 +746,7 @@ _equation_iterative_solve_strided(int                   idtvar,
       res.r[i] = pvar[c_id][i] * c_vol;
   });
   ctx.wait();
-  NVTX_RANGE_LINE();
+  CS_PROFILE_MARK_LINE();
   cs_parall_sum_strided<stride>(rd.r);
 
   cs_real_t p_mean[stride];
@@ -779,7 +761,7 @@ _equation_iterative_solve_strided(int                   idtvar,
       w2[c_id][i] = (pvar[c_id][i] - p_mean[i]);
     }
   });
-  NVTX_RANGE_LINE();
+  CS_PROFILE_MARK_LINE();
   cs_matrix_vector_multiply(a,
                             (cs_real_t *)w2,
                             (cs_real_t *)w1);
@@ -805,7 +787,7 @@ _equation_iterative_solve_strided(int                   idtvar,
     bft_printf("L2 norm ||AX^n|| = %f\n", sqrt(rd2.r[0]));
     bft_printf("L2 norm ||B^n|| = %f\n",  sqrt(rd2.r[1]));
   }
-  NVTX_RANGE_LINE();
+  CS_PROFILE_MARK_LINE();
   double rnorm2;
 
   if (has_dc == 1) {
@@ -843,7 +825,7 @@ _equation_iterative_solve_strided(int                   idtvar,
   }
 
   ctx.wait();
-  NVTX_RANGE_LINE();
+  CS_PROFILE_MARK_LINE();
   cs_parall_sum(1, CS_DOUBLE, &rnorm2);
   cs_real_t rnorm = sqrt(rnorm2);
 
@@ -856,17 +838,17 @@ _equation_iterative_solve_strided(int                   idtvar,
   int nswmod = cs::max(eqp->nswrsm, 1);
 
   cs_sles_t *sc = cs_sles_find_or_add(f_id, var_name);
-  NVTX_RANGE_LINE();
+  CS_PROFILE_MARK_LINE();
   int isweep = 1;
 
   /* Reconstruction loop (beginning)
    *-------------------------------- */
   if ((iterns <= 1 && stride <= 3) || stride == 6)
     sinfo.n_it = 0;
-  NVTX_RANGE_LINE();
+  CS_PROFILE_MARK_LINE();
   while ((isweep <= nswmod && residu > epsrsp*rnorm) || isweep == 1) {
     /* --- Solving on the increment dpvar */
-    NVTX_RANGE_LINE();
+    CS_PROFILE_MARK_LINE();
     /*  Dynamic relaxation of the system */
     if (iswdyp >= 1) {
       ctx.parallel_for(n_cells, [=] CS_F_HOST_DEVICE (cs_lnum_t c_id) {
@@ -875,7 +857,7 @@ _equation_iterative_solve_strided(int                   idtvar,
         }
       });
     }
-    NVTX_RANGE_LINE();
+    CS_PROFILE_MARK_LINE();
     /*  Solver residual */
     ressol = residu;
 
@@ -885,7 +867,7 @@ _equation_iterative_solve_strided(int                   idtvar,
       cs_multigrid_setup_conv_diff(mg, var_name, a, true,
                                    cs_sles_get_verbosity(sc));
     }
-    NVTX_RANGE_LINE();
+    CS_PROFILE_MARK_LINE();
     cs_sles_solve_ccc_fv(sc,
                          a,
                          epsilp,
@@ -900,7 +882,7 @@ _equation_iterative_solve_strided(int                   idtvar,
 
       /* Computation of the variable relaxation coefficient */
       lvar = -1;
-      NVTX_RANGE_LINE();
+      CS_PROFILE_MARK_LINE();
       ctx.parallel_for(n_cells, [=] CS_F_HOST_DEVICE (cs_lnum_t c_id) {
         for (cs_lnum_t i = 0; i < stride; i++) {
           adxkm1[c_id][i] = adxk[c_id][i];
@@ -909,14 +891,14 @@ _equation_iterative_solve_strided(int                   idtvar,
       });
 
       ctx.wait();
-      NVTX_RANGE_LINE();
+      CS_PROFILE_MARK_LINE();
       cs_halo_sync_r(halo, ctx.use_gpu(), dpvar);
 
       /* update with dpvar */
       cs_boundary_conditions_update_bc_coeff_face_values<stride>
         (ctx, nullptr, bc_coeffs, inc, eqp, dpvar,
          val_ip, val_f, val_f_lim, val_f_d, val_f_d_lim);
-      NVTX_RANGE_LINE();
+      CS_PROFILE_MARK_LINE();
       if (stride == 3)
         cs_balance_vector(idtvar,
                           lvar,
@@ -962,14 +944,14 @@ _equation_iterative_solve_strided(int                   idtvar,
                           icvflb,
                           icvfli,
                           (cs_real_6_t *)adxk);
-      NVTX_RANGE_LINE();
+      CS_PROFILE_MARK_LINE();
       /* ||E.dx^(k-1)-E.0||^2 */
       cs_real_t nadxkm1 = nadxk;
 
       struct cs_double_n<2> rd2;
       struct cs_reduce_sum_nr<2> reducer2;
 
-      NVTX_RANGE_LINE();
+      CS_PROFILE_MARK_LINE();
       ctx.parallel_for_reduce(n_cells, rd2, reducer2, [=] CS_F_HOST_DEVICE
                               (cs_lnum_t c_id, cs_double_n<2> &sum) {
         sum.r[0] = 0.;
@@ -981,7 +963,7 @@ _equation_iterative_solve_strided(int                   idtvar,
       });
 
       ctx.wait();
-      NVTX_RANGE_LINE();
+      CS_PROFILE_MARK_LINE();
       cs_parall_sum(2, CS_DOUBLE, rd2.r);
 
       nadxk = rd2.r[0];              /* ||E.dx^k-E.0||^2 */
@@ -1046,7 +1028,7 @@ _equation_iterative_solve_strided(int                   idtvar,
 
     /* Update the solution with the increment, update the face value,
        update the right hand side and compute the new residual */
-    NVTX_RANGE_LINE();
+    CS_PROFILE_MARK_LINE();
     if (iswdyp <= 0) {
       ctx.parallel_for(n_cells, [=] CS_F_HOST_DEVICE (cs_lnum_t c_id) {
         for (cs_lnum_t i = 0; i < stride; i++)
@@ -1102,9 +1084,9 @@ _equation_iterative_solve_strided(int                   idtvar,
     /* --> Handle parallelism and periodicity */
 
     ctx.wait();
-    NVTX_RANGE_LINE();
+    CS_PROFILE_MARK_LINE();
     cs_halo_sync_r(halo, ctx.use_gpu(), pvar);
-    NVTX_RANGE_LINE();
+    CS_PROFILE_MARK_LINE();
     /* Increment face value with theta * face_value at current time step
      * if needed
      * Reinit the previous value before */
@@ -1112,7 +1094,7 @@ _equation_iterative_solve_strided(int                   idtvar,
       cs_array_real_copy(3 * n_i_faces, i_vf->val_pre, i_vf->val);
       cs_array_real_copy(3 * n_b_faces, b_vf->val_pre, b_vf->val);
     }
-    NVTX_RANGE_LINE();
+    CS_PROFILE_MARK_LINE();
     /* The added convective scalar mass flux is:
      *      (thetex*Y_\face-imasac*Y_\celli)*mf.
      * When building the implicit part of the rhs, one
@@ -1123,7 +1105,7 @@ _equation_iterative_solve_strided(int                   idtvar,
     cs_boundary_conditions_update_bc_coeff_face_values<stride>
       (ctx, f, bc_coeffs, inc, eqp, pvar,
        val_ip, val_f, val_f_lim, val_f_d, val_f_d_lim);
-    NVTX_RANGE_LINE();
+    CS_PROFILE_MARK_LINE();
     if (stride == 3)
       cs_balance_vector(idtvar,
                         f_id,
@@ -1169,7 +1151,7 @@ _equation_iterative_solve_strided(int                   idtvar,
                         icvflb,
                         icvfli,
                         (cs_real_6_t *)smbrp);
-    NVTX_RANGE_LINE();
+    CS_PROFILE_MARK_LINE();
     /* --- Convergence test */
     ctx.parallel_for_reduce_sum(n_cells, residu, [=] CS_F_HOST_DEVICE
                                 (cs_lnum_t c_id,
@@ -1197,7 +1179,7 @@ _equation_iterative_solve_strided(int                   idtvar,
 
     isweep++;
   }
-  NVTX_RANGE_LINE();
+  CS_PROFILE_MARK_LINE();
   /* --- Reconstruction loop (end) */
 
   /* Writing: convergence */
@@ -1217,7 +1199,7 @@ _equation_iterative_solve_strided(int                   idtvar,
                  var_name,nswmod);
   }
 
-  NVTX_RANGE_LINE();
+  CS_PROFILE_MARK_LINE();
   /* Save convergence info for fields */
   if (f_id > -1) {
     f = cs_field_by_id(f_id);
@@ -1246,7 +1228,7 @@ _equation_iterative_solve_strided(int                   idtvar,
     });
 
     ctx.wait();
-    NVTX_RANGE_LINE();
+    CS_PROFILE_MARK_LINE();
     /* need to recompute face value if below increment is zero
        else the face value is given from the last isweep iteration */
     if (inc == 0) {
@@ -1258,7 +1240,7 @@ _equation_iterative_solve_strided(int                   idtvar,
          val_f_d, val_f_d_lim);
     }
     inc = 1;
-    NVTX_RANGE_LINE();
+    CS_PROFILE_MARK_LINE();
     /* Without relaxation even for a stationnary computation */
 
     cs_balance_vector(idtvar,
@@ -1299,7 +1281,7 @@ _equation_iterative_solve_strided(int                   idtvar,
   /*==========================================================================
    * Store face value for gradient and diffusion
    *==========================================================================*/
-  NVTX_RANGE_LINE();
+  CS_PROFILE_MARK_LINE();
   cs_boundary_conditions_ensure_bc_coeff_face_values_allocated
     (bc_coeffs,
      n_b_faces,
@@ -1336,7 +1318,7 @@ _equation_iterative_solve_strided(int                   idtvar,
   }
 
   ctx.wait();
-  NVTX_RANGE_LINE();
+  CS_PROFILE_MARK_LINE();
   /* Free memory */
   CS_FREE_HD(dam);
   CS_FREE_HD(smbini);
@@ -1349,7 +1331,7 @@ _equation_iterative_solve_strided(int                   idtvar,
   }
 
   _clear_bc_coeffs_solve(bc_coeffs_solve);
-  NVTX_RANGE_LINE();
+  CS_PROFILE_MARK_LINE();
 }
 
 #endif /* cplusplus */
