@@ -42,12 +42,6 @@
 #include <mpi.h>
 #endif
 
-// #define PROFILE_MG_CUDA
-#if defined(HAVE_CUDA) && defined(PROFILE_MG_CUDA)
-#include <cuda_profiler_api.h>
-#include <nvToolsExt.h>
-#endif
-
 /*----------------------------------------------------------------------------
  * Local headers
  *----------------------------------------------------------------------------*/
@@ -73,6 +67,7 @@
 #include "mesh/cs_mesh_quantities.h"
 #include "alge/cs_multigrid_smoother.h"
 #include "base/cs_post.h"
+#include "base/cs_profiling.h"
 #include "alge/cs_sles.h"
 #include "alge/cs_sles_it.h"
 #include "alge/cs_sles_pc.h"
@@ -3511,15 +3506,7 @@ _multigrid_v_cycle_pc(cs_multigrid_t        *mg,
                       [[maybe_unused]]void  *aux_vectors,
                       void                  *aux_vectors_h)
 {
-#if defined(HAVE_CUDA) && defined(PROFILE_MG_CUDA)
-  static int call_id = -1;
-  char nvtx_name[48];
-  call_id++;
-  if (call_id == 2) {
-    cudaProfilerStart();
-    nvtxMark("Enter multigrid cycle");
-  }
-#endif
+  CS_PROFILE_FUNC_RANGE();
 
   int level, coarsest_level;
   cs_timer_t t0, t1;
@@ -3631,7 +3618,7 @@ _multigrid_v_cycle_pc(cs_multigrid_t        *mg,
 
     cs_mg_sles_t  *mg_sles = &(mgd->sles_hierarchy[level*2]);
 
-#if defined(HAVE_CUDA) && defined(PROFILE_MG_CUDA)
+#if CS_PROFILING == CS_PROFILING_NVTX
     sprintf(nvtx_name, "Descent smoothe %d", level);
     nvtxRangePushA(nvtx_name);
 #endif
@@ -3650,7 +3637,7 @@ _multigrid_v_cycle_pc(cs_multigrid_t        *mg,
                                 _aux_r_size,
                                 _aux_vectors);
 
-#if defined(HAVE_CUDA) && defined(PROFILE_MG_CUDA)
+#if CS_PROFILING == CS_PROFILING_NVTX
     nvtxRangePop();
 #endif
 
@@ -3710,7 +3697,7 @@ _multigrid_v_cycle_pc(cs_multigrid_t        *mg,
 
     /* Prepare for next level */
 
-#if defined(HAVE_CUDA) && defined(PROFILE_MG_CUDA)
+#if CS_PROFILING == CS_PROFILING_NVTX
     sprintf(nvtx_name, "Restrict %d to %d", level, level +1);
     nvtxRangePushA(nvtx_name);
 #endif
@@ -3727,7 +3714,7 @@ _multigrid_v_cycle_pc(cs_multigrid_t        *mg,
                      nullptr,
                      &n_g_rows);
 
-#if defined(HAVE_CUDA) && defined(PROFILE_MG_CUDA)
+#if CS_PROFILING == CS_PROFILING_NVTX
     nvtxRangePop();
 #endif
 
@@ -3745,7 +3732,7 @@ _multigrid_v_cycle_pc(cs_multigrid_t        *mg,
     /* Resolve coarsest level to convergence */
     /*---------------------------------------*/
 
-#if defined(HAVE_CUDA) && defined(PROFILE_MG_CUDA)
+#if CS_PROFILING == CS_PROFILING_NVTX
     sprintf(nvtx_name, "Coarse solve (%d)", level);
     nvtxRangePushA(nvtx_name);
 #endif
@@ -3810,7 +3797,7 @@ _multigrid_v_cycle_pc(cs_multigrid_t        *mg,
     if (c_cvg < CS_SLES_BREAKDOWN)
       end_cycle = true;
 
-#if defined(HAVE_CUDA) && defined(PROFILE_MG_CUDA)
+#if CS_PROFILING == CS_PROFILING_NVTX
     nvtxRangePop();
 #endif
   }
@@ -3863,7 +3850,7 @@ _multigrid_v_cycle_pc(cs_multigrid_t        *mg,
       }
 #endif
 
-#if defined(HAVE_CUDA) && defined(PROFILE_MG_CUDA)
+#if CS_PROFILING == CS_PROFILING_NVTX
       sprintf(nvtx_name, "Prolong %d to %d", level+1, level);
       nvtxRangePushA(nvtx_name);
 #endif
@@ -3873,7 +3860,7 @@ _multigrid_v_cycle_pc(cs_multigrid_t        *mg,
                               true,  /* increment */
                               vx_lv1, vx_lv);
 
-#if defined(HAVE_CUDA) && defined(PROFILE_MG_CUDA)
+#if CS_PROFILING == CS_PROFILING_NVTX
       nvtxRangePop();
 #endif
       _n_rows = n_rows*db_size;
@@ -3895,7 +3882,7 @@ _multigrid_v_cycle_pc(cs_multigrid_t        *mg,
 
       cs_mg_sles_t  *mg_sles = &(mgd->sles_hierarchy[level*2 + 1]);
 
-#if defined(HAVE_CUDA) && defined(PROFILE_MG_CUDA)
+#if CS_PROFILING == CS_PROFILING_NVTX
       sprintf(nvtx_name, "Ascent smoothe %d", level);
       nvtxRangePushA(nvtx_name);
 #endif
@@ -3913,7 +3900,7 @@ _multigrid_v_cycle_pc(cs_multigrid_t        *mg,
                                   vx_lv,
                                   _aux_r_size,
                                   _aux_vectors);
-#if defined(HAVE_CUDA) && defined(PROFILE_MG_CUDA)
+#if CS_PROFILING == CS_PROFILING_NVTX
       nvtxRangePop();
 #endif
 
@@ -3952,7 +3939,7 @@ _multigrid_v_cycle_pc(cs_multigrid_t        *mg,
     mgd->exit_initial_residual = _initial_residual;
   mgd->exit_cycle_id = cycle_id;
 
-#if defined(HAVE_CUDA) && defined(PROFILE_MG_CUDA)
+#if CS_PROFILING == CS_PROFILING_NVTX
   if (call_id == 2) {
     nvtxMark("Exit multigrid cycle");
     cudaProfilerStop();

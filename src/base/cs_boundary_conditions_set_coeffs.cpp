@@ -85,6 +85,7 @@
 #include "base/cs_parameters.h"
 #include "base/cs_physical_constants.h"
 #include "pprt/cs_physical_model.h"
+#include "base/cs_profiling.h"
 #include "base/cs_prototypes.h"
 #include "rayt/cs_rad_transfer.h"
 #include "rayt/cs_rad_transfer_bcs.h"
@@ -903,6 +904,8 @@ cs_boundary_conditions_set_coeffs(int        nvar,
                                   cs_real_t  theipb[],
                                   int        nftcdt)
 {
+  CS_PROFILE_FUNC_RANGE();
+
   const cs_mesh_t  *mesh = cs_glob_mesh;
   const cs_mesh_quantities_t *fvq = cs_glob_mesh_quantities;
   const cs_fluid_properties_t *fluid_props = cs_glob_fluid_properties;
@@ -4158,26 +4161,6 @@ END_C_DECLS
  *                              (with limiter)
  */
 /*----------------------------------------------------------------------------*/
-#if defined(HAVE_CUDA) && defined(CS_ENABLE_NVTX)
-  #include <nvtx3/nvtx3.hpp>
-  #include <sstream>
-
-  #define CONCATENATE_DETAIL(x, y) x##y
-  #define CONCATENATE(x, y) CONCATENATE_DETAIL(x, y)
-  #define STRINGIFY_DETAIL(x) #x
-  #define STRINGIFY(x) STRINGIFY_DETAIL(x)
-
-  #define NVTX_RANGE_LINE() \
-    nvtx3::scoped_range CONCATENATE(__nvtx_range_, __LINE__)(                                      \
-    (std::string(__FUNCTION__) + ":" + STRINGIFY(__LINE__)).c_str()                                \
-  )
-
-  #define NVTX_MARK NVTX3_FUNC_RANGE
-#else
-  #define NVTX_MARK()
-  #define NVTX_RANGE_LINE()
-#endif
-
 template <cs_lnum_t stride>
 void
 cs_boundary_conditions_update_bc_coeff_face_values
@@ -4193,6 +4176,8 @@ cs_boundary_conditions_update_bc_coeff_face_values
    cs_real_t                   val_f_d[][stride],
    cs_real_t                   val_f_d_lim[][stride])
 {
+  CS_PROFILE_FUNC_RANGE();
+
   cs_mesh_t *m = cs_glob_mesh;
   cs_mesh_quantities_t *mq = cs_glob_mesh_quantities;
 
@@ -4201,14 +4186,14 @@ cs_boundary_conditions_update_bc_coeff_face_values
 
   using var_t = cs_real_t[stride];
   using m_t = cs_real_t[stride][stride];
-  NVTX_RANGE_LINE();
+  CS_PROFILE_MARK_LINE();
   /* Choose gradient type */
   cs_halo_type_t halo_type;
   cs_gradient_type_t gradient_type;
   cs_gradient_type_by_imrgra(eqp->imrgra,
                              &gradient_type,
                              &halo_type);
-  NVTX_RANGE_LINE();
+  CS_PROFILE_MARK_LINE();
   cs_real_t *gweight = nullptr;
   cs_real_t *df_limiter = nullptr;
   cs_internal_coupling_t *cpl = nullptr;
@@ -4219,16 +4204,16 @@ cs_boundary_conditions_update_bc_coeff_face_values
 
     /* internal coupling */
     if (eqp->icoupl > 0) {
-      NVTX_RANGE_LINE();
+      CS_PROFILE_MARK_LINE();
       const int coupling_key_id = cs_field_key_id("coupling_entity");
       int coupling_id = cs_field_get_key_int(f, coupling_key_id);
       cpl = cs_internal_coupling_by_id(coupling_id);
     }
-    NVTX_RANGE_LINE();
+    CS_PROFILE_MARK_LINE();
     /* gradient weighting */
     if ((f->type & CS_FIELD_VARIABLE) && eqp->iwgrec == 1) {
       if (eqp->idiff > 0) {
-        NVTX_RANGE_LINE();
+        CS_PROFILE_MARK_LINE();
         int key_id = cs_field_key_id("gradient_weighting_id");
         int diff_id = cs_field_get_key_int(f, key_id);
         if (diff_id > -1) {
@@ -4238,13 +4223,13 @@ cs_boundary_conditions_update_bc_coeff_face_values
         }
       }
     }
-    NVTX_RANGE_LINE();
+    CS_PROFILE_MARK_LINE();
     /* diffusion limiter */
     int df_limiter_id
       = cs_field_get_key_int(f, cs_field_key_id("diffusion_limiter_id"));
     if (df_limiter_id > -1)
       df_limiter = cs_field_by_id(df_limiter_id)->val;
-    NVTX_RANGE_LINE();
+    CS_PROFILE_MARK_LINE();
     /* variable at I' position with diffusion limiter */
     if (df_limiter != nullptr)
       CS_MALLOC_HD(val_ip_lim, n_b_faces, var_t, cs_alloc_mode);
@@ -4257,7 +4242,7 @@ cs_boundary_conditions_update_bc_coeff_face_values
 
   /* Mute coefa when inc = 0 */
   if (inc == 0 && cpl == nullptr) {
-    NVTX_RANGE_LINE();
+    CS_PROFILE_MARK_LINE();
     CS_MALLOC(bc_coeffs_loc, 1, cs_field_bc_coeffs_t);
     cs_field_bc_coeffs_shallow_copy(bc_coeffs, bc_coeffs_loc);
 
@@ -4276,7 +4261,7 @@ cs_boundary_conditions_update_bc_coeff_face_values
   /* Update of local BC. coefficients for internal coupling */
 
   if (cpl != nullptr) {
-    NVTX_RANGE_LINE();
+    CS_PROFILE_MARK_LINE();
     CS_MALLOC(bc_coeffs_loc, 1, cs_field_bc_coeffs_t);
     cs_field_bc_coeffs_shallow_copy(bc_coeffs, bc_coeffs_loc);
 
@@ -4296,7 +4281,7 @@ cs_boundary_conditions_update_bc_coeff_face_values
     }
 
     bc_coeffs = bc_coeffs_loc;
-    NVTX_RANGE_LINE();
+    CS_PROFILE_MARK_LINE();
     cs_internal_coupling_update_bc_coeffs_strided<stride>(ctx,
                                                           bc_coeffs,
                                                           cpl,
@@ -4306,7 +4291,7 @@ cs_boundary_conditions_update_bc_coeff_face_values
                                                           pvar,
                                                           gweight);
   }
-  NVTX_RANGE_LINE();
+  CS_PROFILE_MARK_LINE();
   /* Compute variable at position I' from bc_coeffs */
 
   cs_gradient_boundary_iprime_lsq_strided<stride>(ctx,
@@ -4323,7 +4308,7 @@ cs_boundary_conditions_update_bc_coeff_face_values
                                                   val_ip,
                                                   val_ip_lim);
 
-  NVTX_RANGE_LINE();
+  CS_PROFILE_MARK_LINE();
   /* Boundary conditions */
   var_t *coefa = (var_t *)bc_coeffs->a;
   var_t *cofaf = (var_t *)bc_coeffs->af;
@@ -4336,7 +4321,7 @@ cs_boundary_conditions_update_bc_coeff_face_values
   const int ircflb = (ircflp > 0) ? eqp->b_diff_flux_rc : 0;
 
   if (ircflb == 0) { // no reconstruction for flux (I = I_prime)
-    NVTX_RANGE_LINE();
+    CS_PROFILE_MARK_LINE();
     ctx.parallel_for(n_b_faces, [=] CS_F_HOST_DEVICE (cs_lnum_t face_id) {
       const cs_lnum_t c_id = b_face_cells[face_id];
 
@@ -4367,7 +4352,7 @@ cs_boundary_conditions_update_bc_coeff_face_values
   }
 
   else if (ircflb > 0) {
-    NVTX_RANGE_LINE();
+    CS_PROFILE_MARK_LINE();
     ctx.parallel_for(n_b_faces, [=] CS_F_HOST_DEVICE (cs_lnum_t face_id) {
 
       // reconstruction for gradient (use of variable at I' position)
@@ -4404,7 +4389,7 @@ cs_boundary_conditions_update_bc_coeff_face_values
   }
 
   ctx.wait();
-  NVTX_RANGE_LINE();
+  CS_PROFILE_MARK_LINE();
   if (bc_coeffs_loc != nullptr) {
     CS_FREE_HD(bc_coeffs_loc->a);
      if (cpl != nullptr)
@@ -4412,7 +4397,7 @@ cs_boundary_conditions_update_bc_coeff_face_values
     CS_FREE(bc_coeffs_loc);
   }
   CS_FREE_HD(val_ip_lim);
-  NVTX_RANGE_LINE();
+  CS_PROFILE_MARK_LINE();
 }
 
 /*----------------------------------------------------------------------------*/
@@ -4446,12 +4431,12 @@ cs_boundary_conditions_update_bc_coeff_face_values
      we use a delayed allocation te defauld to Neumann more easily
      when some arrays are not defined (and want to avoid cases where
      the array is defined but not up to date). */
-     NVTX_RANGE_LINE();
+     CS_PROFILE_MARK_LINE();
   if (f->bc_coeffs->val_f_d == nullptr && m->n_b_faces > 0) {
     const int df_limiter_id
       = cs_field_get_key_int(f, cs_field_key_id("diffusion_limiter_id"));
     const int ircflb = (eqp->ircflu > 0) ? eqp->b_diff_flux_rc : 0;
-    NVTX_RANGE_LINE();
+    CS_PROFILE_MARK_LINE();
     cs_boundary_conditions_ensure_bc_coeff_face_values_allocated
       (f->bc_coeffs,
        m->n_b_faces,
@@ -4464,7 +4449,7 @@ cs_boundary_conditions_update_bc_coeff_face_values
   var_t *val_f_lim = reinterpret_cast<var_t *>(f->bc_coeffs->val_f_lim);
   var_t *val_f_d = reinterpret_cast<var_t *>(f->bc_coeffs->val_f_d);
   var_t *val_f_d_lim = reinterpret_cast<var_t *>(f->bc_coeffs->val_f_d_lim);
-  NVTX_RANGE_LINE();
+  CS_PROFILE_MARK_LINE();
   cs_boundary_conditions_update_bc_coeff_face_values<stride>
     (ctx,
      f, f->bc_coeffs,
@@ -4474,7 +4459,7 @@ cs_boundary_conditions_update_bc_coeff_face_values
      val_ip,
      val_f, val_f_lim,
      val_f_d, val_f_d_lim);
-     NVTX_RANGE_LINE();
+     CS_PROFILE_MARK_LINE();
   CS_FREE_HD(val_ip);
 }
 
