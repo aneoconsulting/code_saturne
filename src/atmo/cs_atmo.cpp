@@ -472,8 +472,6 @@ cs_f_atmo_soil_init_arrays(int       *n_soil_cat,
 void
 cs_f_read_meteo_profile(int imode);
 
-void
-cs_f_read_chemistry_profile(const int imode);
 
 /*============================================================================
  * Private function definitions
@@ -2290,7 +2288,7 @@ cs_atmo_fields_init0(void)
 
     // Second reading of chemical profiles file
     int imode = 1;
-    cs_f_read_chemistry_profile(imode);
+    cs_atmo_read_chemistry_profile(imode);
 
     /* Check latitude / longitude from chemistry file */
     cs_real_t xy_chem[2] = {at_chem->x_conc_profiles[0],
@@ -2880,7 +2878,7 @@ cs_atmo_bcond(void)
       /* For gaseous species which have not been treated earlier
          (for example species not present in the third gaseous scheme,
          which can be treated in usatcl of with the file chemistry)
-         zero dirichlet conditions are imposed */
+         zero Dirichlet conditions are imposed */
       for (int ii = 0; ii < nespg; ii++) {
         const int f_id = at_chem->species_to_scalar_id[ii];
         cs_field_t *f = cs_field_by_id(f_id);
@@ -3124,7 +3122,7 @@ cs_atmo_bcond(void)
         /* Turbulence inlet */
         cs_turbulence_bc_set_uninit_inlet(face_id, k_in, rij_loc, eps_in);
 
-        /* Thermal scalar and humide atmosphere variables */
+        /* Thermal scalar and humid atmosphere variables */
         if (f_th != nullptr) {
 
           if (rcodcl1_theta[face_id] > 0.5 * cs_math_infinite_r)
@@ -3143,7 +3141,6 @@ cs_atmo_bcond(void)
                     cs_glob_atmo_option->qw_met,
                     z_in,
                     cs_glob_time_step->t_cur);
-
 
               else
                 qw_in = cpro_met_qv[cell_id];
@@ -3983,6 +3980,9 @@ cs_atmo_compute_meteo_profiles(void)
   cs_mesh_t *m = domain->mesh;
   cs_mesh_quantities_t *mq = domain->mesh_quantities;
 
+  const int *restrict c_disable_flag = (mq->has_disable_flag) ?
+    mq->c_disable_flag : nullptr;
+
   const cs_real_3_t *restrict cell_cen
     = (const cs_real_3_t *)mq->cell_cen;
 
@@ -4082,8 +4082,9 @@ cs_atmo_compute_meteo_profiles(void)
   /* Profiles */
   for (cs_lnum_t cell_id = 0; cell_id < m->n_cells; cell_id++) {
 
-    if (mq->c_disable_flag[cell_id] == 1)
-      continue;
+    if (c_disable_flag != nullptr)
+      if (c_disable_flag[cell_id] == 1)
+        continue;
 
     cs_real_t z_grd = 0.;
     if (z_ground != nullptr)
@@ -4273,7 +4274,6 @@ cs_atmo_z_ground_compute(void)
 
   /* Quantities required to account for the immersed walls*/
   const cs_lnum_t  n_cells = m->n_cells;
-  const cs_real_t *cell_vol = mq->cell_vol;
   const cs_real_t *c_w_face_surf = mq->c_w_face_surf;
   const cs_real_3_t *c_w_face_normal = (const cs_real_3_t *)mq->c_w_face_normal;
   const cs_real_t *c_w_dist_inv = mq->c_w_dist_inv;
@@ -4368,31 +4368,26 @@ cs_atmo_z_ground_compute(void)
   for (cs_lnum_t cell_id = 0; cell_id < m->n_cells_with_ghosts; cell_id++)
     rhs[cell_id] = 0.;
 
-  /*Dirichlet condition on immersed boundaries*/
-  for (cs_lnum_t c_id = 0; c_id < n_cells; c_id++) {
-    /*Geomtric quantities */
-    const cs_real_t solid_surf = c_w_face_surf[c_id];
-    const cs_real_t wall_dist  = (c_w_dist_inv[c_id] < DBL_MIN) ?
-                                  0.:
-                                  1. / c_w_dist_inv[c_id];
-    const cs_real_t pyr_vol = wall_dist * solid_surf;
+  /* Dirichlet condition on immersed boundaries */
+  if (c_w_face_surf != nullptr) {
+    for (cs_lnum_t c_id = 0; c_id < n_cells ; c_id++) {
+      eqp_p->ndircl = 1;
+      cs_real_t hint = c_w_dist_inv[c_id];
+      cs_real_t pimp = cs_math_3_dot_product(c_w_face_cog[c_id], normal);
 
-    eqp_p->ndircl = 1;
-    cs_real_t hint = c_w_dist_inv[c_id];
-    cs_real_t pimp = cs_math_3_dot_product(c_w_face_cog[c_id], normal);
+      f->bc_coeffs->ib_g_wall_cor[c_id] = 0.;
+      f->bc_coeffs->ib_val_ext[c_id] = pimp;
+      f->bc_coeffs->ib_hint[c_id] = hint;
+      f->bc_coeffs->ib_qimp[c_id] = 0.;
 
-    f->bc_coeffs->ib_g_wall_cor[c_id] = 0.;
-    f->bc_coeffs->ib_val_ext[c_id] = pimp;
-    f->bc_coeffs->ib_hint[c_id] = hint;
-    f->bc_coeffs->ib_qimp[c_id] = 0.;
+      cs_real_t tsimp = fmax(- cs_math_3_dot_product(c_w_face_normal[c_id], normal), 0.);
 
-    cs_real_t tsimp = fmax(- cs_math_3_dot_product(c_w_face_normal[c_id], normal), 0.);
+      rhs[c_id] += tsimp * (pimp - f->val[c_id]); //explicit term
+      rovsdt[c_id] += cs::max(tsimp, 0.); //implicit term
 
-    rhs[c_id] += tsimp * (pimp - f->val[c_id]); //explicit term
-    rovsdt[c_id] += cs::max(tsimp, 0.); //implicit term
-
-    norm += cs_math_pow2(pimp) * c_w_face_surf[c_id];
-    ground_surf += c_w_face_surf[c_id];
+      norm += cs_math_pow2(pimp) * c_w_face_surf[c_id];
+      ground_surf += c_w_face_surf[c_id];
+    }
   }
 
   cs_parall_max(1, CS_INT_TYPE, &(eqp_p->ndircl));

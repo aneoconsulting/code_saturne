@@ -2115,7 +2115,7 @@ _additional_fields_stage_2(void)
   /* Boundary roughness (may be already created by the atmospheric module) */
   if (   cs_glob_wall_functions->iwallf == 5
       || cs_glob_wall_functions->iwallf == 6) {
-    cs_field_find_or_create("boundary_rougness",
+    cs_field_find_or_create("boundary_roughness",
                             CS_FIELD_INTENSIVE | CS_FIELD_PROPERTY,
                             CS_MESH_LOCATION_BOUNDARY_FACES,
                             1,
@@ -3609,7 +3609,7 @@ cs_setup(void)
   cs_gui_boundary_conditions_define(NULL);
 
   /* Some final settings */
-  cs_gui_output();
+  cs_gui_output(cs_glob_domain);
 
   if (cs_glob_param_cdo_mode != CS_PARAM_CDO_MODE_ONLY) {
     /* Avoid a second spurious call to this function

@@ -256,14 +256,18 @@ _property_post(const char          *field_type,
   cs_gui_node_get_status_int(cs_tree_node_get_child
                                (tn, "postprocessing_recording"),
                              &f_post);
-  if (f_post != 0)
-    f->log |= CS_POST_ON_LOCATION;
-
   cs_gui_node_get_status_int(cs_tree_node_get_child(tn, "probes_recording"),
                              &f_monitor);
 
+  if (f_post != 0 || f_monitor != 0) {
+    f->post_vis = 1;
+  }
+
+  if (f_post != 0)
+    f->post_vis |= CS_POST_ON_LOCATION;
+
   if (f_monitor != 0)
-    f->log |= CS_POST_MONITOR;
+    f->post_vis |= CS_POST_MONITOR;
 
 }
 
@@ -789,7 +793,7 @@ _boundary_stress(void)
  *----------------------------------------------------------------------------*/
 
 void
-cs_gui_output(void)
+cs_gui_output(cs_domain_t *domain)
 {
   const int *v_i = NULL;
 
@@ -799,10 +803,14 @@ cs_gui_output(void)
   v_i = cs_tree_node_get_child_values_int(tn_o,
                                           "listing_printing_frequency");
   if (v_i != NULL) {
-    if (v_i[0] != 0)
+    if (v_i[0] != 0) {
       cs_log_iteration_set_interval(v_i[0]);
-    else
+      domain->output_nt = v_i[0];
+    }
+    else {
       cs_log_iteration_set_automatic(10);
+      domain->output_nt = -10;
+    }
   }
 
   const int n_fields = cs_field_n_fields();

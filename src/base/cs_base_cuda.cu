@@ -99,7 +99,7 @@ static cudaStream_t _cs_glob_stream_pf = 0;
 bool cs_glob_cuda_allow_graph = false;
 
 // Shared memory size ber block (based on know GPUs, queried later).
-size_t cs_glob_cuda_shared_mem_per_block = 0x19000;
+int cs_glob_cuda_shared_mem_per_block = 48*1024;
 
 /*============================================================================
  * Private function definitions
