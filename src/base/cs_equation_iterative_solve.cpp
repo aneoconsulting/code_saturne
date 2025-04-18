@@ -285,11 +285,12 @@ _equation_iterative_solve_strided(int                   idtvar,
                                   cs_real_t             pvar[][stride],
                                   cs_real_t             eswork[][stride])
 {
+  CS_PROFILE_FUNC_RANGE();
+
   /* Local variables */
   cs_mesh_quantities_t *mq = cs_glob_mesh_quantities;
   const cs_halo_t *halo = cs_glob_mesh->halo;
 
-  CS_PROFILE_FUNC_RANGE();
 
   CS_PROFILE_MARK_LINE();
 
@@ -372,6 +373,7 @@ _equation_iterative_solve_strided(int                   idtvar,
   var_t *b_pvar = nullptr;
   cs_field_t *f_i_vf = nullptr;
   cs_field_t *f_b_vf = nullptr;
+
   CS_PROFILE_MARK_LINE();
 
   /* Storing face values for kinetic energy balance and initialize them */
