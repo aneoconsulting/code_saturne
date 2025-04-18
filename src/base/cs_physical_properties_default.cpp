@@ -68,6 +68,7 @@
 #include "base/cs_parall.h"
 #include "base/cs_parameters.h"
 #include "base/cs_physical_constants.h"
+#include "base/cs_profiling.h"
 #include "base/cs_prototypes.h"
 #include "base/cs_thermal_model.h"
 #include "turb/cs_turbulence_ml.h"
@@ -956,6 +957,8 @@ _physical_properties_update_models_stage_2(void)
 void
 cs_physical_properties_update(int   iterns)
 {
+  CS_PROFILE_FUNC_RANGE();
+
   const cs_mesh_t *m = cs_glob_mesh;
   const cs_mesh_quantities_t *mq = cs_glob_mesh_quantities;
 
