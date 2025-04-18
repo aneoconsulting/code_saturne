@@ -597,6 +597,8 @@ cs_boundary_conditions_set_coeffs(int        nvar,
    * 0) User calls
    *--------------------------------------------------------------------------*/
 
+  CS_PROFILE_MARK_LINE();
+
   cs_boundary_conditions_reset();
 
   if (cs_glob_physical_model_flag[CS_COMPRESSIBLE] >= 0)
@@ -734,6 +736,8 @@ cs_boundary_conditions_set_coeffs(int        nvar,
    * 1) Variables
    *--------------------------------------------------------------------------*/
 
+  CS_PROFILE_MARK_LINE();
+
   cs_real_3_t *velipb = nullptr;
 
   cs_turb_model_type_t model
@@ -750,6 +754,8 @@ cs_boundary_conditions_set_coeffs(int        nvar,
   /*--------------------------------------------------------------------------
    * 2) initializations
    *--------------------------------------------------------------------------*/
+
+  CS_PROFILE_MARK_LINE();
 
   /* Map field arrays */
   cs_field_t *vel = CS_F_(vel);
@@ -820,6 +826,8 @@ cs_boundary_conditions_set_coeffs(int        nvar,
      * 3) Treatment of types of bcs given by bc_type
      *--------------------------------------------------------------------------*/
 
+    CS_PROFILE_MARK_LINE();
+
     {
       if (cs_glob_physical_model_flag[CS_COMPRESSIBLE] >= 0)
         cs_cf_boundary_conditions(bc_type);
@@ -861,6 +869,8 @@ cs_boundary_conditions_set_coeffs(int        nvar,
      * 4) Check the consistency of the bcs
      *--------------------------------------------------------------------------*/
 
+    CS_PROFILE_MARK_LINE();
+
     cs_boundary_conditions_check(bc_type,
                                  ale_bc_type);
 
@@ -877,6 +887,8 @@ cs_boundary_conditions_set_coeffs(int        nvar,
      *
      * This could be done outside the loop.
      *--------------------------------------------------------------------------*/
+
+    CS_PROFILE_MARK_LINE();
 
     {
       /* For the Syrthes coupling or 1d thermal module
@@ -1074,6 +1086,8 @@ cs_boundary_conditions_set_coeffs(int        nvar,
      *    symmetry or wall faces with wall functions boundary conditions
      *--------------------------------------------------------------------------*/
 
+    CS_PROFILE_MARK_LINE();
+
     /* Indicator for symmetries or wall with wall functions */
 
     int iclsym = 0, ipatur = 0, ipatrg = 0;
@@ -1166,6 +1180,8 @@ cs_boundary_conditions_set_coeffs(int        nvar,
      * we use visvdr to restore the correct value.
      *--------------------------------------------------------------------------*/
 
+    CS_PROFILE_MARK_LINE();
+
     if (type == CS_TURB_LES && cs_glob_turb_les_model->idries == 1) {
       for (cs_lnum_t c_id = 0; c_id < n_cells; c_id++)
         visvdr[c_id] = -999.0;
@@ -1187,6 +1203,8 @@ cs_boundary_conditions_set_coeffs(int        nvar,
      * We need velipb and rijipb.
      *--------------------------------------------------------------------------*/
 
+    CS_PROFILE_MARK_LINE();
+
     for (cs_lnum_t i = 0; i < n_b_faces; i++)
       isympa[i] = 1;
 
@@ -1198,6 +1216,8 @@ cs_boundary_conditions_set_coeffs(int        nvar,
     /*--------------------------------------------------------------------------
      * 9) velocity: Dirichlet, Neumann and convective outlet
      *--------------------------------------------------------------------------*/
+
+    CS_PROFILE_MARK_LINE();
 
     { /* Dirichlet and Neumann */
 
@@ -1344,6 +1364,8 @@ cs_boundary_conditions_set_coeffs(int        nvar,
     /*--------------------------------------------------------------------------
      * 10) Pressure: Dirichlet and Neumann and convective outlet
      *--------------------------------------------------------------------------*/
+
+    CS_PROFILE_MARK_LINE();
 
     {
       cs_field_t *p = CS_F_(p);
@@ -1549,6 +1571,8 @@ cs_boundary_conditions_set_coeffs(int        nvar,
      * 11) void fraction (VOF): Dirichlet and Neumann and convective outlet
      *--------------------------------------------------------------------------*/
 
+    CS_PROFILE_MARK_LINE();
+
     if (cs_glob_vof_parameters->vof_model > 0) {
 
       cs_field_t *volf2 = CS_F_(void_f);
@@ -1617,6 +1641,8 @@ cs_boundary_conditions_set_coeffs(int        nvar,
     /*----------------------------------------------------------------------------
       12. turbulent quantities: Dirichlet and Neumann and convective outlet
       --------------------------------------------------------------------------*/
+
+    CS_PROFILE_MARK_LINE();
 
     { /* k-epsilon and k-omega */
 
@@ -2517,6 +2543,7 @@ cs_boundary_conditions_set_coeffs(int        nvar,
    *     Dirichlet and Neumann and convective outlet
    *--------------------------------------------------------------------------*/
 
+  CS_PROFILE_MARK_LINE();
   {
     const cs_real_t *cpro_cv = nullptr, *cpro_cp = nullptr;
 
@@ -3293,6 +3320,8 @@ cs_boundary_conditions_set_coeffs(int        nvar,
      *     Dirichlet and Neumann and convective outlet
      *--------------------------------------------------------------------------*/
 
+    CS_PROFILE_MARK_LINE();
+
     if (cs_glob_ale == CS_ALE_LEGACY) {
 
       cs_field_t *m_vel = cs_field_by_name("mesh_velocity");
@@ -3401,6 +3430,8 @@ cs_boundary_conditions_set_coeffs(int        nvar,
      * 15) Compute stresses at boundary (step 1 of 5)
      *--------------------------------------------------------------------------*/
 
+    CS_PROFILE_MARK_LINE();
+
     if (f_b_stress != nullptr && iterns == 1) {
 
       cs_real_3_t  *cofaf_vel = (cs_real_3_t  *)vel->bc_coeffs->af;
@@ -3435,6 +3466,8 @@ cs_boundary_conditions_set_coeffs(int        nvar,
     /*--------------------------------------------------------------------------
      * 16) Update of boundary temperature when saved and not a variable.
      *--------------------------------------------------------------------------*/
+
+    CS_PROFILE_MARK_LINE();
 
     if (thermal_variable == CS_THERMAL_MODEL_ENTHALPY) {
 
