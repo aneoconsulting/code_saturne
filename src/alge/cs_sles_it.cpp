@@ -48,6 +48,7 @@
 
 #include "base/cs_math.h"
 #include "base/cs_parall.h"
+#include "base/cs_profiling.h"
 
 /*----------------------------------------------------------------------------
  *  Header for the current file
@@ -5007,6 +5008,8 @@ cs_sles_it_solve(void                *context,
 void
 cs_sles_it_free(void  *context)
 {
+  CS_PROFILE_FUNC_RANGE();
+
   cs_sles_it_t *c = static_cast<cs_sles_it_t *>(context);
 
   if (c == nullptr)
