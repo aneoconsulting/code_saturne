@@ -759,6 +759,7 @@ _solve_turbulence(cs_lnum_t   n_cells,
                   cs_lnum_t   n_cells_ext,
                   int         verbosity)
 {
+  CS_PROFILE_FUNC_RANGE();
   cs_dispatch_context ctx;
 
   if (   verbosity > 0
