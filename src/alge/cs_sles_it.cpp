@@ -4780,6 +4780,8 @@ cs_sles_it_solve(void                *context,
                  size_t               aux_size,
                  void                *aux_vectors)
 {
+  CS_PROFILE_FUNC_RANGE();
+
   cs_sles_it_t *c = static_cast<cs_sles_it_t *>(context);
 
   cs_sles_convergence_state_t cvg = CS_SLES_ITERATING;
