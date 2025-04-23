@@ -691,6 +691,8 @@ _solve_turbulence(cs_lnum_t   n_cells,
                   cs_lnum_t   n_cells_ext,
                   int         verbosity)
 {
+  CS_PROFILE_FUNC_RANGE();
+
   if (   verbosity > 0
       && (   cs_glob_turb_model->itytur == 2
           || cs_glob_turb_model->itytur == 3
