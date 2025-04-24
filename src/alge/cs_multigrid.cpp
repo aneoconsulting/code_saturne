@@ -1412,6 +1412,8 @@ _multigrid_pc_apply(void                *context,
                     const cs_real_t     *x_in,
                     cs_real_t           *x_out)
 {
+  CS_PROFILE_FUNC_RANGE();
+
   int     n_iter;
   double  residual;
 
@@ -5215,6 +5217,8 @@ cs_multigrid_solve(void                *context,
                    size_t               aux_size,
                    void                *aux_vectors)
 {
+  CS_PROFILE_FUNC_RANGE();
+
   cs_timer_t t0, t1;
   t0 = cs_timer_time();
 
@@ -5442,6 +5446,8 @@ cs_multigrid_solve(void                *context,
 void
 cs_multigrid_free(void  *context)
 {
+  CS_PROFILE_FUNC_RANGE();
+
   cs_multigrid_t *mg = (cs_multigrid_t *)context;
 
   cs_timer_t t0, t1;
