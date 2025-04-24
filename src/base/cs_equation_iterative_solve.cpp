@@ -65,6 +65,7 @@
 #include "base/cs_mem.h"
 #include "base/cs_parameters.h"
 #include "base/cs_porous_model.h"
+#include "base/cs_profiling.h"
 #include "base/cs_prototypes.h"
 #include "base/cs_reducers.h"
 #include "base/cs_timer.h"
@@ -1471,6 +1472,8 @@ cs_equation_iterative_solve_scalar(int                   idtvar,
                                    const cs_real_t       xcpp[],
                                    cs_real_t             eswork[])
 {
+  CS_PROFILE_FUNC_RANGE();
+
   /* Local variables */
   cs_mesh_t *m = cs_glob_mesh;
   cs_mesh_quantities_t *mq = cs_glob_mesh_quantities;
