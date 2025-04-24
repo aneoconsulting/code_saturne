@@ -23,9 +23,13 @@ backtraces activées, cas C016:
 [https://drive.proton.me/urls/9Q3T5H4REM#0KK3nmxlfYGn](https://drive.proton.me/
 urls/9Q3T5H4REM#0KK3nmxlfYGn)
 
+## Infos utiles
+
+Documentation NVTX: https://nvidia.github.io/NVTX/doxygen-cpp/
+
 ## Liste des kernels et fonctions à traiter
 
-### cs_equation_iterative_solve_scalar
+### `cs_equation_iterative_solve_scalar`
 
 - Backtrace:
 
@@ -88,10 +92,10 @@ cs_solver!_start
 
 
 - List of kernels (Damien)
-    - void _*equation_*iterative_solve_strided
-        - Call function cpu : cs_matrix_compute_coeffs
+    - `void _*equation_*iterative_solve_strided`
+        - Call function cpu : `cs_matrix_compute_coeffs`
 
-### cs_boundary_conditions_set_coeffs
+### `cs_boundary_conditions_set_coeffs`
 
 ```
 Nsight Systems frames
@@ -108,3 +112,27 @@ cs_solver!_start
 ```
 
 Temps mort de 33ms
+
+### `cs_runaway_check`
+
+Calcul CPU, zéro activité GPU pendant 2.7ms + beaucoup de transferts DtoH
+
+### `cs_turbulence_ke`
+
+Beaucoup de memfree
+
+### `cs_sles_solve`
+
+Utilisation du GPU en dents de scie, appels successifs de kernel sans masquage de latence
+
+### `cs_multigrid_solve`
+
+le `cudaFree` prend énormément de temps (140µs sur 3.8ms)
+
+### `_pressure_correction_fv`
+
+Passe 1.6ms à faire des free à la fin, **sans compter les free côté multigrid**
+
+### `_multigrid_v_cycle_pc`
+
+2/5 du temps sur CPU
