@@ -658,9 +658,11 @@ public:
   }
 
   cs_device_context(cs_device_context const &) = default;
-  cs_device_context(cs_device_context &&) = default;
-  cs_device_context& operator=(cs_device_context const &) = default;
-  cs_device_context& operator=(cs_device_context &&) = default;
+  cs_device_context(cs_device_context &&)      = default;
+  cs_device_context &
+  operator=(cs_device_context const &) = default;
+  cs_device_context &
+  operator=(cs_device_context &&) = default;
 
   //! Change grid_size configuration, but keep the stream and device
   //
