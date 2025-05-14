@@ -10,13 +10,12 @@
 #include <cuda.h>
 #include <cuda_runtime.h>
 
-#include <memory>
+#include <initializer_list>
 #include <tuple>
 #include <utility>
-#include <vector>
 
 struct cs_event_t;
-struct cs_task;
+struct cs_device_task;
 
 struct cs_event_t {
   cudaEvent_t cuda_event;
@@ -29,12 +28,12 @@ struct cs_event_t {
 //!
 //! cs_task_t objects are meant to be spawned from a cs_queue_t object.
 
-class cs_task {
+class cs_device_task {
   cs_device_context context_;
 
 public:
   //! Creates a new task with a given context and initializes a new stream.
-  cs_task(cs_device_context context) : context_(std::move(context))
+  cs_device_task(cs_device_context context) : context_(std::move(context))
   {
     cudaStream_t new_stream;
     cudaStreamCreate(&new_stream);
@@ -42,7 +41,7 @@ public:
   }
 
   //! Creates a new task with a cs_device_context initialized with a new stream.
-  cs_task()
+  cs_device_task()
   {
     cudaStream_t new_stream;
     cudaStreamCreate(&new_stream);
@@ -86,36 +85,31 @@ public:
 };
 
 template <class... Args>
-class cs_single_task_wrapper : public cs_task {
-  std::unique_ptr<void *> data_ptr_;
-
+class cs_host_task : public cs_device_task {
 public:
   using function_t   = void (*)(Args...);
   using data_tuple_t = std::tuple<function_t, std::tuple<Args...>>;
 
+private:
+  data_tuple_t data_tuple;
+
+public:
   inline static constexpr auto wrapper_function = [](void *data_ptr) -> void {
     auto &[fun, args_tuple] = *(data_tuple_t *)(data_ptr);
   };
 
-  cs_single_task_wrapper(cs_device_context context)
-    : cs_task(std::move(context))
+  cs_host_task(cs_device_context context) : cs_device_task(std::move(context))
   {
   }
 
   bool
   set_task(function_t function, Args... args)
   {
-    if (data_ptr_ != nullptr) {
-      return false;
-    }
-
-    data_ptr_ =
-      std::make_unique<data_tuple_t>(function,
-                                     std::make_tuple(std::move(args)...));
+    data_tuple = data_tuple_t(function, std::make_tuple(std::move(args)...));
 
     cudaLaunchHostFunc(get_context().cuda_stream(),
                        wrapper_function,
-                       data_ptr_);
+                       &data_tuple);
 
     return true;
   }
@@ -129,10 +123,10 @@ public:
   // Loop over n elements
   // Must be redefined by the child class
   template <class F, class... Args>
-  cs_task
+  cs_device_task
   parallel_for(cs_lnum_t n, F &&f, Args &&...args)
   {
-    cs_task new_task(initializer_context);
+    cs_device_task new_task(initializer_context);
     new_task.get_context().parallel_for(n,
                                         std::forward<F>(f),
                                         std::forward<Args>(args)...);
@@ -140,13 +134,13 @@ public:
   }
 
   template <class F, class... Args>
-  cs_task
+  cs_device_task
   parallel_for(cs_lnum_t                                n,
                std::initializer_list<cs_event_t> const &sync_events,
                F                                      &&f,
                Args &&...args)
   {
-    cs_task new_task(initializer_context);
+    cs_device_task new_task(initializer_context);
 
     new_task.wait_for_range(sync_events);
 
@@ -157,10 +151,10 @@ public:
   }
 
   template <class M, class F, class... Args>
-  cs_task
+  cs_device_task
   parallel_for_i_faces(const M *m, F &&f, Args &&...args)
   {
-    cs_task new_task(initializer_context);
+    cs_device_task new_task(initializer_context);
     new_task.get_context().parallel_for_i_faces(m,
                                                 std::forward<F>(f),
                                                 std::forward<Args>(args)...);
@@ -168,13 +162,13 @@ public:
   }
 
   template <class M, class F, class... Args>
-  cs_task
+  cs_device_task
   parallel_for_i_faces(const M                                 *m,
                        std::initializer_list<cs_event_t> const &sync_events,
                        F                                      &&f,
                        Args &&...args)
   {
-    cs_task new_task(initializer_context);
+    cs_device_task new_task(initializer_context);
 
     new_task.wait_for_range(sync_events);
 
@@ -185,10 +179,10 @@ public:
   }
 
   template <class M, class F, class... Args>
-  cs_task
+  cs_device_task
   parallel_for_b_faces(const M *m, F &&f, Args &&...args)
   {
-    cs_task new_task(initializer_context);
+    cs_device_task new_task(initializer_context);
     new_task.get_context().parallel_for_b_faces(m,
                                                 std::forward<F>(f),
                                                 std::forward<Args>(args)...);
@@ -196,13 +190,13 @@ public:
   }
 
   template <class M, class F, class... Args>
-  cs_task
+  cs_device_task
   parallel_for_b_faces(const M                                 *m,
                        std::initializer_list<cs_event_t> const &sync_events,
                        F                                      &&f,
                        Args &&...args)
   {
-    cs_task new_task(initializer_context);
+    cs_device_task new_task(initializer_context);
 
     new_task.wait_for_range(sync_events);
 
@@ -213,10 +207,10 @@ public:
   }
 
   template <class T, class F, class... Args>
-  cs_task
+  cs_device_task
   parallel_for_reduce_sum(cs_lnum_t n, T &sum, F &&f, Args &&...args)
   {
-    cs_task new_task(initializer_context);
+    cs_device_task new_task(initializer_context);
     parallel_for_reduce_sum(n,
                             sum,
                             std::forward<F>(f),
@@ -225,14 +219,14 @@ public:
   }
 
   template <class T, class F, class... Args>
-  cs_task
+  cs_device_task
   parallel_for_reduce_sum(cs_lnum_t                                n,
                           std::initializer_list<cs_event_t> const &sync_events,
                           T                                       &sum,
                           F                                      &&f,
                           Args &&...args)
   {
-    cs_task new_task(initializer_context);
+    cs_device_task new_task(initializer_context);
 
     new_task.wait_for_range(sync_events);
 
@@ -244,10 +238,10 @@ public:
   }
 
   template <class T, class R, class F, class... Args>
-  cs_task
+  cs_device_task
   parallel_for_reduce(cs_lnum_t n, T &r, R &reducer, F &&f, Args &&...args)
   {
-    cs_task new_task(initializer_context);
+    cs_device_task new_task(initializer_context);
     parallel_for_reduce(n,
                         r,
                         reducer,
@@ -257,13 +251,12 @@ public:
   }
 
   template <class... Args>
-  cs_single_task_wrapper<Args...>
-  single_task(
-    std::initializer_list<cs_event_t> const             &sync_events,
-    typename cs_single_task_wrapper<Args...>::function_t host_function,
-    Args &&...args)
+  cs_host_task<Args...>
+  single_task(std::initializer_list<cs_event_t> const   &sync_events,
+              typename cs_host_task<Args...>::function_t host_function,
+              Args &&...args)
   {
-    cs_single_task_wrapper single_task(initializer_context);
+    cs_host_task single_task(initializer_context);
     single_task.set_task(host_function, std::forward<Args>(args)...);
     return single_task;
   }
@@ -299,7 +292,18 @@ foo()
 
   using args_type = decltype(single_task_args);
 
-  cs_single_task_wrapper<int *> single_task(Q.initializer_context);
+  cs_host_task<int *> single_task(Q.initializer_context);
+
+  single_task.set_task(
+    [](int *data) -> void {
+      using std::get;
+      for (int i = 1; i < N; i++) {
+        data[0] += data[i];
+      }
+
+      data[0] /= 3;
+    },
+    a);
 
   // Q.single_task(
   //   { e3 },
