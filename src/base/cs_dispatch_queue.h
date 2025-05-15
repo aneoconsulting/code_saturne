@@ -292,14 +292,12 @@ public:
 inline void
 foo()
 {
-  cs_alloc_mode_t alloc_mode = CS_ALLOC_DEVICE;
+  // Inspired by:
+  // https://enccs.github.io/sycl-workshop/task-graphs-synchronization/#how-to-specify-dependencies
 
   cs_queue Q;
-
   constexpr std::size_t N = 16 * 1024 * 1024;
-
   int *a, *b;
-
   CS_MALLOC_HD(a, N, int, CS_ALLOC_HOST_DEVICE);
   CS_MALLOC_HD(b, N, int, CS_ALLOC_DEVICE);
 
