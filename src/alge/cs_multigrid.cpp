@@ -3660,7 +3660,7 @@ _multigrid_v_cycle_pc(cs_multigrid_t        *mg,
     }
     else {
       if (amode_p > CS_ALLOC_HOST)
-        cs_prefetch_d2h(mgd->rhs_vx[level*2], _n_rows*sizeof(cs_real_t));
+        CS_PREFETCH_D2H(mgd->rhs_vx[level*2], _n_rows*sizeof(cs_real_t));
       assert(aux_size_h >= wr_size*sizeof(cs_real_t));
     }
 #else
@@ -3899,7 +3899,7 @@ _multigrid_v_cycle_pc(cs_multigrid_t        *mg,
           ctx.set_cuda_stream(stream);
 #endif
         if (amode_p == CS_ALLOC_HOST)
-          cs_prefetch_h2d(vx_lv1, _n_rows*sizeof(cs_real_t));
+          CS_PREFETCH_H2D(vx_lv1, _n_rows*sizeof(cs_real_t));
       }
 #endif
 

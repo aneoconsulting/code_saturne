@@ -46,6 +46,12 @@
 #include "base/cs_parall.h"
 
 /*----------------------------------------------------------------------------
+ * Enable profiling
+ *----------------------------------------------------------------------------*/
+
+#include "base/cs_profiling.h"
+
+/*----------------------------------------------------------------------------
  * Header for the current file
  *----------------------------------------------------------------------------*/
 
@@ -3031,6 +3037,7 @@ cs_array_reduce_simple_stats_l_w(cs_dispatch_context  ctx,
                                  double               wsum[])
 {
   /* If all values are defined on same list */
+  CS_PROFILE_FUNC_RANGE();
 
   if (v_elt_list == nullptr && w_elt_list == nullptr) {
     if (dim == 1)

@@ -2530,7 +2530,7 @@ cs_get_device_ptr_const_pf(const void  *ptr)
 
   else if (me.mode == CS_ALLOC_HOST_DEVICE_SHARED) {
     if (_ignore_prefetch == false)
-      cs_prefetch_h2d(me.host_ptr, me.size);
+      CS_PREFETCH_H2D(me.host_ptr, me.size);
   }
 
   return me.device_ptr;
@@ -3111,15 +3111,18 @@ cs_sync_d2h_if_needed_start(void  *ptr)
 /*----------------------------------------------------------------------------*/
 
 void
-cs_prefetch_h2d(void    *ptr,
-                size_t   size)
+cs_prefetch_h2d(void       *ptr,
+                size_t      size,
+                const char *var_name,
+                const char *file_name,
+                int         line_num)
 {
   if (ptr == nullptr)
     return;
 
 #if defined(HAVE_CUDA)
 
-  cs_mem_cuda_prefetch_h2d(ptr, size);
+  cs_mem_cuda_prefetch_h2d(ptr, size, var_name, file_name, line_num);
 
 #elif defined(SYCL_LANGUAGE_VERSION)
 
@@ -3148,15 +3151,18 @@ cs_prefetch_h2d(void    *ptr,
 /*----------------------------------------------------------------------------*/
 
 void
-cs_prefetch_d2h(void    *ptr,
-                size_t   size)
+cs_prefetch_d2h(void       *ptr,
+                size_t      size,
+                const char *var_name,
+                const char *file_name,
+                int         line_num)
 {
   if (ptr == nullptr)
     return;
 
 #if defined(HAVE_CUDA)
 
-  cs_mem_cuda_prefetch_d2h(ptr, size);
+  cs_mem_cuda_prefetch_d2h(ptr, size, var_name, file_name, line_num);
 
 #elif defined(SYCL_LANGUAGE_VERSION)
 

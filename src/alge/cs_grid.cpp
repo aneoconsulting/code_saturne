@@ -4866,8 +4866,8 @@ _automatic_aggregation_dx_msr(const cs_grid_t       *f,
   if (cs_matrix_get_alloc_mode(f->matrix) > CS_ALLOC_HOST) {
     cs_real_t  *d_val_p = const_cast<cs_real_t *>(d_val);
     cs_real_t  *x_val_p = const_cast<cs_real_t *>(x_val);
-    cs_prefetch_d2h(d_val_p, f_n_rows*db_size*db_size*sizeof(cs_real_t));
-    cs_prefetch_d2h(x_val_p, f_nnz*sizeof(cs_real_t));
+    CS_PREFETCH_D2H(d_val_p, f_n_rows*db_size*db_size*sizeof(cs_real_t));
+    CS_PREFETCH_D2H(x_val_p, f_nnz*sizeof(cs_real_t));
   }
 #endif
 

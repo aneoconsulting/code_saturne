@@ -100,12 +100,18 @@ cs_mem_cuda_copy_d2h_async(void        *dst,
                            size_t       size);
 
 void
-cs_mem_cuda_prefetch_h2d(const void  *dst,
-                         size_t       size);
+cs_mem_cuda_prefetch_h2d(const void *dst,
+                         size_t      size,
+                         const char *var_name,
+                         const char *file_name,
+                         int         line_num);
 
 void
-cs_mem_cuda_prefetch_d2h(const void  *dst,
-                         size_t       size);
+cs_mem_cuda_prefetch_d2h(const void *dst,
+                         size_t      size,
+                         const char *var_name,
+                         const char *file_name,
+                         int         line_num);
 
 void
 cs_mem_cuda_copy_d2d(void        *dst,

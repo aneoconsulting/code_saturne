@@ -65,6 +65,34 @@ typedef enum {
  *============================================================================*/
 
 /*
+ * Prefetch data from host to device
+ *
+ * This macro calls cs_prefetch_h2d(), automatically setting the
+ * allocated variable name and source file name and line arguments.
+ *
+ * parameters:
+ *   _ptr  <-- pointer to allocated memory.
+ *   _size <-- size of the memory to be prefetched
+ */
+
+#define CS_PREFETCH_H2D(_ptr, _size)                                           \
+  cs_prefetch_h2d(_ptr, _size, #_ptr, __FILE__, __LINE__)
+
+/*
+ * Prefetch data from device to host
+ *
+ * This macro calls cs_prefetch_d2h(), automatically setting the
+ * allocated variable name and source file name and line arguments.
+ *
+ * parameters:
+ *   _ptr  <-- pointer to allocated memory.
+ *   _size <-- size of the memory to be prefetched
+ */
+
+#define CS_PREFETCH_D2H(_ptr, _size)                                           \
+  cs_prefetch_d2h(_ptr, _size, #_ptr, __FILE__, __LINE__)
+
+/*
  * Allocate memory for _ni items of type _type.
  *
  * This macro calls cs_mem_malloc(), automatically setting the
@@ -1187,8 +1215,11 @@ cs_sync_d2h_if_needed_start(void  *ptr)
 #if defined(HAVE_ACCEL)
 
 void
-cs_prefetch_h2d(void    *ptr,
-                size_t   size);
+cs_prefetch_h2d(void       *ptr,
+                size_t      size,
+                const char *var_name,
+                const char *file_name,
+                int         line_num);
 
 #else
 
@@ -1218,8 +1249,11 @@ cs_prefetch_h2d(void    *ptr,
 #if defined(HAVE_ACCEL)
 
 void
-cs_prefetch_d2h(void    *ptr,
-                size_t   size);
+cs_prefetch_d2h(void       *ptr,
+                size_t      size,
+                const char *var_name,
+                const char *file_name,
+                int         line_num);
 
 #else
 

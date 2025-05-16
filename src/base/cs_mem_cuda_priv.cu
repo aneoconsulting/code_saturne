@@ -35,8 +35,8 @@
  *----------------------------------------------------------------------------*/
 
 #include "assert.h"
+#include "base/cs_profiling.h"
 #include "bft/bft_error.h"
-
 /*----------------------------------------------------------------------------
  *  Header for the current file
  *----------------------------------------------------------------------------*/
@@ -44,6 +44,8 @@
 #include "base/cs_mem_cuda_priv.h"
 
 /*----------------------------------------------------------------------------*/
+
+#include <iostream>
 
 /*!
   \file cs_mem_cuda_priv.cu
@@ -384,11 +386,22 @@ cs_mem_cuda_copy_d2h_async(void        *dst,
 /*----------------------------------------------------------------------------*/
 
 void
-cs_mem_cuda_prefetch_h2d(const void  *dst,
-                         size_t       size)
+cs_mem_cuda_prefetch_h2d(const void *dst,
+                         size_t      size,
+                         const char *var_name,
+                         const char *file_name,
+                         int         line_num)
 {
- if (_cs_glob_cuda_device_id < 0)
-   cudaGetDevice(&_cs_glob_cuda_device_id);
+  if (_cs_glob_cuda_device_id < 0)
+    cudaGetDevice(&_cs_glob_cuda_device_id);
+
+  std::string        paddr = paddr_to_string<void>(dst);
+  std::ostringstream msg;
+  msg << "Prefetched '" << var_name << "': " << paddr << ", size: " << size
+      << ", " << file_name << ":" << line_num;
+
+  std::cout << msg.str() << std::endl;
+  nvtx3::mark(msg.str());
 
   CS_CUDA_CHECK(cudaMemPrefetchAsync(dst, size, _cs_glob_cuda_device_id, \
                                      _cs_glob_stream_pf));
@@ -410,11 +423,21 @@ cs_mem_cuda_prefetch_h2d(const void  *dst,
 /*----------------------------------------------------------------------------*/
 
 void
-cs_mem_cuda_prefetch_d2h(const void  *dst,
-                         size_t       size)
+cs_mem_cuda_prefetch_d2h(const void *dst,
+                         size_t      size,
+                         const char *var_name,
+                         const char *file_name,
+                         int         line_num)
 {
   CS_CUDA_CHECK(cudaMemPrefetchAsync(dst, size, cudaCpuDeviceId, \
                                      _cs_glob_stream_pf));
+  std::string        paddr = paddr_to_string<void>(dst);
+  std::ostringstream msg;
+  msg << "Prefetched '" << var_name << "': " << paddr << ", size: " << size
+      << ", " << file_name << ":" << line_num;
+  std::cout << msg.str() << std::endl;
+  nvtx3::mark(msg.str());
+
 }
 
 /*----------------------------------------------------------------------------*/

@@ -37,6 +37,12 @@
 #include <string.h>
 
 /*----------------------------------------------------------------------------
+ * Enable profiling
+ *----------------------------------------------------------------------------*/
+
+#include "base/cs_profiling.h"
+
+/*----------------------------------------------------------------------------
  * Local headers
  *----------------------------------------------------------------------------*/
 
@@ -3711,6 +3717,7 @@ cs_solve_navier_stokes_update_total_pressure
       if (is_eddy_model)
         cpro_prtot[c_id] -= 2.0/3 * cpro_rho[c_id]*cvar_k[c_id];
     });
+            CS_PROFILE_MARK_LINE();
   }
   else {
     ctx.parallel_for(n_cells, [=] CS_F_HOST_DEVICE (cs_lnum_t c_id) {
@@ -3727,6 +3734,7 @@ cs_solve_navier_stokes_update_total_pressure
       if (is_eddy_model)
         cpro_prtot[c_id] -= 2.0/3 * cpro_rho[c_id]*cvar_k[c_id];
     });
+        CS_PROFILE_MARK_LINE();
   }
 
 }

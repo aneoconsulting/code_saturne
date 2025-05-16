@@ -1873,7 +1873,7 @@ cs_halo_sync_start(const cs_halo_t  *halo,
         cs_copy_d2h(buffer, d_buffer, pack_size);
       }
       else {
-        cs_prefetch_d2h(buffer, pack_size);
+        CS_PREFETCH_D2H(buffer, pack_size);
       }
 
       if (_hs->var_location != CS_ALLOC_HOST_DEVICE_SHARED) {
@@ -2026,7 +2026,7 @@ cs_halo_sync_wait(const cs_halo_t  *halo,
       unsigned char *restrict _val_dest = _val + n_loc_elts*elt_size;
 
       if (_hs->var_location == CS_ALLOC_HOST_DEVICE_SHARED)
-        cs_prefetch_h2d(_val_dest, n_bytes);
+        CS_PREFETCH_H2D(_val_dest, n_bytes);
       else
         cs_copy_h2d(_val_dest, _hs->recv_buffer, n_bytes);
     }

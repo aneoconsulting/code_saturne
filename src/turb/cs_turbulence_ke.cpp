@@ -91,6 +91,12 @@
 #include "atmo/cs_atprke.h"
 
 /*----------------------------------------------------------------------------
+ * Enable profiling
+ *----------------------------------------------------------------------------*/
+
+#include "base/cs_profiling.h"
+
+/*----------------------------------------------------------------------------
  * Header for the current file
  *----------------------------------------------------------------------------*/
 
@@ -2173,6 +2179,8 @@ cs_turbulence_ke_clip(int        phase_id,
                       cs_lnum_t  n_cells,
                       int        iclip)
 {
+  CS_PROFILE_FUNC_RANGE();
+
   cs_turb_ref_values_t *turb_ref_values = cs_get_glob_turb_ref_values();
   cs_real_t almax = turb_ref_values->almax;
 
@@ -2237,6 +2245,26 @@ cs_turbulence_ke_clip(int        phase_id,
     res.r[2] = cvar_k[c_id];
     res.r[3] = cvar_ep[c_id];
   });
+  // Explicit prefetch of cvar_k and cvar_ep
+  if (ctx.use_gpu()) {
+    CS_PROFILE_MARK_LINE();
+    CS_PREFETCH_H2D(cvar_k, f_k->dim * sizeof(cs_real_t));
+    CS_PREFETCH_H2D(cvar_ep, f_eps->dim * sizeof(cs_real_t));
+  }
+
+  {
+    CS_PROFILE_MARK_LINE();
+    ctx.parallel_for_reduce(n_cells,
+                            rd,
+                            reducer,
+                            [=] CS_F_HOST_DEVICE(cs_lnum_t c_id,
+                                                 cs_data_4r & res) {
+                              res.r[0] = cvar_k[c_id];
+                              res.r[1] = cvar_k[c_id];
+                              res.r[2] = cvar_ep[c_id];
+                              res.r[3] = cvar_ep[c_id];
+                            });
+  }
 
   ctx.wait();
 
@@ -2256,8 +2284,22 @@ cs_turbulence_ke_clip(int        phase_id,
   const cs_lnum_t ke_clip_method = cs_glob_turb_rans_model->iclkep;
 
   if (eqp->verbosity >= 2 || cs_glob_turb_rans_model->iclkep == 1) {
-
     if (iclip == 1) {
+
+      // Explicit prefetch of cvar_k and cvar_ep
+      if (ctx.use_gpu()) {
+        CS_PROFILE_MARK_LINE();
+        CS_PREFETCH_H2D(cvar_k, f_k->dim * sizeof(cs_real_t));
+        CS_PREFETCH_H2D(cvar_ep, f_eps->dim * sizeof(cs_real_t));
+        CS_PREFETCH_H2D(viscl, f_mu->dim * sizeof(cs_real_t));
+        CS_PREFETCH_H2D(crom, f_rho->dim * sizeof(cs_real_t));
+        if (clip_k_id >= 0)
+          CS_PREFETCH_H2D(cpro_k_clipped,
+                          cs_field_by_id(clip_k_id)->dim * sizeof(cs_real_t));
+        if (clip_e_id >= 0)
+          CS_PREFETCH_H2D(cpro_e_clipped,
+                          cs_field_by_id(clip_e_id)->dim * sizeof(cs_real_t));
+      }
 
       cs_real_t xkm = 1296.*sqrt(cs_turb_cmu)/cs_math_pow2(almax);
       cs_real_t xepm = 46656.*cs_turb_cmu/cs_math_pow4(almax);
@@ -2284,6 +2326,7 @@ cs_turbulence_ke_clip(int        phase_id,
         }
       });
 
+        CS_PROFILE_MARK_LINE();
     }
     else if (iclip == 0) {
 
@@ -2312,6 +2355,7 @@ cs_turbulence_ke_clip(int        phase_id,
         }
       });
 
+        CS_PROFILE_MARK_LINE();
     }
     else
       bft_error(__FILE__, __LINE__, 0,
@@ -2377,6 +2421,7 @@ cs_turbulence_ke_clip(int        phase_id,
         cvar_ep[c_id] = - xe;
       }
     });
+      CS_PROFILE_MARK_LINE();
 
     ctx.wait();
 
@@ -2415,6 +2460,7 @@ cs_turbulence_ke_clip(int        phase_id,
 void
 cs_turbulence_ke_mu_t(int  phase_id)
 {
+  CS_PROFILE_FUNC_RANGE();
   cs_dispatch_context ctx;
 
   /* Map field arrays */
