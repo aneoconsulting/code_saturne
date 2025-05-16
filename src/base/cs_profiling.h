@@ -46,4 +46,15 @@
 /// Adds a mark in a profile that corresponds to the current file and line.
 #define CS_PROFILE_MARK_LINE() nvtx3::mark(__FILE__ ":" CS_STRINGIFY(__LINE__))
 
+#include <sstream>
+
+template <typename T>
+std::string
+paddr_to_string(const T *ptr)
+{
+  std::ostringstream oss;
+  oss << static_cast<const void *>(ptr);
+  return oss.str();
+}
+
 #endif
