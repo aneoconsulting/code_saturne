@@ -45,8 +45,9 @@ public:
     context_ = cs_device_context(new_stream);
   }
 
+  //! Adds an event to wait for
   void
-  wait_for(cs_event_t const &event)
+  add_dependency(cs_event_t const &event)
   {
     cudaStreamWaitEvent(context_.cuda_stream(), event.cuda_event);
   }
@@ -54,11 +55,18 @@ public:
   //! Waits for all the events in sync_events.
   //! Elements of sync_events must be convertible to cs_event_t.
   void
-  wait_for_range(std::initializer_list<cs_event_t> const &sync_events)
+  add_dependency(std::initializer_list<cs_event_t> const &sync_events)
   {
     for (auto const &event : sync_events) {
-      wait_for(event);
+      add_dependency(event);
     }
+  }
+
+  //! Waits for task termination.
+  void
+  wait()
+  {
+    context_.wait();
   }
 
   //! Records an event from the task.
@@ -127,11 +135,12 @@ public:
   }
 };
 
-//! SYCL-like execution "queue".
-class cs_queue {
+//! Uses the execution model from base/cs_dispatch.h to create SYCL-like tasks
+//! that can be synchronized together.
+class cs_dispatch_queue {
 public:
   //! Context used to initialize tasks.
-  cs_device_context initializer_context;
+  cs_dispatch_context initializer_context;
 
   template <class F, class... Args>
   cs_device_task
@@ -153,7 +162,7 @@ public:
   {
     cs_device_task new_task(initializer_context);
 
-    new_task.wait_for_range(sync_events);
+    new_task.add_dependency(sync_events);
 
     new_task.get_context().parallel_for(n,
                                         std::forward<F>(f),
@@ -181,7 +190,7 @@ public:
   {
     cs_device_task new_task(initializer_context);
 
-    new_task.wait_for_range(sync_events);
+    new_task.add_dependency(sync_events);
 
     new_task.get_context().parallel_for_i_faces(m,
                                                 std::forward<F>(f),
@@ -209,7 +218,7 @@ public:
   {
     cs_device_task new_task(initializer_context);
 
-    new_task.wait_for_range(sync_events);
+    new_task.add_dependency(sync_events);
 
     new_task.get_context().parallel_for_b_faces(m,
                                                 std::forward<F>(f),
@@ -239,7 +248,7 @@ public:
   {
     cs_device_task new_task(initializer_context);
 
-    new_task.wait_for_range(sync_events);
+    new_task.add_dependency(sync_events);
 
     parallel_for_reduce_sum(n,
                             sum,
@@ -261,6 +270,25 @@ public:
     return new_task;
   }
 
+  template <class T, class R, class F, class... Args>
+  cs_device_task
+  parallel_for_reduce(cs_lnum_t                                n,
+                      std::initializer_list<cs_event_t> const &sync_events,
+                      T                                       &r,
+                      R                                       &reducer,
+                      F                                      &&f,
+                      Args &&...args)
+  {
+    cs_device_task new_task(initializer_context);
+    new_task.add_dependency(sync_events);
+    parallel_for_reduce(n,
+                        r,
+                        reducer,
+                        std::forward<F>(f),
+                        std::forward<Args>(args)...);
+    return new_task;
+  }
+
   template <class FunctionType, class... Args>
   cs_host_task<FunctionType, std::remove_reference_t<Args>...>
   single_task(std::initializer_list<cs_event_t> const &sync_events,
@@ -271,7 +299,7 @@ public:
       std::move(host_function),
       initializer_context);
 
-    single_task.wait_for_range(sync_events);
+    single_task.add_dependency(sync_events);
     single_task.launch(std::forward<Args>(args)...);
 
     return single_task;
@@ -295,9 +323,9 @@ foo()
   // Inspired by:
   // https://enccs.github.io/sycl-workshop/task-graphs-synchronization/#how-to-specify-dependencies
 
-  cs_queue Q;
+  cs_dispatch_queue     Q;
   constexpr std::size_t N = 16 * 1024 * 1024;
-  int *a, *b;
+  int                  *a, *b;
   CS_MALLOC_HD(a, N, int, CS_ALLOC_HOST_DEVICE);
   CS_MALLOC_HD(b, N, int, CS_ALLOC_DEVICE);
 
