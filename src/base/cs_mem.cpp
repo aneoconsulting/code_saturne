@@ -2950,7 +2950,7 @@ cs_sync_h2d_start(const void  *ptr)
 
     #if defined(HAVE_CUDA)
     {
-      cs_mem_cuda_prefetch_h2d(me.device_ptr, me.size);
+      cs_mem_cuda_prefetch_h2d(me.device_ptr, me.size, "me.device_ptr", "cs_mem.cpp", 2754);
     }
     #elif defined(SYCL_LANGUAGE_VERSION)
     {
@@ -3031,8 +3031,34 @@ cs_sync_d2h_start(void  *ptr)
 
   cs_mem_block_t me = _get_block_info(ptr);
 
-  if (me.mode > CS_ALLOC_HOST)
-    _sync_d2h_start(me);
+  case CS_ALLOC_HOST_DEVICE_SHARED:
+    if (_ignore_prefetch)
+      return;
+
+    #if defined(HAVE_CUDA)
+    {
+      cs_mem_cuda_prefetch_d2h(me.host_ptr, me.size, "me.host_ptr", "cs_mem.cpp", 2854);
+    }
+    #elif defined(SYCL_LANGUAGE_VERSION)
+    {
+      cs_glob_sycl_queue.prefetch(me.host_ptr, me.size);
+    }
+    #elif defined(HAVE_OPENMP_TARGET)
+    {
+      char *host_ptr = (char *)me.host_ptr;
+      #pragma omp target exit data map(from:host_ptr[:me.size]) \
+        nowait device(_omp_target_device_id)
+    }
+    #endif
+    break;
+
+  case CS_ALLOC_DEVICE:
+    bft_error(__FILE__, __LINE__, 0,
+              _("%s: %p allocated on device only."),
+              __func__, ptr);
+    break;
+
+  }
 }
 
 /*----------------------------------------------------------------------------*/

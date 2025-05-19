@@ -641,6 +641,9 @@ cs_time_stepping(void)
   cs_real_t dt_cpl;
 
   /* Start time loop */
+  
+  /* Set memory allocation mode explicitly */
+  cs_alloc_mode = CS_ALLOC_DEVICE;
 
   do {
 
