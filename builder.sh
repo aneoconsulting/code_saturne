@@ -115,8 +115,9 @@ function profile_for_config () {
 }
 
 # build_config master "" master
-build_config page_faults "" fc/page_faults
+# build_config page_faults "" fc/page_faults
 
- # prepare_cases
+ prepare_cases
 
 # profile_for_config nvtx_profiling BENCH_C016_04
+profile_for_config page_faults BENCH_C016_04

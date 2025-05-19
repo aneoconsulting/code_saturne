@@ -2751,7 +2751,7 @@ cs_sync_h2d(const void  *ptr)
 
     #if defined(HAVE_CUDA)
     {
-      cs_mem_cuda_prefetch_h2d(me.device_ptr, me.size);
+      cs_mem_cuda_prefetch_h2d(me.device_ptr, me.size, "me.device_ptr", "cs_mem.cpp", 2754);
     }
     #elif defined(SYCL_LANGUAGE_VERSION)
     {
@@ -2851,7 +2851,7 @@ cs_sync_d2h(void  *ptr)
 
     #if defined(HAVE_CUDA)
     {
-      cs_mem_cuda_prefetch_d2h(me.host_ptr, me.size);
+      cs_mem_cuda_prefetch_d2h(me.host_ptr, me.size, "me.host_ptr", "cs_mem.cpp", 2854);
     }
     #elif defined(SYCL_LANGUAGE_VERSION)
     {
