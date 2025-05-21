@@ -37,9 +37,8 @@
  *----------------------------------------------------------------------------*/
 
 #include "base/cs_base_accel.h"
-#include "base/cs_math.h"
-
 #include "base/cs_dispatch_queue.h"
+#include "base/cs_math.h"
 
 /*! \cond DOXYGEN_SHOULD_SKIP_THIS */
 
