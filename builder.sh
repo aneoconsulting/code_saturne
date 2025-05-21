@@ -79,6 +79,7 @@ function build_config () {
     --prefix=$INSTALL_DIR \
     --enable-cuda --with-cuda=$CUDA_PATH \
     --disable-gui \
+    --enable-debug \
     --enable-mpi=/work/EDF/ompi.git/install_v5.0.x \
     --with-mpi-lib=/work/EDF/ompi.git/install_v5.0.x/lib \
     --with-mpi-include=/work/EDF/ompi.git/install_v5.0.x/include
@@ -105,8 +106,8 @@ function profile_for_config () {
   echo ==========================================
   echo
 
-  PROFILER_COMMAND="nsys profile -t cuda,nvtx --force-overwrite=true -b dwarf --cudabacktrace=all --cuda-memory-usage=true -o $PROFILER_OUTPUT_DIR/$(date +"%Y.%m.%d-%Hh%M")_$1-$2.nsys-rep"
-  # PROFILER_COMMAND="cuda-gdb"
+  # PROFILER_COMMAND="nsys profile -t cuda,nvtx --force-overwrite=true -b dwarf --cudabacktrace=all --cuda-memory-usage=true -o $PROFILER_OUTPUT_DIR/$(date +"%Y.%m.%d-%Hh%M")_$1-$2.nsys-rep"
+  PROFILER_COMMAND="cuda-gdb"
 
   cd $SATURNE_CASES_DIR/BUNDLE/$2
   $CS_EXEC up
@@ -115,9 +116,9 @@ function profile_for_config () {
 }
 
 # build_config master "" master
-# build_config page_faults "" fc/page_faults
+build_config page_faults "" fc/page_faults
 
- prepare_cases
+# prepare_cases
 
-# profile_for_config nvtx_profiling BENCH_C016_04
+# profile_for_config page_faults BENCH_C016_PREPROCESS
 profile_for_config page_faults BENCH_C016_04

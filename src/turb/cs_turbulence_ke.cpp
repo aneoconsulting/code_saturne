@@ -2248,8 +2248,8 @@ cs_turbulence_ke_clip(int        phase_id,
   // Explicit prefetch of cvar_k and cvar_ep
   if (ctx.use_gpu()) {
     CS_PROFILE_MARK_LINE();
-    CS_PREFETCH_H2D(cvar_k, f_k->dim * sizeof(cs_real_t));
-    CS_PREFETCH_H2D(cvar_ep, f_eps->dim * sizeof(cs_real_t));
+    // CS_PREFETCH_H2D(cvar_k, f_k->dim * sizeof(cs_real_t));
+    // CS_PREFETCH_H2D(cvar_ep, f_eps->dim * sizeof(cs_real_t));
   }
 
   {
@@ -2289,16 +2289,16 @@ cs_turbulence_ke_clip(int        phase_id,
       // Explicit prefetch of cvar_k and cvar_ep
       if (ctx.use_gpu()) {
         CS_PROFILE_MARK_LINE();
-        CS_PREFETCH_H2D(cvar_k, f_k->dim * sizeof(cs_real_t));
-        CS_PREFETCH_H2D(cvar_ep, f_eps->dim * sizeof(cs_real_t));
-        CS_PREFETCH_H2D(viscl, f_mu->dim * sizeof(cs_real_t));
-        CS_PREFETCH_H2D(crom, f_rho->dim * sizeof(cs_real_t));
-        if (clip_k_id >= 0)
-          CS_PREFETCH_H2D(cpro_k_clipped,
-                          cs_field_by_id(clip_k_id)->dim * sizeof(cs_real_t));
-        if (clip_e_id >= 0)
-          CS_PREFETCH_H2D(cpro_e_clipped,
-                          cs_field_by_id(clip_e_id)->dim * sizeof(cs_real_t));
+        // CS_PREFETCH_H2D(cvar_k, f_k->dim * sizeof(cs_real_t));
+        // CS_PREFETCH_H2D(cvar_ep, f_eps->dim * sizeof(cs_real_t));
+        // CS_PREFETCH_H2D(viscl, f_mu->dim * sizeof(cs_real_t));
+        // CS_PREFETCH_H2D(crom, f_rho->dim * sizeof(cs_real_t));
+        // if (clip_k_id >= 0)
+        //   CS_PREFETCH_H2D(cpro_k_clipped,
+        //                   cs_field_by_id(clip_k_id)->dim * sizeof(cs_real_t));
+        // if (clip_e_id >= 0)
+        //   CS_PREFETCH_H2D(cpro_e_clipped,
+        //                   cs_field_by_id(clip_e_id)->dim * sizeof(cs_real_t));
       }
 
       cs_real_t xkm = 1296.*sqrt(cs_turb_cmu)/cs_math_pow2(almax);

@@ -400,7 +400,7 @@ cs_mem_cuda_prefetch_h2d(const void *dst,
   msg << "Prefetched '" << var_name << "': " << paddr << ", size: " << size
       << ", " << file_name << ":" << line_num;
 
-  std::cout << msg.str() << std::endl;
+  // std::cout << msg.str() << std::endl;
   nvtx3::mark(msg.str());
 
   CS_CUDA_CHECK(cudaMemPrefetchAsync(dst, size, _cs_glob_cuda_device_id, \
@@ -429,15 +429,16 @@ cs_mem_cuda_prefetch_d2h(const void *dst,
                          const char *file_name,
                          int         line_num)
 {
-  CS_CUDA_CHECK(cudaMemPrefetchAsync(dst, size, cudaCpuDeviceId, \
-                                     _cs_glob_stream_pf));
   std::string        paddr = paddr_to_string<void>(dst);
   std::ostringstream msg;
   msg << "Prefetched '" << var_name << "': " << paddr << ", size: " << size
       << ", " << file_name << ":" << line_num;
-  std::cout << msg.str() << std::endl;
+
+  // std::cout << msg.str() << std::endl;
   nvtx3::mark(msg.str());
 
+  CS_CUDA_CHECK(cudaMemPrefetchAsync(dst, size, cudaCpuDeviceId, \
+                                     _cs_glob_stream_pf));
 }
 
 /*----------------------------------------------------------------------------*/
