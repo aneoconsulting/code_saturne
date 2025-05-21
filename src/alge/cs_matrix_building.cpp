@@ -3120,26 +3120,32 @@ cs_matrix_time_step(const cs_mesh_t            *m,
 
   if (isym == 2) {
 
+    cs_device_context ctx;
+    ctx.set_use_gpu(true);
+    int* d_i_group_index;
+    cs_real_t* d_da;
+    size_t size_i_groups = n_i_groups * n_i_threads * sizeof(int);
+    size_t size_da = n_cells * sizeof(cs_real_t);
+    CS_CUDA_CHECK(cudaMalloc(&d_i_group_index, size_i_groups));
+    CS_CUDA_CHECK(cudaMalloc(&d_da, size_da));
+    CS_CUDA_CHECK(cudaMemcpy(d_i_group_index, i_group_index, size_i_groups, cudaMemcpyHostToDevice));
+    CS_CUDA_CHECK(cudaMemcpy(d_da, da, size_da, cudaMemcpyHostToDevice));
+
     for (int g_id = 0; g_id < n_i_groups; g_id++) {
-#     pragma omp parallel for
-      for (int t_id = 0; t_id < n_i_threads; t_id++) {
-        for (cs_lnum_t f_id = i_group_index[(t_id*n_i_groups + g_id)*2];
-             f_id < i_group_index[(t_id*n_i_groups + g_id)*2 + 1];
-             f_id++) {
+      ctx.parallel_for(n_i_threads, [=] CS_F_HOST_DEVICE (cs_lnum_t t_id) {
+        cs_lnum_t f_id = d_i_group_index[(t_id*n_i_groups + g_id)*2];
 
-          cs_lnum_t ii = i_face_cells[f_id][0];
-          cs_lnum_t jj = i_face_cells[f_id][1];
+        cs_lnum_t ii = i_face_cells[f_id][0];
+        cs_lnum_t jj = i_face_cells[f_id][1];
 
-          cs_real_t fluj =-0.5*(i_massflux[f_id] + fabs(i_massflux[f_id]));
-          cs_real_t flui = 0.5*(i_massflux[f_id] - fabs(i_massflux[f_id]));
+        cs_real_t fluj =-0.5*(i_massflux[f_id] + fabs(i_massflux[f_id]));
+        cs_real_t flui = 0.5*(i_massflux[f_id] - fabs(i_massflux[f_id]));
 
-          cs_real_t xaifa2 = iconvp*fluj -idiffp*i_visc[f_id];
-          cs_real_t xaifa1 = iconvp*flui -idiffp*i_visc[f_id];
-          da[ii] -= xaifa2;
-          da[jj] -= xaifa1;
-
-        }
-      }
+        cs_real_t xaifa2 = iconvp*fluj -idiffp*i_visc[f_id];
+        cs_real_t xaifa1 = iconvp*flui -idiffp*i_visc[f_id];
+        d_da[ii] -= xaifa2;
+        d_da[jj] -= xaifa1;
+      });
     }
 
   } else {
@@ -3170,9 +3176,11 @@ cs_matrix_time_step(const cs_mesh_t            *m,
 
 # pragma omp parallel for if (m->n_b_faces > CS_THR_MIN)
   for (int t_id = 0; t_id < n_b_threads; t_id++) {
-    for (cs_lnum_t f_id = b_group_index[t_id*2];
-         f_id < b_group_index[t_id*2 + 1];
-         f_id++) {
+
+    cs_lnum_t f_id = b_group_index[t_id*2];
+    // for (cs_lnum_t f_id = b_group_index[t_id*2];
+    //      f_id <           b_group_index[t_id*2 + 1];
+    //      f_id++) {
 
       cs_lnum_t ii = b_face_cells[f_id];
 
@@ -3182,7 +3190,7 @@ cs_matrix_time_step(const cs_mesh_t            *m,
       da[ii] +=   iconvp*(-fluj + flui*coefbp[f_id])
                 + idiffp*b_visc[f_id]*cofbfp[f_id];
 
-    }
+    // }
   }
 }
 

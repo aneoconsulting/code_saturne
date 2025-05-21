@@ -228,10 +228,14 @@ cs_local_time_step_compute(int  itrale)
      ------------------------------------ */
 
   if (eqp_vel->idiff >= 1) {
-#   pragma omp parallel for if (n_cells > CS_THR_MIN)
-    for (cs_lnum_t c_id = 0; c_id < n_cells; c_id++) {
-      w1[c_id] = viscl[c_id] + eqp_vel->idifft*visct[c_id];
-    }
+
+    cs_dispatch_context ctx;
+    ctx.set_use_gpu(true);
+
+    int idifft = eqp_vel->idifft;
+    ctx.parallel_for(n_cells, [=] CS_F_HOST_DEVICE (cs_lnum_t c_id) {
+      w1[c_id] = viscl[c_id] + idifft*visct[c_id];
+    });
 
     cs_face_viscosity(mesh,
                       fvq,
