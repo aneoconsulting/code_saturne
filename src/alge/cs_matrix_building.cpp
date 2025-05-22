@@ -3173,27 +3173,55 @@ cs_matrix_time_step(const cs_mesh_t            *m,
   }
 
   /* 4. Contribution of border faces to the diagonal */
+  if (m->n_b_faces > CS_THR_MIN) {
+    cs_device_context ctx;
+    ctx.set_use_gpu(true);
+    int       *d_b_group_index;
+    cs_real_t *d_da;
+    cs_real_t *d_coefbp;
+    cs_real_t *d_cofbfp;
+    size_t     size_b_groups = n_b_groups * n_b_threads * sizeof(int);
+    size_t     size_da       = n_cells * sizeof(cs_real_t);
+    size_t     size_coefbp   = m->n_b_faces * sizeof(cs_real_t);
+    size_t     size_cofbfp   = m->n_b_faces * sizeof(cs_real_t);
+    CS_CUDA_CHECK(cudaMalloc(&d_b_group_index, size_b_groups));
+    CS_CUDA_CHECK(cudaMalloc(&d_da, size_da));
+    CS_CUDA_CHECK(cudaMalloc(&d_coefbp, size_coefbp));
+    CS_CUDA_CHECK(cudaMalloc(&d_cofbfp, size_cofbfp));
+    CS_CUDA_CHECK(cudaMemcpy(d_b_group_index,
+                             b_group_index,
+                             size_b_groups,
+                             cudaMemcpyHostToDevice));
+    CS_CUDA_CHECK(cudaMemcpy(d_da, da, size_da, cudaMemcpyHostToDevice));
+    CS_CUDA_CHECK(cudaMemcpy(d_coefbp, coefbp, size_coefbp, cudaMemcpyHostToDevice));
+    CS_CUDA_CHECK(cudaMemcpy(d_cofbfp, cofbfp, size_cofbfp, cudaMemcpyHostToDevice));
 
-# pragma omp parallel for if (m->n_b_faces > CS_THR_MIN)
-  for (int t_id = 0; t_id < n_b_threads; t_id++) {
-
-    cs_lnum_t f_id = b_group_index[t_id*2];
-    // for (cs_lnum_t f_id = b_group_index[t_id*2];
-    //      f_id <           b_group_index[t_id*2 + 1];
-    //      f_id++) {
+    ctx.parallel_for(n_b_threads, [=] CS_F_HOST_DEVICE(cs_lnum_t t_id) {
+      cs_lnum_t f_id = d_b_group_index[t_id * 2];
 
       cs_lnum_t ii = b_face_cells[f_id];
 
       cs_real_t flui =  0.5*(b_massflux[f_id] - fabs(b_massflux[f_id]));
       cs_real_t fluj = -0.5*(b_massflux[f_id] + fabs(b_massflux[f_id]));
 
-      da[ii] +=   iconvp*(-fluj + flui*coefbp[f_id])
-                + idiffp*b_visc[f_id]*cofbfp[f_id];
+      d_da[ii] += iconvp * (-fluj + flui * d_coefbp[f_id]) +
+                  idiffp * b_visc[f_id] * d_cofbfp[f_id];
+    });
+  }
+  else {
+    for (int t_id = 0; t_id < n_b_threads; t_id++) {
+      cs_lnum_t f_id = b_group_index[t_id * 2];
 
-    // }
+      cs_lnum_t ii = b_face_cells[f_id];
+
+      cs_real_t flui = 0.5 * (b_massflux[f_id] - fabs(b_massflux[f_id]));
+      cs_real_t fluj = -0.5 * (b_massflux[f_id] + fabs(b_massflux[f_id]));
+
+      da[ii] += iconvp * (-fluj + flui * coefbp[f_id]) +
+                idiffp * b_visc[f_id] * cofbfp[f_id];
+    }
   }
 }
-
 /*----------------------------------------------------------------------------*/
 
 END_C_DECLS
