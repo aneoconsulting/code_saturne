@@ -3083,11 +3083,12 @@ cs_matrix_time_step(const cs_mesh_t            *m,
   const cs_real_t *coefbp = bc_coeffs->b;
   const cs_real_t *cofbfp = bc_coeffs->bf;
 
-  const int n_cells = m->n_cells;
-  const int n_cells_ext = m->n_cells_with_ghosts;
-  const int n_i_groups = m->i_face_numbering->n_groups;
-  const int n_i_threads = m->i_face_numbering->n_threads;
-  const int n_b_threads = m->b_face_numbering->n_threads;
+  const int n_cells                       = m->n_cells;
+  const int n_cells_ext                   = m->n_cells_with_ghosts;
+  const int n_i_groups                    = m->i_face_numbering->n_groups;
+  const int n_i_threads                   = m->i_face_numbering->n_threads;
+  const int n_b_groups                    = m->b_face_numbering->n_groups;
+  const int n_b_threads                   = m->b_face_numbering->n_threads;
   const cs_lnum_t *restrict i_group_index = m->i_face_numbering->group_index;
   const cs_lnum_t *restrict b_group_index = m->b_face_numbering->group_index;
 
