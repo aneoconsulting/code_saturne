@@ -52,6 +52,23 @@ PROJECT_DIR=$(pwd)
 SATURNE_CASES_DIR=$PROJECT_DIR/saturne-open-cases
 PROFILER_OUTPUT_DIR=$PROJECT_DIR/profiler-output
 
+function bootstrap_config() {
+  cd $PROJECT_DIR
+  git checkout $3
+  ./sbin/bootstrap
+}
+
+function configure_config () {
+  $CONFIGURE_PATH \
+    --prefix=$INSTALL_DIR \
+    --enable-cuda --with-cuda=$CUDA_PATH \
+    --disable-gui \
+    --enable-debug \
+    --enable-mpi=/work/EDF/ompi.git/install_v5.0.x \
+    --with-mpi-lib=/work/EDF/ompi.git/install_v5.0.x/lib \
+    --with-mpi-include=/work/EDF/ompi.git/install_v5.0.x/include
+}
+
 function build_config () {
   echo
   echo ==========================================
@@ -61,13 +78,10 @@ function build_config () {
   echo ==========================================
   echo
 
-  cd $PROJECT_DIR
-  git checkout $3
-  ./sbin/bootstrap
+  bootstrap_config
 
   BUILD_DIR=$PROJECT_DIR/build/$1
   INSTALL_DIR=$PROJECT_DIR/install/$1
-
   mkdir -p $BUILD_DIR
   cd $BUILD_DIR
 
@@ -75,14 +89,7 @@ function build_config () {
   export CXXFLAGS="$COMPILE_FLAGS $2"
   export NVCCFLAGS="$COMPILE_FLAGS $2"
 
-  $CONFIGURE_PATH \
-    --prefix=$INSTALL_DIR \
-    --enable-cuda --with-cuda=$CUDA_PATH \
-    --disable-gui \
-    --enable-debug \
-    --enable-mpi=/work/EDF/ompi.git/install_v5.0.x \
-    --with-mpi-lib=/work/EDF/ompi.git/install_v5.0.x/lib \
-    --with-mpi-include=/work/EDF/ompi.git/install_v5.0.x/include
+  configure_config
 
   bear --output $PROJECT_DIR/compile_commands.json -- make -j8
   make install
@@ -107,18 +114,29 @@ function profile_for_config () {
   echo
 
   # PROFILER_COMMAND="nsys profile -t cuda,nvtx --force-overwrite=true -b dwarf --cudabacktrace=all --cuda-memory-usage=true -o $PROFILER_OUTPUT_DIR/$(date +"%Y.%m.%d-%Hh%M")_$1-$2.nsys-rep"
-  PROFILER_COMMAND="cuda-gdb"
+  # PROFILER_COMMAND="gdb"
+  # PROFILER_COMMAND="gdb"
+  PROFILER_COMMAND="lldb"
 
   cd $SATURNE_CASES_DIR/BUNDLE/$2
   $CS_EXEC up
   mkdir -p $PROFILER_OUTPUT_DIR
-  SHELL=/bin/bash $CS_EXEC run --tool-args="$PROFILER_COMMAND"
+
+  # SHELL=/bin/bash $CS_EXEC run --tool-args="$PROFILER_COMMAND"
+  # SHELL=/bin/bash tmux send-keys -t ArchRunner:.1 "cd $SATURNE_CASES_DIR/BUNDLE/$2; $CS_EXEC run --tool-args="$PROFILER_COMMAND"" Enter
+  SHELL=/bin/bash tmux send-keys -t ArchRunner:.1 "hyprctl dispatch workspace 5; cd $SATURNE_CASES_DIR/BUNDLE/$2; $CS_EXEC run --tool-args="$PROFILER_COMMAND"" Enter
 }
 
-# build_config master "" master
-build_config page_faults "" fc/page_faults
+function deep_clean() {
+    cd $PROJECT_DIR
+    rm -rfv build install .cache compile_commands.json
+}
+
+# build_config page_faults "" fc/page_faults
 
 # prepare_cases
 
 # profile_for_config page_faults BENCH_C016_PREPROCESS
 profile_for_config page_faults BENCH_C016_04
+
+# deep_clean
