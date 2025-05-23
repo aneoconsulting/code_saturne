@@ -414,14 +414,19 @@ cs_local_time_step_compute(int  itrale)
         }
         else {
 
-#         pragma omp parallel for if (n_cells > CS_THR_MIN)
-          for (cs_lnum_t c_id = 0; c_id < n_cells; c_id++) {
+          cs_device_context ctx;
+          ctx.set_use_gpu(true);
+
+// #         pragma omp parallel for if (n_cells > CS_THR_MIN)
+//           for (cs_lnum_t c_id = 0; c_id < n_cells; c_id++) {
+          ctx.parallel_for(n_cells, [=] CS_F_HOST_DEVICE (cs_lnum_t c_id){
             cs_real_t d_vol = (cs_mesh_quantities_cell_is_active(fvq, c_id)) ?
               1.0 / cell_f_vol[c_id] : 0;
             w1[c_id] =   coumax
                        / cs::max(dam[c_id] * d_vol / crom[c_id],
                                  cs_math_epzero);
-          }
+          });
+          // }
 
         }
 
