@@ -437,6 +437,7 @@ cs_local_time_step_compute(int  itrale)
                        / cs::max(dam[c_id] * d_vol / crom[c_id],
                                  cs_math_epzero);
           });
+          // }
 
         }
 
