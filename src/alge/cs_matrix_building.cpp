@@ -3150,8 +3150,8 @@ cs_matrix_time_step(const cs_mesh_t            *m,
     }
 
     CS_CUDA_CHECK(cudaMemcpy(da, d_da, size_da, cudaMemcpyDeviceToHost));
-    CS_CUDA_CHECK(cudaFree(&d_i_group_index));
-    CS_CUDA_CHECK(cudaFree(&d_da));
+    CS_CUDA_CHECK(cudaFree(d_i_group_index));
+    CS_CUDA_CHECK(cudaFree(d_da));
 
   } else {
 
