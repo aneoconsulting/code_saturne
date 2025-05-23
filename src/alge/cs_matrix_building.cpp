@@ -3149,6 +3149,10 @@ cs_matrix_time_step(const cs_mesh_t            *m,
       });
     }
 
+    CS_CUDA_CHECK(cudaMemcpy(da, d_da, size_da, cudaMemcpyDeviceToHost));
+    CS_CUDA_CHECK(cudaFree(&d_i_group_index));
+    CS_CUDA_CHECK(cudaFree(&d_da));
+
   } else {
 
     for (int g_id = 0; g_id < n_i_groups; g_id++) {
@@ -3185,14 +3189,11 @@ cs_matrix_time_step(const cs_mesh_t            *m,
     size_t     size_da       = n_cells * sizeof(cs_real_t);
     size_t     size_coefbp   = m->n_b_faces * sizeof(cs_real_t);
     size_t     size_cofbfp   = m->n_b_faces * sizeof(cs_real_t);
-    CS_CUDA_CHECK(cudaMalloc(&d_b_group_index, size_b_groups));
     CS_CUDA_CHECK(cudaMalloc(&d_da, size_da));
+    CS_CUDA_CHECK(cudaMalloc(&d_b_group_index, size_b_groups));
     CS_CUDA_CHECK(cudaMalloc(&d_coefbp, size_coefbp));
     CS_CUDA_CHECK(cudaMalloc(&d_cofbfp, size_cofbfp));
-    CS_CUDA_CHECK(cudaMemcpy(d_b_group_index,
-                             b_group_index,
-                             size_b_groups,
-                             cudaMemcpyHostToDevice));
+    CS_CUDA_CHECK(cudaMemcpy(d_b_group_index, b_group_index, size_b_groups, cudaMemcpyHostToDevice));
     CS_CUDA_CHECK(cudaMemcpy(d_da, da, size_da, cudaMemcpyHostToDevice));
     CS_CUDA_CHECK(cudaMemcpy(d_coefbp, coefbp, size_coefbp, cudaMemcpyHostToDevice));
     CS_CUDA_CHECK(cudaMemcpy(d_cofbfp, cofbfp, size_cofbfp, cudaMemcpyHostToDevice));
@@ -3208,6 +3209,12 @@ cs_matrix_time_step(const cs_mesh_t            *m,
       d_da[ii] += iconvp * (-fluj + flui * d_coefbp[f_id]) +
                   idiffp * b_visc[f_id] * d_cofbfp[f_id];
     });
+
+    CS_CUDA_CHECK(cudaMemcpy(da, d_da, size_da, cudaMemcpyDeviceToHost));
+    CS_CUDA_CHECK(cudaFree(d_da));
+    CS_CUDA_CHECK(cudaFree(d_b_group_index));
+    CS_CUDA_CHECK(cudaFree(d_coefbp));
+    CS_CUDA_CHECK(cudaFree(d_cofbfp));
   }
   else {
     for (int t_id = 0; t_id < n_b_threads; t_id++) {
