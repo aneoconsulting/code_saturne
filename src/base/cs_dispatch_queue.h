@@ -209,9 +209,7 @@ public:
                Args &&...args)
   {
     cs_task new_task(initializer_context);
-
     new_task.add_dependency(sync_events);
-
     new_task.get_context().parallel_for(n,
                                         std::forward<F>(f),
                                         std::forward<Args>(args)...);
@@ -237,9 +235,7 @@ public:
                        Args &&...args)
   {
     cs_task new_task(initializer_context);
-
     new_task.add_dependency(sync_events);
-
     new_task.get_context().parallel_for_i_faces(m,
                                                 std::forward<F>(f),
                                                 std::forward<Args>(args)...);
@@ -265,9 +261,7 @@ public:
                        Args &&...args)
   {
     cs_task new_task(initializer_context);
-
     new_task.add_dependency(sync_events);
-
     new_task.get_context().parallel_for_b_faces(m,
                                                 std::forward<F>(f),
                                                 std::forward<Args>(args)...);
@@ -295,10 +289,8 @@ public:
                           Args &&...args)
   {
     cs_task new_task(initializer_context);
-
     new_task.add_dependency(sync_events);
-
-    parallel_for_reduce_sum(n,
+    new_task.get_context().parallel_for_reduce_sum(n,
                             sum,
                             std::forward<F>(f),
                             std::forward<Args>(args)...);
