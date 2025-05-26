@@ -19,7 +19,7 @@
 #endif
 
 #include <initializer_list>
-#include <source_location>
+#include <string_view>
 #include <tuple>
 #include <utility>
 
@@ -42,17 +42,13 @@ class cs_task {
   cs_dispatch_context context_;
 #endif
 
-  //! Stores the source location of the task's creation for debugging
-  std::source_location creation_location;
-
   //! Event created at the creation of the task
   cs_event creation_event;
 
 public:
   //! Creates a new task with a given context and initializes a new stream.
-  cs_task(cs_dispatch_context  context  = {},
-          std::source_location location = std::source_location::current())
-    : context_(std::move(context)), creation_location(location)
+  cs_task(cs_dispatch_context context = {}, std::string_view location = {})
+    : context_(std::move(context))
   {
 #if defined(__CUDACC__) && CS_DISPATCH_QUEUE_FORCE_SYNC == 0
     cudaStream_t new_stream;
@@ -95,7 +91,7 @@ public:
   cs_event
   record_event()
   {
-#if defined(__CUDA__)
+#if defined(__CUDACC__)
     cudaEvent_t event;
     cudaEventCreate(&event);
     cudaEventRecord(event, context_.cuda_stream());
@@ -118,12 +114,6 @@ public:
   get_creation_event() const
   {
     return creation_event;
-  }
-
-  std::source_location
-  get_creation_location() const
-  {
-    return creation_location;
   }
 
 #if defined(__CUDACC__) && CS_DISPATCH_QUEUE_FORCE_SYNC == 0
@@ -289,10 +279,10 @@ public:
   parallel_for_reduce_sum(cs_lnum_t n, T &sum, F &&f, Args &&...args)
   {
     cs_task new_task(initializer_context);
-    parallel_for_reduce_sum(n,
-                            sum,
-                            std::forward<F>(f),
-                            std::forward<Args>(args)...);
+    new_task.get_context().parallel_for_reduce_sum(n,
+                                                   sum,
+                                                   std::forward<F>(f),
+                                                   std::forward<Args>(args)...);
     return new_task;
   }
 
@@ -320,11 +310,11 @@ public:
   parallel_for_reduce(cs_lnum_t n, T &r, R &reducer, F &&f, Args &&...args)
   {
     cs_task new_task(initializer_context);
-    parallel_for_reduce(n,
-                        r,
-                        reducer,
-                        std::forward<F>(f),
-                        std::forward<Args>(args)...);
+    new_task.get_context().parallel_for_reduce(n,
+                                               r,
+                                               reducer,
+                                               std::forward<F>(f),
+                                               std::forward<Args>(args)...);
     return new_task;
   }
 
@@ -339,11 +329,11 @@ public:
   {
     cs_task new_task(initializer_context);
     new_task.add_dependency(sync_events);
-    parallel_for_reduce(n,
-                        r,
-                        reducer,
-                        std::forward<F>(f),
-                        std::forward<Args>(args)...);
+    new_task.get_context().parallel_for_reduce(n,
+                                               r,
+                                               reducer,
+                                               std::forward<F>(f),
+                                               std::forward<Args>(args)...);
     return new_task;
   }
 
@@ -390,15 +380,18 @@ foo()
 
   {
     // Task A
-    auto task_a = Q.parallel_for(N, [=](std::size_t id) { a[id] = 1; });
+    auto task_a =
+      Q.parallel_for(N, [=] CS_F_HOST_DEVICE(std::size_t id) { a[id] = 1; });
 
     // Task B
-    auto task_b = Q.parallel_for(N, [=](std::size_t id) { b[id] = 2; });
+    auto task_b =
+      Q.parallel_for(N, [=] CS_F_HOST_DEVICE(std::size_t id) { b[id] = 2; });
 
     // Task C
-    auto task_c = Q.parallel_for(N, { task_a, task_b }, [=](std::size_t id) {
-      a[id] += b[id];
-    });
+    auto task_c =
+      Q.parallel_for(N,
+                     { task_a, task_b },
+                     [=] CS_F_HOST_DEVICE(std::size_t id) { a[id] += b[id]; });
 
     // Task D
     int  value  = 3;
