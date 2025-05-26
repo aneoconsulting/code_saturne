@@ -365,6 +365,7 @@ public:
   }
 };
 
+/*
 inline void
 foo()
 {
@@ -412,4 +413,4 @@ foo()
 
   CS_FREE_HD(a);
   CS_FREE_HD(b);
-}
+}*/
