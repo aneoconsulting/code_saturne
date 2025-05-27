@@ -52,9 +52,6 @@
  * Local definitions
  *============================================================================*/
 
-void
-cs_dispatch_test_cuda(void);
-
 struct cs_data_1r_2i { // struct: class with only public members
 
   // Members
@@ -161,14 +158,15 @@ _cs_dispatch_test(void)
       }
     });
 
-    auto task_2 = queue.parallel_for(n, [=] CS_F_HOST_DEVICE(cs_lnum_t ii) {
+    auto task_2 =
+      queue.parallel_for(n, { task_1 }, [=] CS_F_HOST_DEVICE(cs_lnum_t ii) {
 #if defined(__CUDA_ARCH__) || defined(__SYCL_DEVICE_ONLY__)
-      cs_real_t s[3] = { 0, -1, -2 };
+        cs_real_t s[3] = { 0, -1, -2 };
 #else
       cs_real_t s[3] = {0, 1, 2};
 #endif
-      cs_dispatch_sum<3>(a2[ii / 10], s, CS_DISPATCH_SUM_ATOMIC);
-    });
+        cs_dispatch_sum<3>(a2[ii / 10], s, CS_DISPATCH_SUM_ATOMIC);
+      });
 
     cs_real_t pi = cs_math_pi;
 
@@ -204,6 +202,7 @@ _cs_dispatch_test(void)
         }
 #endif
       });
+
     auto task_5 = queue.single_task({ task_4 }, [&] {
       std::cout << "reduction (sum) " << s1 << " (ref " << r_sum << ")"
                 << std::endl;
