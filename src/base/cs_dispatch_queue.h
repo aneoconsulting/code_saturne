@@ -1,10 +1,9 @@
 #pragma once
 
-#include "base/cs_base_accel.h"
 #include "base/cs_dispatch.h"
-#include "base/cs_mem.h"
 
 #include <type_traits>
+#include <vector>
 
 //! Forces synchronous execution of tasks
 #ifndef CS_DISPATCH_QUEUE_FORCE_SYNC
@@ -23,14 +22,72 @@
 #include <tuple>
 #include <utility>
 
+struct cs_event;
+struct cs_task;
+
 //! Represents an event to synchronize with. Often the end of a cs_device_task.
-struct cs_event {
 #if defined(__CUDACC__)
+struct cs_event {
   cudaEvent_t cuda_event;
-#else
-  std::chrono::time_point timer_event;
-#endif
+
+  // Cosntruction/Destruction
+
+  cs_event() { cudaEventCreate(&cuda_event); }
+
+  cs_event(cs_event const &other) = delete;
+  cs_event &
+  operator=(cs_event const &) = delete;
+
+  cs_event(cs_event &&other)
+  {
+    cuda_event       = other.cuda_event;
+    other.cuda_event = nullptr;
+  }
+
+  cs_event &
+  operator=(cs_event &&other)
+  {
+    if (cuda_event != nullptr) {
+      cudaEventDestroy(cuda_event);
+    }
+
+    cuda_event       = other.cuda_event;
+    other.cuda_event = nullptr;
+
+    return *this;
+  }
+
+  ~cs_event()
+  {
+    if (cuda_event != nullptr) {
+      cudaEventDestroy(cuda_event);
+    }
+  }
+
+  // Actions
+
+  void
+  wait()
+  {
+    cudaEventSynchronize(cuda_event);
+  }
 };
+
+struct cs_event_ref {
+  cs_event *event_ptr;
+
+  cs_event_ref(cs_event &event) : event_ptr(&event) {}
+
+  cs_event_ref() = delete;
+
+  cs_event_ref(cs_event_ref &&other)      = default;
+  cs_event_ref(cs_event_ref const &other) = default;
+  cs_event_ref &
+  operator=(cs_event_ref &&) & = default;
+  cs_event_ref &
+  operator=(cs_event_ref const &) & = default;
+};
+#endif
 
 //! A cs_task_t object represents a task that can be syncronized to and with.
 //! It holds a cs_dispatch_context with a unique CUDA stream and CUDA events can
@@ -38,14 +95,23 @@ struct cs_event {
 //!
 //! cs_task_t objects are meant to be spawned from a cs_queue_t object.
 class cs_task {
-#if defined(__CUDACC__)
   cs_dispatch_context context_;
-#endif
 
   //! Event created at the creation of the task
-  cs_event creation_event;
+  cs_event start_event;
+
+  //! Last synchronization event
+  cs_event end_event;
 
 public:
+  cs_task(cs_task const &) = delete;
+  cs_task &
+  operator=(cs_task const &) = delete;
+
+  cs_task(cs_task &&) = default;
+  cs_task &
+  operator=(cs_task &&) = default;
+
   //! Creates a new task with a given context and initializes a new stream.
   cs_task(cs_dispatch_context context = {}, std::string_view location = {})
     : context_(std::move(context))
@@ -56,22 +122,22 @@ public:
     context_.set_cuda_stream(new_stream);
 #endif
 
-    creation_event = record_event();
+    cudaEventRecord(start_event.cuda_event, context_.cuda_stream());
   }
 
   //! Adds an event to wait for
   void
-  add_dependency(cs_event const &event)
+  add_dependency(cs_event_ref event)
   {
 #if defined(__CUDACC__)
-    cudaStreamWaitEvent(context_.cuda_stream(), event.cuda_event);
+    cudaStreamWaitEvent(context_.cuda_stream(), event.event_ptr->cuda_event);
 #endif
   }
 
   //! Waits for all the events in sync_events.
   //! Elements of sync_events must be convertible to cs_event_t.
   void
-  add_dependency(std::initializer_list<cs_event> const &sync_events)
+  add_dependency(std::initializer_list<cs_event_ref> const &sync_events)
   {
 #if defined(__CUDACC__)
     for (auto const &event : sync_events) {
@@ -84,25 +150,23 @@ public:
   void
   wait()
   {
-    context_.wait();
+    record_event().event_ptr->wait();
   }
 
   //! Records an event from the task.
-  cs_event
+  cs_event_ref
   record_event()
   {
 #if defined(__CUDACC__)
-    cudaEvent_t event;
-    cudaEventCreate(&event);
-    cudaEventRecord(event, context_.cuda_stream());
-    return { event };
+    cudaEventRecord(end_event.cuda_event, context_.cuda_stream());
 #else
     return { std::chrono::steady_clock::now() };
 #endif
+    return { end_event };
   }
 
   //! Calls record_event() to implicitely convert a task to an event.
-  operator cs_event() { return record_event(); }
+  operator cs_event_ref() { return record_event(); }
 
   cs_dispatch_context &
   get_context()
@@ -110,21 +174,33 @@ public:
     return context_;
   }
 
-  cs_event
-  get_creation_event() const
+  cs_event_ref
+  get_creation_event()
   {
-    return creation_event;
+    return start_event;
   }
 
+  ~cs_task()
+  {
+    context_.wait();
 #if defined(__CUDACC__) && CS_DISPATCH_QUEUE_FORCE_SYNC == 0
-  ~cs_task() { cudaStreamDestroy(context_.cuda_stream()); }
+    cudaStreamDestroy(context_.cuda_stream());
 #endif
+  }
 };
 
 //! cs_host_task extends cs_device_task to add support for host function tasks.
 template <class FunctionType, class... Args>
 class cs_host_task : public cs_task {
 public:
+  cs_host_task(cs_host_task const &) = delete;
+  cs_host_task &
+  operator=(cs_host_task const &) = delete;
+
+  cs_host_task(cs_host_task &&) = default;
+  cs_host_task &
+  operator=(cs_host_task &&) = default;
+
   //! Tuple type for argument storage.
   using args_tuple_t =
 #if defined(__CUDACC__) && CS_DISPATCH_QUEUE_FORCE_SYNC == 0
@@ -203,9 +279,9 @@ public:
 
   template <class F, class... Args>
   cs_task
-  parallel_for(cs_lnum_t                              n,
-               std::initializer_list<cs_event> const &sync_events,
-               F                                    &&f,
+  parallel_for(cs_lnum_t                                  n,
+               std::initializer_list<cs_event_ref> const &sync_events,
+               F                                        &&f,
                Args &&...args)
   {
     cs_task new_task(initializer_context);
@@ -229,9 +305,9 @@ public:
 
   template <class M, class F, class... Args>
   cs_task
-  parallel_for_i_faces(const M                               *m,
-                       std::initializer_list<cs_event> const &sync_events,
-                       F                                    &&f,
+  parallel_for_i_faces(const M                                   *m,
+                       std::initializer_list<cs_event_ref> const &sync_events,
+                       F                                        &&f,
                        Args &&...args)
   {
     cs_task new_task(initializer_context);
@@ -255,9 +331,9 @@ public:
 
   template <class M, class F, class... Args>
   cs_task
-  parallel_for_b_faces(const M                               *m,
-                       std::initializer_list<cs_event> const &sync_events,
-                       F                                    &&f,
+  parallel_for_b_faces(const M                                   *m,
+                       std::initializer_list<cs_event_ref> const &sync_events,
+                       F                                        &&f,
                        Args &&...args)
   {
     cs_task new_task(initializer_context);
@@ -282,18 +358,19 @@ public:
 
   template <class T, class F, class... Args>
   cs_task
-  parallel_for_reduce_sum(cs_lnum_t                              n,
-                          std::initializer_list<cs_event> const &sync_events,
-                          T                                     &sum,
-                          F                                    &&f,
-                          Args &&...args)
+  parallel_for_reduce_sum(
+    cs_lnum_t                                  n,
+    std::initializer_list<cs_event_ref> const &sync_events,
+    T                                         &sum,
+    F                                        &&f,
+    Args &&...args)
   {
     cs_task new_task(initializer_context);
     new_task.add_dependency(sync_events);
     new_task.get_context().parallel_for_reduce_sum(n,
-                            sum,
-                            std::forward<F>(f),
-                            std::forward<Args>(args)...);
+                                                   sum,
+                                                   std::forward<F>(f),
+                                                   std::forward<Args>(args)...);
     return new_task;
   }
 
@@ -312,11 +389,11 @@ public:
 
   template <class T, class R, class F, class... Args>
   cs_task
-  parallel_for_reduce(cs_lnum_t                              n,
-                      std::initializer_list<cs_event> const &sync_events,
-                      T                                     &r,
-                      R                                     &reducer,
-                      F                                    &&f,
+  parallel_for_reduce(cs_lnum_t                                  n,
+                      std::initializer_list<cs_event_ref> const &sync_events,
+                      T                                         &r,
+                      R                                         &reducer,
+                      F                                        &&f,
                       Args &&...args)
   {
     cs_task new_task(initializer_context);
@@ -331,8 +408,8 @@ public:
 
   template <class FunctionType, class... Args>
   cs_host_task<FunctionType, std::remove_reference_t<Args>...>
-  single_task(std::initializer_list<cs_event> const &sync_events,
-              FunctionType                         &&host_function,
+  single_task(std::initializer_list<cs_event_ref> const &sync_events,
+              FunctionType                             &&host_function,
               Args &&...args)
   {
     cs_host_task<FunctionType, std::remove_reference_t<Args>...> single_task(
@@ -353,6 +430,7 @@ public:
       std::move(host_function),
       initializer_context);
     single_task.launch(std::forward<Args>(args)...);
+
     return single_task;
   }
 };
@@ -362,7 +440,8 @@ inline void
 foo()
 {
   // Inspired by:
-  // https://enccs.github.io/sycl-workshop/task-graphs-synchronization/#how-to-specify-dependencies
+  //
+https://enccs.github.io/sycl-workshop/task-graphs-synchronization/#how-to-specify-dependencies
 
   cs_dispatch_queue     Q;
   constexpr std::size_t N = 16 * 1024 * 1024;
