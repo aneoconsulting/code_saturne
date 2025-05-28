@@ -26,9 +26,11 @@
 
 #include "base/cs_defs.h"
 
+#include "base/cs_mem.h"
 #include "math.h"
 #include "stdlib.h"
 
+#include <chrono>
 #include <climits>
 #include <iostream>
 
@@ -108,8 +110,6 @@ _cs_dispatch_test(void)
 {
   const cs_lnum_t n = 100, n_sum = 100;
 
-  // cs_dispatch_context ctx(cs_device_context(), {});
-  //  cs_dispatch_context ctx;
   cs_dispatch_queue queue;
 
   cs_alloc_mode_t amode = CS_ALLOC_HOST_DEVICE_SHARED;
@@ -245,6 +245,56 @@ _cs_dispatch_test(void)
   CS_FREE_HD(a1);
 }
 
+inline void
+foo()
+{
+  // Inspired by:
+  // https://enccs.github.io/sycl-workshop/task-graphs-synchronization/#how-to-specify-dependencies
+
+  cs_dispatch_queue     Q;
+  Q.initializer_context.set_use_gpu(true);
+
+  constexpr std::size_t N = 16 * 1024 * 1024;
+  int                  *a, *b;
+
+  CS_MALLOC_HD(a, N, int, CS_ALLOC_HOST_DEVICE_SHARED);
+  CS_MALLOC_HD(b, N, int, CS_ALLOC_DEVICE);
+
+  {
+    // Task A
+    auto task_a =
+      Q.parallel_for(N, [=] CS_F_HOST_DEVICE(std::size_t id) { a[id] = 1; });
+
+    // Task B
+    auto task_b =
+      Q.parallel_for(N, [=] CS_F_HOST_DEVICE(std::size_t id) { b[id] = 2; });
+
+    // Task C
+    auto task_c =
+      Q.parallel_for(N,
+                     { task_a, task_b },
+                     [=] CS_F_HOST_DEVICE(std::size_t id) { a[id] += b[id]; });
+
+    // Task D
+    int  value  = 3;
+    auto task_d = Q.single_task(
+      { task_c },
+      [=](int *data) -> void {
+        for (int i = 1; i < N; i++) {
+          data[0] += data[i];
+        }
+
+        data[0] /= value;
+      },
+      a);
+
+    task_d.wait();
+  }
+
+  CS_FREE_HD(a);
+  CS_FREE_HD(b);
+}
+
 /*----------------------------------------------------------------------------*/
 
 int
@@ -268,6 +318,8 @@ main(int argc, char *argv[])
 #endif
 
   _cs_dispatch_test();
+
+  foo();
 
   exit(EXIT_SUCCESS);
 }
