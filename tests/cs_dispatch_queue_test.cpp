@@ -246,12 +246,12 @@ _cs_dispatch_test(void)
 }
 
 inline void
-foo()
+_cs_sycl_like_example()
 {
   // Inspired by:
   // https://enccs.github.io/sycl-workshop/task-graphs-synchronization/#how-to-specify-dependencies
 
-  cs_dispatch_queue     Q;
+  cs_dispatch_queue Q;
   Q.initializer_context.set_use_gpu(true);
 
   constexpr std::size_t N = 16 * 1024 * 1024;
@@ -319,7 +319,7 @@ main(int argc, char *argv[])
 
   _cs_dispatch_test();
 
-  foo();
+  _cs_sycl_like_example();
 
   exit(EXIT_SUCCESS);
 }
