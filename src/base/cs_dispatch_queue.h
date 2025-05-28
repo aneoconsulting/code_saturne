@@ -3,9 +3,8 @@
 #include "base/cs_dispatch.h"
 
 #include <type_traits>
-#include <vector>
 
-//! Forces synchronous execution of tasks
+//! Forces synchronous execution of tasks, even on GPU.
 #ifndef CS_DISPATCH_QUEUE_FORCE_SYNC
 #define CS_DISPATCH_QUEUE_FORCE_SYNC 0
 #endif
@@ -14,9 +13,9 @@
 #include <cuda.h>
 #include <cuda_runtime.h>
 #else
-#include <chrono>
 #endif
 
+#include <chrono>
 #include <initializer_list>
 #include <string_view>
 #include <tuple>
@@ -25,60 +24,115 @@
 struct cs_event;
 struct cs_task;
 
+//! Time measurement unit for cs_event
+using cs_event_time = std::chrono::microseconds;
+
 //! Represents an event to synchronize with. Often the end of a cs_device_task.
-#if defined(__CUDACC__)
 struct cs_event {
-  cudaEvent_t cuda_event;
+  using underlying_type =
+#if defined(__CUDACC__)
+    cudaEvent_t;
+#else
+    std::chrono::time_point<cs_event_time>;
+#endif
+
+  underlying_type event_impl;
 
   // Cosntruction/Destruction
 
-  cs_event() { cudaEventCreate(&cuda_event); }
+  cs_event()
+  {
+#if defined(__CUDACC__)
+    cudaEventCreate(&event_impl);
+#endif
+  }
 
   cs_event(cs_event const &other) = delete;
   cs_event &
   operator=(cs_event const &) = delete;
 
   cs_event(cs_event &&other)
+#if defined(__CUDACC__)
   {
-    cuda_event       = other.cuda_event;
-    other.cuda_event = nullptr;
+    event_impl       = other.event_impl;
+    other.event_impl = nullptr;
   }
+#else
+    = default;
+#endif
 
   cs_event &
   operator=(cs_event &&other)
+#if defined(__CUDACC__)
   {
-    if (cuda_event != nullptr) {
-      cudaEventDestroy(cuda_event);
+    if (event_impl != nullptr) {
+      cudaEventDestroy(event_impl);
     }
 
-    cuda_event       = other.cuda_event;
-    other.cuda_event = nullptr;
+    event_impl       = other.event_impl;
+    other.event_impl = nullptr;
 
     return *this;
   }
+#else
+    = default;
+#endif
+
+  //! Returns the underlying implementation
+  underlying_type &
+  operator~()
+  {
+    return event_impl;
+  }
 
   ~cs_event()
+#if defined(__CUDACC__)
   {
-    if (cuda_event != nullptr) {
-      cudaEventDestroy(cuda_event);
+    if (event_impl != nullptr) {
+      cudaEventDestroy(event_impl);
     }
   }
+#else
+    = default;
+#endif
 
   // Actions
 
   void
   wait()
   {
-    cudaEventSynchronize(cuda_event);
+#if defined(__CUDACC__)
+    cudaEventSynchronize(event_impl);
+#endif
   }
 };
 
+//! cs_event_ref is a non-owning pointer acting as a reference to a cs_event.
 struct cs_event_ref {
   cs_event *event_ptr;
 
   cs_event_ref(cs_event &event) : event_ptr(&event) {}
 
   cs_event_ref() = delete;
+
+  cs_event *
+  operator->()
+  {
+    return event_ptr;
+  }
+
+  cs_event &
+  operator*()
+  {
+    return *event_ptr;
+  }
+
+  //! Dereferences the underlying
+  decltype(auto)
+  operator~()
+  {
+    return ~(*event_ptr);
+  }
 
   cs_event_ref(cs_event_ref &&other)      = default;
   cs_event_ref(cs_event_ref const &other) = default;
@@ -87,7 +141,6 @@ struct cs_event_ref {
   cs_event_ref &
   operator=(cs_event_ref const &) & = default;
 };
-#endif
 
 //! A cs_task_t object represents a task that can be syncronized to and with.
 //! It holds a cs_dispatch_context with a unique CUDA stream and CUDA events can
@@ -116,13 +169,14 @@ public:
   cs_task(cs_dispatch_context context = {}, std::string_view location = {})
     : context_(std::move(context))
   {
-#if defined(__CUDACC__) && CS_DISPATCH_QUEUE_FORCE_SYNC == 0
+#if defined(__CUDACC__)
     cudaStream_t new_stream;
     cudaStreamCreate(&new_stream);
     context_.set_cuda_stream(new_stream);
+    cudaEventRecord(~start_event, context_.cuda_stream());
+#else
+    ~start_event = std::chrono::steady_clock::now();
 #endif
-
-    cudaEventRecord(start_event.cuda_event, context_.cuda_stream());
   }
 
   //! Adds an event to wait for
@@ -130,7 +184,7 @@ public:
   add_dependency(cs_event_ref event)
   {
 #if defined(__CUDACC__)
-    cudaStreamWaitEvent(context_.cuda_stream(), event.event_ptr->cuda_event);
+    cudaStreamWaitEvent(context_.cuda_stream(), ~event);
 #endif
   }
 
@@ -150,23 +204,23 @@ public:
   void
   wait()
   {
-    record_event().event_ptr->wait();
+    end_event.wait();
   }
 
-  //! Records an event from the task.
+  //! Records an event from the task and returns a cs_event_ref to it.
   cs_event_ref
-  record_event()
+  record_end_event()
   {
 #if defined(__CUDACC__)
-    cudaEventRecord(end_event.cuda_event, context_.cuda_stream());
+    cudaEventRecord(~end_event, context_.cuda_stream());
 #else
-    return { std::chrono::steady_clock::now() };
+    ~end_event = std::chrono::steady_clock::now();
 #endif
     return { end_event };
   }
 
   //! Calls record_event() to implicitely convert a task to an event.
-  operator cs_event_ref() { return record_event(); }
+  operator cs_event_ref() { return end_event; }
 
   cs_dispatch_context &
   get_context()
@@ -175,7 +229,13 @@ public:
   }
 
   cs_event_ref
-  get_creation_event()
+  get_start_event()
+  {
+    return start_event;
+  }
+
+  cs_event_ref
+  get_end_event()
   {
     return start_event;
   }
@@ -183,7 +243,7 @@ public:
   ~cs_task()
   {
     context_.wait();
-#if defined(__CUDACC__) && CS_DISPATCH_QUEUE_FORCE_SYNC == 0
+#if defined(__CUDACC__)
     cudaStreamDestroy(context_.cuda_stream());
 #endif
   }
@@ -203,7 +263,7 @@ public:
 
   //! Tuple type for argument storage.
   using args_tuple_t =
-#if defined(__CUDACC__) && CS_DISPATCH_QUEUE_FORCE_SYNC == 0
+#if defined(__CUDACC__)
     std::tuple<Args...>;
 #else
     void;
@@ -232,7 +292,7 @@ public:
   cudaError_t
   launch(Args... args)
   {
-#if defined(__CUDACC__) && CS_DISPATCH_QUEUE_FORCE_SYNC == 0
+#if defined(__CUDACC__)
     // Setting the arguments
     std::get<1>(data_tuple_) = args_tuple_t{ std::move(args)... };
 
@@ -274,6 +334,7 @@ public:
     new_task.get_context().parallel_for(n,
                                         std::forward<F>(f),
                                         std::forward<Args>(args)...);
+    new_task.record_end_event();
     return new_task;
   }
 
@@ -289,6 +350,7 @@ public:
     new_task.get_context().parallel_for(n,
                                         std::forward<F>(f),
                                         std::forward<Args>(args)...);
+    new_task.record_end_event();
     return new_task;
   }
 
@@ -300,6 +362,7 @@ public:
     new_task.get_context().parallel_for_i_faces(m,
                                                 std::forward<F>(f),
                                                 std::forward<Args>(args)...);
+    new_task.record_end_event();
     return new_task;
   }
 
@@ -315,6 +378,7 @@ public:
     new_task.get_context().parallel_for_i_faces(m,
                                                 std::forward<F>(f),
                                                 std::forward<Args>(args)...);
+    new_task.record_end_event();
     return new_task;
   }
 
@@ -326,6 +390,7 @@ public:
     new_task.get_context().parallel_for_b_faces(m,
                                                 std::forward<F>(f),
                                                 std::forward<Args>(args)...);
+    new_task.record_end_event();
     return new_task;
   }
 
@@ -341,6 +406,7 @@ public:
     new_task.get_context().parallel_for_b_faces(m,
                                                 std::forward<F>(f),
                                                 std::forward<Args>(args)...);
+    new_task.record_end_event();
     return new_task;
   }
 
@@ -353,6 +419,7 @@ public:
                                                    sum,
                                                    std::forward<F>(f),
                                                    std::forward<Args>(args)...);
+    new_task.record_end_event();
     return new_task;
   }
 
@@ -371,6 +438,7 @@ public:
                                                    sum,
                                                    std::forward<F>(f),
                                                    std::forward<Args>(args)...);
+    new_task.record_end_event();
     return new_task;
   }
 
@@ -384,6 +452,7 @@ public:
                                                reducer,
                                                std::forward<F>(f),
                                                std::forward<Args>(args)...);
+    new_task.record_end_event();
     return new_task;
   }
 
@@ -403,6 +472,7 @@ public:
                                                reducer,
                                                std::forward<F>(f),
                                                std::forward<Args>(args)...);
+    new_task.record_end_event();
     return new_task;
   }
 
@@ -412,76 +482,48 @@ public:
               FunctionType                             &&host_function,
               Args &&...args)
   {
-    cs_host_task<FunctionType, std::remove_reference_t<Args>...> single_task(
+    cs_host_task<FunctionType, std::remove_reference_t<Args>...> new_task(
       std::move(host_function),
       initializer_context);
 
-    single_task.add_dependency(sync_events);
-    single_task.launch(std::forward<Args>(args)...);
-
-    return single_task;
+    new_task.add_dependency(sync_events);
+    new_task.launch(std::forward<Args>(args)...);
+    new_task.record_end_event();
+    return new_task;
   }
 
   template <class FunctionType, class... Args>
   cs_host_task<FunctionType, std::remove_reference_t<Args>...>
   single_task(FunctionType &&host_function, Args &&...args)
   {
-    cs_host_task<FunctionType, std::remove_reference_t<Args>...> single_task(
+    cs_host_task<FunctionType, std::remove_reference_t<Args>...> new_task(
       std::move(host_function),
       initializer_context);
-    single_task.launch(std::forward<Args>(args)...);
-
-    return single_task;
+    new_task.launch(std::forward<Args>(args)...);
+    new_task.record_end_event();
+    return new_task;
   }
 };
 
-/*
-inline void
-foo()
+inline cs_event_time
+cs_elapsed_time(cs_event_ref start, cs_event_ref end)
 {
-  // Inspired by:
-  //
-https://enccs.github.io/sycl-workshop/task-graphs-synchronization/#how-to-specify-dependencies
+  start->wait();
+  end->wait();
 
-  cs_dispatch_queue     Q;
-  constexpr std::size_t N = 16 * 1024 * 1024;
-  int                  *a, *b;
+#if defined(__CUDACC__)
+  // cudaEventElapsedTime_v2 gives a time in milliseconds
+  // with a resolution of 0.5 microseconds
+  float result_ms;
+  cudaEventElapsedTime_v2(&result_ms, ~start, ~end);
+  return std::chrono::microseconds{ long(result_ms * 1000.f) };
+#else
+  return ~end - ~start;
+#endif
+}
 
-  CS_MALLOC_HD(a, N, int, CS_ALLOC_HOST_DEVICE);
-  CS_MALLOC_HD(b, N, int, CS_ALLOC_DEVICE);
-
-  {
-    // Task A
-    auto task_a =
-      Q.parallel_for(N, [=] CS_F_HOST_DEVICE(std::size_t id) { a[id] = 1; });
-
-    // Task B
-    auto task_b =
-      Q.parallel_for(N, [=] CS_F_HOST_DEVICE(std::size_t id) { b[id] = 2; });
-
-    // Task C
-    auto task_c =
-      Q.parallel_for(N,
-                     { task_a, task_b },
-                     [=] CS_F_HOST_DEVICE(std::size_t id) { a[id] += b[id]; });
-
-    // Task D
-    int  value  = 3;
-    auto task_d = Q.single_task(
-      { task_c },
-      [=](int *data) -> void {
-        using std::get;
-        for (int i = 1; i < N; i++) {
-          data[0] += data[i];
-        }
-
-        data[0] /= value;
-      },
-      a);
-
-    task_d.wait();
-  }
-
-  CS_FREE_HD(a);
-  CS_FREE_HD(b);
-}*/
+inline cs_event_time
+cs_elapsed_time(cs_task &task)
+{
+  return cs_elapsed_time(task.get_start_event(), task.record_end_event());
+}
