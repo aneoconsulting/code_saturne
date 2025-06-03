@@ -30,7 +30,6 @@
 #include "math.h"
 #include "stdlib.h"
 
-#include <chrono>
 #include <climits>
 #include <iostream>
 
@@ -106,7 +105,7 @@ struct cs_reduce_sum1r1i_max1i { // struct: class with only public members
  *----------------------------------------------------------------------------*/
 
 static void
-_cs_dispatch_test(void)
+_cs_dispatch_queue_test(void)
 {
   const cs_lnum_t n = 100, n_sum = 100;
 
@@ -124,62 +123,62 @@ _cs_dispatch_test(void)
   // cs_device_context &d_ctx = static_cast<cs_device_context&>(ctx);
 #endif
 
-  for (int i = 0; i < 3; i++) {
-    if (i == 1) {
+  for (int test_iteration = 0; test_iteration < 3; test_iteration++) {
+    if (test_iteration == 1) {
       queue.initializer_context.set_use_gpu(false);
       queue.initializer_context.set_n_min_per_cpu_thread(20);
     }
-    else if (i == 2) {
+    else if (test_iteration == 2) {
       queue.initializer_context.set_use_gpu(true);
     }
 
-    auto task_0 = queue.parallel_for(n, [=] CS_F_HOST_DEVICE(cs_lnum_t ii) {
-      cs_lnum_t c_id = ii;
+    auto task_0 = queue.parallel_for(n, [=] CS_F_HOST_DEVICE(cs_lnum_t i) {
+      cs_lnum_t c_id = i;
       // Test to show whether we are on GPU or CPU...
 #if defined(__CUDA_ARCH__) || defined(__SYCL_DEVICE_ONLY__)
-      a0[ii] = c_id * 0.1;
+      a0[i] = c_id * 0.1;
 #else
-      a0[ii] = -c_id*0.1;
+      a0[i] = -c_id*0.1;
 #endif
-      a1[ii] = cos(a0[ii]);
+      a1[i] = cos(a0[i]);
     });
 
     // ctx.wait();
 
     auto task_1 = queue.single_task({ task_0 }, [&]() {
-      for (cs_lnum_t ii = 0; ii < n / 10; ii++) {
-        std::cout << ii << " " << a0[ii] << " " << a1[ii] << std::endl;
+      for (cs_lnum_t i = 0; i < n / 10; i++) {
+        std::cout << i << " " << a0[i] << " " << a1[i] << std::endl;
       }
 
-      for (cs_lnum_t ii = 0; ii < n / 10; ii++) {
-        a2[ii][0] = 0;
-        a2[ii][1] = 0;
-        a2[ii][2] = 0;
+      for (cs_lnum_t i = 0; i < n / 10; i++) {
+        a2[i][0] = 0;
+        a2[i][1] = 0;
+        a2[i][2] = 0;
       }
     });
 
     auto task_2 =
-      queue.parallel_for(n, { task_1 }, [=] CS_F_HOST_DEVICE(cs_lnum_t ii) {
+      queue.parallel_for(n, { task_1 }, [=] CS_F_HOST_DEVICE(cs_lnum_t i) {
 #if defined(__CUDA_ARCH__) || defined(__SYCL_DEVICE_ONLY__)
         cs_real_t s[3] = { 0, -1, -2 };
 #else
       cs_real_t s[3] = {0, 1, 2};
 #endif
-        cs_dispatch_sum<3>(a2[ii / 10], s, CS_DISPATCH_SUM_ATOMIC);
+        cs_dispatch_sum<3>(a2[i / 10], s, CS_DISPATCH_SUM_ATOMIC);
       });
 
     cs_real_t pi = cs_math_pi;
 
     double r_sum  = 0;
     auto   task_3 = queue.single_task({ task_2 }, [&]() {
-      for (cs_lnum_t ii = 0; ii < n / 10; ii++) {
-        std::cout << ii << " " << a2[ii][0] << " " << a2[ii][1] << " "
-                  << a2[ii][2] << std::endl;
+      for (cs_lnum_t i = 0; i < n / 10; i++) {
+        std::cout << i << " " << a2[i][0] << " " << a2[i][1] << " " << a2[i][2]
+                  << std::endl;
       }
 
       // reference sum
-      for (cs_lnum_t ii = 0; ii < n_sum; ii++) {
-        cs_real_t x = (ii % 10 - 3) * pi;
+      for (cs_lnum_t i = 0; i < n_sum; i++) {
+        cs_real_t x = (i % 10 - 3) * pi;
         r_sum -= (double)x;
       };
     });
@@ -189,9 +188,9 @@ _cs_dispatch_test(void)
       n_sum,
       { task_3 },
       s1,
-      [=] CS_F_HOST_DEVICE(cs_lnum_t ii,
+      [=] CS_F_HOST_DEVICE(cs_lnum_t i,
                            CS_DISPATCH_REDUCER_TYPE(double) & sum) {
-        cs_real_t x = (ii % 10 - 3) * pi;
+        cs_real_t x = (i % 10 - 3) * pi;
 #if defined(__CUDA_ARCH__) || defined(__SYCL_DEVICE_ONLY__)
         {
           sum += (double)x;
@@ -216,14 +215,14 @@ _cs_dispatch_test(void)
                                 { task_5 },
                                 rd,
                                 reducer,
-                                [=] CS_F_HOST_DEVICE(cs_lnum_t ii,
+                                [=] CS_F_HOST_DEVICE(cs_lnum_t i,
                                                      cs_data_1r_2i & res) {
 #if defined(__CUDA_ARCH__) || defined(__SYCL_DEVICE_ONLY__)
-                                  cs_real_t x = (ii % 10 - 3) * pi;
+                                  cs_real_t x = (i % 10 - 3) * pi;
 #else
-        cs_real_t x = -(ii%10 - 3)*pi;
+        cs_real_t x = -(i%10 - 3)*pi;
 #endif
-                                  cs_lnum_t y = (ii % 10 + 1);
+                                  cs_lnum_t y = (i % 10 + 1);
 
                                   // The following is not allowed with CUDA
                                   // (or needs __host__ __device__ constructor).
@@ -317,7 +316,7 @@ main(int argc, char *argv[])
   cs_omp_target_select_default_device();
 #endif
 
-  _cs_dispatch_test();
+  _cs_dispatch_queue_test();
 
   _cs_sycl_like_example();
 
