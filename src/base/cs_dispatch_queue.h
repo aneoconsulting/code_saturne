@@ -17,15 +17,11 @@
 
 #include <chrono>
 #include <initializer_list>
-#include <string_view>
 #include <tuple>
 #include <utility>
 
 struct cs_event;
 struct cs_task;
-
-//! Time measurement unit for cs_event
-using cs_event_time = std::chrono::microseconds;
 
 //! Represents an event to synchronize with. Often the end of a cs_device_task.
 struct cs_event {
@@ -33,7 +29,7 @@ struct cs_event {
 #if defined(__CUDACC__)
     cudaEvent_t;
 #else
-    std::chrono::time_point<cs_event_time>;
+    std::chrono::steady_clock::time_point;
 #endif
 
   underlying_type event_impl;
@@ -107,32 +103,16 @@ struct cs_event {
   }
 };
 
-//! cs_event_ref is a non-owning pointer acting as a reference to a cs_event.
-struct cs_event_ref {
+//! cs_event_ref is a reference wrapper to a cs_event.
+class cs_event_ref {
   cs_event *event_ptr;
+
+public:
+  using underlying_type = typename cs_event::underlying_type;
 
   cs_event_ref(cs_event &event) : event_ptr(&event) {}
 
   cs_event_ref() = delete;
-
-  cs_event *
-  operator->()
-  {
-    return event_ptr;
-  }
-
-  cs_event &
-  operator*()
-  {
-    return *event_ptr;
-  }
-
-  //! Dereferences the underlying
-  decltype(auto)
-  operator~()
-  {
-    return ~(*event_ptr);
-  }
 
   cs_event_ref(cs_event_ref &&other)      = default;
   cs_event_ref(cs_event_ref const &other) = default;
@@ -140,6 +120,28 @@ struct cs_event_ref {
   operator=(cs_event_ref &&) & = default;
   cs_event_ref &
   operator=(cs_event_ref const &) & = default;
+
+  //! Arrow operator to access members of the pointed event.
+  cs_event *
+  operator->()
+  {
+    return event_ptr;
+  }
+
+  //! Dereference operator to access the pointed event.
+  cs_event &
+  operator*()
+  {
+    return *event_ptr;
+  }
+
+  //! Dereference operator to access the underlying implementation
+  //! of the pointed event.
+  underlying_type &
+  operator~()
+  {
+    return ~(*event_ptr);
+  }
 };
 
 //! A cs_task_t object represents a task that can be syncronized to and with.
@@ -166,8 +168,7 @@ public:
   operator=(cs_task &&) = default;
 
   //! Creates a new task with a given context and initializes a new stream.
-  cs_task(cs_dispatch_context context = {}, std::string_view location = {})
-    : context_(std::move(context))
+  cs_task(cs_dispatch_context context = {}) : context_(std::move(context))
   {
 #if defined(__CUDACC__)
     cudaStream_t new_stream;
@@ -222,18 +223,21 @@ public:
   //! Calls record_event() to implicitely convert a task to an event.
   operator cs_event_ref() { return end_event; }
 
+  //! Returns a reference to the context.
   cs_dispatch_context &
   get_context()
   {
     return context_;
   }
 
+  //! Returns a reference to the start event.
   cs_event_ref
   get_start_event()
   {
     return start_event;
   }
 
+  //! Returns a reference to the end event.
   cs_event_ref
   get_end_event()
   {
@@ -262,16 +266,16 @@ public:
   operator=(cs_host_task &&) = default;
 
   //! Tuple type for argument storage.
-  using args_tuple_t =
-#if defined(__CUDACC__)
-    std::tuple<Args...>;
-#else
-    void;
-#endif
+  using args_tuple_t = std::tuple<Args...>;
 
   //! Tuple type for function (possibly a lambda with captures)
   //! and argument storage.
-  using data_tuple_t = std::tuple<FunctionType, args_tuple_t>;
+  using data_tuple_t =
+#if defined(__CUDACC__)
+    std::tuple<FunctionType, args_tuple_t>;
+#else
+    std::tuple<FunctionType>;
+#endif
 
 private:
   //! Tuple that contains the function (possibly a lambda with captures)
@@ -283,29 +287,46 @@ public:
   //! The function must be launched using the launch method.
   cs_host_task(FunctionType &&function, cs_dispatch_context context)
     : cs_task(std::move(context)),
+
+#if defined(__CUDACC__)
       data_tuple_(std::move(function), args_tuple_t{})
+#else
+      data_tuple_(std::move(function))
+#endif
   {
   }
 
   //! Launches the host function asynchronously using the given parameters
   //! with cudaLaunchHostFunc.
+#if defined(__CUDACC__)
   cudaError_t
+#else
+  void
+#endif
   launch(Args... args)
   {
 #if defined(__CUDACC__)
-    // Setting the arguments
-    std::get<1>(data_tuple_) = args_tuple_t{ std::move(args)... };
+    if (this->get_context().use_gpu()) {
+      // Setting the arguments
+      std::get<1>(data_tuple_) = args_tuple_t{ std::move(args)... };
 
-    // Async launch on the task's own stream
-    return cudaLaunchHostFunc(
-      get_context().cuda_stream(),
-      // Wrapper lambda: unwraps the parameter passed as a void* pointer
-      // to invoke the host function
-      [](void *data_tuple_ptr) -> void {
-        auto &[f, args_tuple] = *(data_tuple_t *)(data_tuple_ptr);
-        std::apply(f, args_tuple);
-      },
-      &data_tuple_);
+      // Async launch on the task's own stream
+      return cudaLaunchHostFunc(
+        get_context().cuda_stream(),
+        // Wrapper lambda: unwraps the parameter passed as a void* pointer
+        // to invoke the host function
+        [](void *data_tuple_ptr) -> void {
+          auto &[f, args_tuple] = *(data_tuple_t *)(data_tuple_ptr);
+          std::apply(f, args_tuple);
+        },
+        &data_tuple_);
+    }
+    else {
+      this->record_end_event();
+      this->wait();
+      std::get<0>(data_tuple_)(args...);
+      return cudaSuccess;
+    }
 #else
     std::get<0>(data_tuple_)(args...);
 #endif
@@ -313,8 +334,8 @@ public:
 
   ~cs_host_task()
   {
-    // We must wait host task termination to avoid data_tuple_ to be destroyed
-    // before the task is executed
+    // We must wait host task termination to avoid data_tuple_
+    // to be unstacked before the task is executed
     wait();
   }
 };
@@ -485,7 +506,6 @@ public:
     cs_host_task<FunctionType, std::remove_reference_t<Args>...> new_task(
       std::move(host_function),
       initializer_context);
-
     new_task.add_dependency(sync_events);
     new_task.launch(std::forward<Args>(args)...);
     new_task.record_end_event();
@@ -505,7 +525,18 @@ public:
   }
 };
 
-inline cs_event_time
+//! Duration type for elapsed time between two events
+using cs_event_duration =
+#if defined(__CUDACC__)
+  // cudaEventElapsedTime_v2 gives a time in milliseconds
+  // with a resolution of around 0.5 microseconds
+  std::chrono::microseconds;
+#else
+  std::chrono::steady_clock::duration;
+#endif
+
+//! Returns elapsed time between two events.
+inline cs_event_duration
 cs_elapsed_time(cs_event_ref start, cs_event_ref end)
 {
   start->wait();
@@ -513,17 +544,18 @@ cs_elapsed_time(cs_event_ref start, cs_event_ref end)
 
 #if defined(__CUDACC__)
   // cudaEventElapsedTime_v2 gives a time in milliseconds
-  // with a resolution of 0.5 microseconds
+  // with a resolution of around 0.5 microseconds
   float result_ms;
   cudaEventElapsedTime_v2(&result_ms, ~start, ~end);
-  return std::chrono::microseconds{ long(result_ms * 1000.f) };
+  return cs_event_duration{ long(result_ms * 1000.f) };
 #else
   return ~end - ~start;
 #endif
 }
 
-inline cs_event_time
+//! Returns elapsed time between the start and the end of a task.
+inline cs_event_duration
 cs_elapsed_time(cs_task &task)
 {
-  return cs_elapsed_time(task.get_start_event(), task.record_end_event());
+  return cs_elapsed_time(task.get_start_event(), task.get_end_event());
 }
