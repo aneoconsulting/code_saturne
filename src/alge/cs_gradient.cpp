@@ -2514,7 +2514,7 @@ _lsq_scalar_gradient(const cs_mesh_t                *m,
 
   if (recompute_cocg) {
     cs_dispatch_context ctx;
-    ctx.set_use_gpu(false);
+    ctx.set_use_gpu(true);
     _recompute_lsq_scalar_cocg(m,
                                fvq,
                                bc_coeffs,
@@ -2985,7 +2985,7 @@ _lsq_scalar_gradient_hyd_p(const cs_mesh_t                *m,
 
   /* Contribution from boundary faces */
 
-  ctx_b.set_use_gpu(false);
+  ctx_b.set_use_gpu(true);
   ctx_b.parallel_for_b_faces(m, [=] CS_F_HOST_DEVICE (cs_lnum_t  f_id) {
 
     cs_lnum_t ii = b_face_cells[f_id];
@@ -3135,7 +3135,7 @@ _lsq_scalar_gradient_hyd_p_gather(const cs_mesh_t                *m,
   if (c_weight_s != nullptr)
     halo_type = CS_HALO_STANDARD;
 
-  const cs_real_t *coefap = bc_coeffs->a;
+  const cs_real_t *coefap =  bc_coeffs->a;
   const cs_real_t *coefbp = bc_coeffs->b;
 
   const cs_lnum_t n_cells = m->n_cells;
@@ -3225,7 +3225,9 @@ _lsq_scalar_gradient_hyd_p_gather(const cs_mesh_t                *m,
     if (c_weight_s != nullptr) {  /* With cell weighting */
 
       const cs_real_t w_ii = c_weight_s[ii];
-
+      const auto &cell_cen_ii = cell_cen[ii];
+      const auto &f_ext_ii = f_ext[ii];
+      const auto pvar_ii = pvar[ii];
       for (cs_lnum_t i = s_id; i < e_id; i++) {
         const cs_lnum_t jj = c2c[i];
         const cs_lnum_t f_id = c2f[i];
@@ -3238,15 +3240,16 @@ _lsq_scalar_gradient_hyd_p_gather(const cs_mesh_t                *m,
         }
 
         cs_real_t dc[3];
-        for (cs_lnum_t ll = 0; ll < 3; ll++)
-          dc[ll] = cell_cen[jj][ll] - cell_cen[ii][ll];
+        dc[0] = cell_cen[jj][0] - cell_cen_ii[0];
+        dc[1] = cell_cen[jj][1] - cell_cen_ii[1];
+        dc[2] = cell_cen[jj][2] - cell_cen_ii[2];
 
         cs_real_t ddc = 1. / cs_math_3_square_norm(dc);
 
-        cs_real_t pfac =   (  pvar[jj] - pvar[ii]
+        cs_real_t pfac =   (  pvar[jj] - pvar_ii
                             + cs_math_3_distance_dot_product(i_face_cog[f_id],
-                                                             cell_cen[ii],
-                                                             f_ext[ii])
+                                                             cell_cen_ii,
+                                                             f_ext_ii)
                             + poro[0]
                             - cs_math_3_distance_dot_product(i_face_cog[f_id],
                                                              cell_cen[jj],
@@ -3270,6 +3273,9 @@ _lsq_scalar_gradient_hyd_p_gather(const cs_mesh_t                *m,
     }
     else {  /* Without cell weighting */
 
+      const auto &cell_cen_ii = cell_cen[ii];
+      const auto &f_ext_ii = f_ext[ii];
+      const auto pvar_ii = pvar[ii];
       for (cs_lnum_t i = s_id; i < e_id; i++) {
         const cs_lnum_t jj = c2c[i];
         const cs_lnum_t f_id = c2f[i];
