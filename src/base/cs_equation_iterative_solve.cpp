@@ -376,6 +376,8 @@ _equation_iterative_solve_strided(int                   idtvar,
 
   CS_PROFILE_MARK_LINE();
 
+  CS_PROFILE_MARK_LINE();
+
   /* Storing face values for kinetic energy balance and initialize them */
   if (CS_F_(vel) != nullptr && CS_F_(vel)->id == f_id) {
     CS_PROFILE_MARK_LINE();
