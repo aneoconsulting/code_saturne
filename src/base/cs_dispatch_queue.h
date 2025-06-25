@@ -244,6 +244,7 @@ public:
     return start_event;
   }
 
+  //! Waits for task termination and destroys the associated CUDA stream.
   ~cs_task()
   {
     context_.wait();
@@ -332,6 +333,7 @@ public:
 #endif
   }
 
+  //! Waits for task termination.
   ~cs_host_task()
   {
     // We must wait host task termination to avoid data_tuple_
@@ -497,6 +499,8 @@ public:
     return new_task;
   }
 
+  //! Initiates a single thread task that runs on the host.
+  //! This variant accepts sync_events to synchronize with other tasks.
   template <class FunctionType, class... Args>
   cs_host_task<FunctionType, std::remove_reference_t<Args>...>
   single_task(std::initializer_list<cs_event_ref> const &sync_events,
@@ -512,6 +516,7 @@ public:
     return new_task;
   }
 
+  //! Initiates a single thread task that runs on the host.
   template <class FunctionType, class... Args>
   cs_host_task<FunctionType, std::remove_reference_t<Args>...>
   single_task(FunctionType &&host_function, Args &&...args)
