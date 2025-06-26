@@ -494,12 +494,36 @@ public:
    All arguments *must* be passed by value to avoid passing CPU references
    to the GPU. */
 
-template <class F, class... Args>
-__global__ void cs_cuda_kernel_parallel_for(cs_lnum_t n, F f, Args... args) {
+template <class F, class... Args, std::size_t... IDs>
+inline CS_F_HOST_DEVICE void
+_unroll_impl(F f, Args... args, std::index_sequence<IDs...>)
+{
+  (f(args..., std::integral_constant<std::size_t, IDs>{}), ...);
+}
+
+template <std::size_t UnrollFactor = 1, class F, class... Args>
+inline CS_F_HOST_DEVICE void
+unroll(F f, Args... args)
+{
+  _unroll_impl(f, args..., std::make_index_sequence<UnrollFactor>{});
+}
+
+template <std::size_t UnrollFactor = 1, class F, class... Args>
+__global__ void
+cs_cuda_kernel_parallel_for(cs_lnum_t n, F f, Args... args)
+{
   // grid_size-stride loop
-  for (cs_lnum_t id = blockIdx.x * blockDim.x + threadIdx.x; id < n;
-       id += blockDim.x * gridDim.x) {
-    f(id, args...);
+  cs_lnum_t const elements_per_block     = blockDim.x * UnrollFactor;
+  cs_lnum_t const elements_per_iteration = gridDim.x * elements_per_block;
+
+  for (cs_lnum_t loop_id = blockIdx.x * elements_per_block + threadIdx.x;
+       loop_id < n;
+       loop_id += elements_per_iteration) {
+    unroll(
+      [&](auto UnrollIndex, auto... args) {
+        f(loop_id + UnrollIndex() * blockDim.x, args...);
+      },
+      args...);
   }
 }
 
@@ -735,7 +759,7 @@ public:
 public:
 
   //! Try to launch on the GPU and return false if not available
-  template <class F, class... Args>
+  template <std::size_t UnrollFactor=1, class F, class... Args>
   bool
   parallel_for(cs_lnum_t n, F&& f, Args&&... args) {
     if (device_ < 0 || use_gpu_ == false) {
@@ -748,14 +772,14 @@ public:
     }
 
     if (n > 0)
-      cs_cuda_kernel_parallel_for<<<l_grid_size, block_size_, 0, stream_>>>
+      cs_cuda_kernel_parallel_for<UnrollFactor><<<l_grid_size, block_size_, 0, stream_>>>
         (n, static_cast<F&&>(f), static_cast<Args&&>(args)...);
 
     return true;
   }
 
   //! Try to launch on the GPU and return false if not available
-  template <class M, class F, class... Args>
+  template <std::size_t UnrollFactor=1,class M, class F, class... Args>
   bool
   parallel_for_i_faces(const M* m, F&& f, Args&&... args) {
     const cs_lnum_t n = m->n_i_faces;
@@ -769,7 +793,7 @@ public:
     }
 
     if (n > 0)
-      cs_cuda_kernel_parallel_for<<<l_grid_size, block_size_, 0, stream_>>>
+      cs_cuda_kernel_parallel_for<UnrollFactor><<<l_grid_size, block_size_, 0, stream_>>>
         (n, static_cast<F&&>(f), static_cast<Args&&>(args)...);
 
     return true;
