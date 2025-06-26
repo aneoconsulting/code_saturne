@@ -8,10 +8,10 @@ SHELL=/bin/bash
 
 if [ -e /opt/nvidia/nsight-systems/2024.7.1/target-linux-x64/nvtx/include/ ]; then
   echo "Configuring NVTX for Rocky..."
-  COMPILE_FLAGS+="-I /opt/nvidia/nsight-systems/2024.7.1/target-linux-x64/nvtx/include/ "
+  export CPATH="/opt/nvidia/nsight-systems/2024.7.1/target-linux-x64/nvtx/include/:$CPATH"
 elif [ -e /opt/cuda/nsight_systems/target-linux-x64/nvtx/include/ ]; then
   echo "Configuring NVTX for Arch..."
-  COMPILE_FLAGS+="-I /opt/cuda/nsight_systems/target-linux-x64/nvtx/include/ "
+  export CPATH="/opt/cuda/nsight_systems/target-linux-x64/nvtx/include/:$CPATH"
 else
   echo "Warning: no NVTX configuration was detected."
 fi
@@ -50,6 +50,7 @@ SATURNE_CASES_DIR=$PROJECT_DIR/saturne-open-cases
 PROFILER_OUTPUT_DIR=$PROJECT_DIR/profiler-output
 
 NPROC=$(nproc --all)
+MAKE_CMD="make -j$NPROC"
 
 function build_config () {
   BUILD_DIR=$PROJECT_DIR/build/$1
@@ -91,10 +92,11 @@ function build_config () {
 #     --with-mpi-include=/usr/local/openmpi/include/
 
   if [ -e $PROJECT_DIR/compile_commands.json -o \( ! -e /usr/bin/bear \) ]; then
-    make -j$NPROC
+    $MAKE_CMD
   else
     echo "Generating compile_commands using bear..."
-    bear --output $PROJECT_DIR/compile_commands.json -- make -j$NPROC
+    bear --output $PROJECT_DIR/compile_commands.json -- $MAKE_CMD
+    bear --append $PROJECT_DIR/compile_commands.json -- $MAKE_CMD check
   fi
 
   make install
@@ -103,42 +105,40 @@ function build_config () {
 # Profiling
 
 function prepare_cases () {
-  sudo rm -rf $SATURNE_CASES_DIR
+  rm -rf $SATURNE_CASES_DIR
   git clone git@github.com:code-saturne/saturne-open-cases.git $SATURNE_CASES_DIR
 }
 
 function profile_for_config () {
-
-#   PROFILER_CMD+="nsys profile "
-#   PROFILER_CMD+="-t cuda,nvtx --cuda-memory-usage=true "
-#   PROFILER_CMD+="-b dwarf --cudabacktrace=all --cuda-um-gpu-page-faults=true "
-#   PROFILER_CMD+="-o $PROFILER_OUTPUT_DIR/$1-$2.nsys-rep --force-overwrite=true "
-
   CS_EXEC=$PROJECT_DIR/install/$1/bin/code_saturne
-  NCU_PATH=$(which ncu)
   SATURNE_WORKDIR=$SATURNE_CASES_DIR/BUNDLE/$2
 
   cd $SATURNE_WORKDIR
 
-  # Using systemd-run to grant CAP_SYS_ADMIN capability to the process
-#   PROFILER_CMD+="systemd-run --uid=jpenuchot --gid=jpenuchot -d -t "
-#   PROFILER_CMD+="-p CapabilityBoundingSet=CAP_SYS_ADMIN "
-#   PROFILER_CMD+="-p PassEnvironment=\"PATH CUDA_PATH LD_LIBRARY_PATH CFLAGS CXXFLAGS NVCCFLAGS\" "
+  # nsys profiler command
+  NSYS_PROF+="nsys profile "
+  NSYS_PROF+="-t cuda,nvtx --cuda-memory-usage=true "
+  NSYS_PROF+="-b dwarf --cudabacktrace=all --cuda-um-gpu-page-faults=true "
+  NSYS_PROF+="-o $PROFILER_OUTPUT_DIR/$1-$2.nsys-rep --force-overwrite=true "
 
-  PROFILER_CMD+="$NCU_PATH -o $PROFILER_OUTPUT_DIR/$1-$2 -f --nvtx "
+  # ncu profiler command (requires admin privileges)
+  NCU_PATH=$(which ncu)
+  NCU_PROF+="sudo -E $NCU_PATH -o $PROFILER_OUTPUT_DIR/$1-$2 -f --nvtx "
+
+  PROF_CMD=$NSYS_PROF
 
   echo
   echo ==========================================
   echo Config profile: $1
   echo Benchmark case: $2
   echo code_saturne executable path: $CS_EXEC
-  echo Profiler command: $PROFILER_CMD
+  echo Profiler command: $PROF_CMD
   echo ==========================================
   echo
 
   mkdir -p $PROFILER_OUTPUT_DIR
-  sudo -E $CS_EXEC up
-  sudo -E $CS_EXEC run --tool-args="$PROFILER_CMD"
+  $CS_EXEC up
+  $CS_EXEC run --tool-args="$PROF_CMD"
 }
 
 function permission_cleanup () {
@@ -150,7 +150,8 @@ function permission_cleanup () {
 build_config dev "" jpenuchot/nccl
 
 # prepare_cases
+
 # profile_for_config dev BENCH_C016_PREPROCESS
 # profile_for_config dev BENCH_C016_01
-#
+
 # permission_cleanup
