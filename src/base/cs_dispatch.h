@@ -771,23 +771,26 @@ public:
   }
 
 public:
-
   //! Try to launch on the GPU and return false if not available
-  template <std::size_t UnrollFactor=1, class F, class... Args>
+  template <std::size_t UnrollFactor = 1, class F, class... Args>
   bool
-  parallel_for(cs_lnum_t n, F&& f, Args&&... args) {
+  parallel_for(cs_lnum_t n, F &&f, Args &&...args)
+  {
     if (device_ < 0 || use_gpu_ == false) {
       return false;
     }
 
     long l_grid_size = grid_size_;
     if (l_grid_size < 1) {
-      l_grid_size = (n % block_size_) ? n/block_size_ + 1 : n/block_size_;
+      l_grid_size = (n % block_size_) ? n / block_size_ + 1 : n / block_size_;
     }
 
     if (n > 0)
-      cs_cuda_kernel_parallel_for<UnrollFactor><<<l_grid_size, block_size_, 0, stream_>>>
-        (n, static_cast<F&&>(f), static_cast<Args&&>(args)...);
+      cs_cuda_kernel_parallel_for<UnrollFactor>
+        <<<l_grid_size, block_size_, 0, stream_>>>(n,
+                                                   static_cast<F &&>(f),
+                                                   static_cast<Args &&>(
+                                                     args)...);
 
     return true;
   }
