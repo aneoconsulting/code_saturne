@@ -80,6 +80,7 @@ m4_ifdef([AM_SILENT_RULES], [AM_SILENT_RULES])
 # Checks for programs.
 #------------------------------------------------------------------------------
 
+
 AC_ARG_WITH(shell-env,
             [AS_HELP_STRING([--with-shell-env],
                             [source given or detected shell environment])],
@@ -135,6 +136,9 @@ fi
 
 # Check for CUDA compiler
 CS_AC_TEST_CUDA
+
+# check for nccl cuda
+CS_CHECK_NCCL
 
 # Needed to use Microsoft archiver lib.exe
 # It copies the ar-lib script, similar to the compile script

@@ -327,3 +327,52 @@ fi
 AM_CONDITIONAL([HAVE_CUDA_CPP], [test "$cs_enable_cuda_cpp" = "yes"])
 
 ])dnl
+
+dnl ============================================================================
+dnl Configuration macro to detect NCCL support (only if CUDA is found)
+AC_DEFUN([CS_CHECK_NCCL], [
+
+  AC_ARG_WITH([nccl],
+    [AS_HELP_STRING([--with-nccl=PATH], [Enable NCCL support (requires CUDA)])],
+    [with_nccl=$withval], [with_nccl=no])
+
+  AC_MSG_CHECKING([whether to enable NCCL])
+  
+  if test "x$with_nccl" != "xno"; then
+    if test "x$with_cuda" = "xno"; then
+      AC_MSG_ERROR([Cannot enable NCCL without CUDA.])
+    fi
+
+    if test "x$with_nccl" = "xyes"; then
+      NCCL_PATH="/usr"
+    else
+      NCCL_PATH="$with_nccl"
+    fi
+
+    save_CPPFLAGS="$CPPFLAGS"
+    save_LDFLAGS="$LDFLAGS"
+    
+    CPPFLAGS="${CUDA_CPPFLAGS} -I${NCCL_PATH}/include"
+    LDFLAGS="$LDFLAGS -L${NCCL_PATH}/lib64 -L${NCCL_PATH}/lib ${CUDA_LDFLAGS}"
+
+    AC_CHECK_HEADER([nccl.h], [have_nccl_h=yes], [have_nccl_h=no])
+    AC_CHECK_LIB([nccl], [ncclCommInitRank], [have_nccl_lib=yes], [have_nccl_lib=no])
+
+    CPPFLAGS="$save_CPPFLAGS"
+    LDFLAGS="$save_LDFLAGS"
+
+    if test "x$have_nccl_h" = "xyes" && test "x$have_nccl_lib" = "xyes"; then
+      AC_DEFINE([HAVE_NCCL], [1], [Define if NCCL support is available])
+      AM_CONDITIONAL([HAVE_NCCL], [true])
+      CS_LIBS_NCCL="-lnccl"
+    else
+      AM_CONDITIONAL([HAVE_NCCL], [false])
+      CS_LIBS_NCCL=""
+    fi
+  else
+    AM_CONDITIONAL([HAVE_NCCL], [false])
+    CS_LIBS_NCCL=""
+  fi
+
+  AC_SUBST([CS_LIBS_NCCL])
+])
