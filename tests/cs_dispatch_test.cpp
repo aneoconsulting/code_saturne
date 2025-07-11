@@ -25,12 +25,14 @@
 /*----------------------------------------------------------------------------*/
 
 #include "base/cs_defs.h"
+#include "base/cs_profiling.h"
 
 #include "math.h"
 #include "stdlib.h"
 
 #include <climits>
 #include <iostream>
+#include <thrust/device_vector.h>
 
 /*----------------------------------------------------------------------------
  *  Header for the current file
@@ -56,7 +58,7 @@
 void
 cs_dispatch_test_cuda(void);
 
-struct cs_data_1r_2i {   // struct: class with only public members
+struct cs_data_1r_2i { // struct: class with only public members
 
   // Members
   cs_real_t r[1];
@@ -73,18 +75,20 @@ struct cs_data_1r_2i {   // struct: class with only public members
 #endif
 };
 
-struct cs_reduce_sum1r1i_max1i {    // struct: class with only public members
+struct cs_reduce_sum1r1i_max1i { // struct: class with only public members
   using T = cs_data_1r_2i;
 
   CS_F_HOST_DEVICE void
-  identity(T &a) const {
-    a.r[0] =  0.;
+  identity(T &a) const
+  {
+    a.r[0] = 0.;
     a.i[0] = 0;
     a.i[1] = -INT_MAX;
   }
 
   CS_F_HOST_DEVICE void
-  combine(volatile T &a, volatile const T &b) const {
+  combine(volatile T &a, volatile const T &b) const
+  {
     a.r[0] += b.r[0];
     a.i[0] += b.i[0];
     a.i[1] = CS_MAX(a.i[1], b.i[1]);
@@ -110,15 +114,15 @@ _cs_dispatch_test(void)
 {
   const cs_lnum_t n = 100, n_sum = 100;
 
-  //cs_dispatch_context ctx(cs_device_context(), {});
+  // cs_dispatch_context ctx(cs_device_context(), {});
   cs_dispatch_context ctx;
 
   cs_alloc_mode_t amode = CS_ALLOC_HOST_DEVICE_SHARED;
-  cs_real_t *a0, *a1;
+  cs_real_t      *a0, *a1;
   CS_MALLOC_HD(a0, n, cs_real_t, amode);
   CS_MALLOC_HD(a1, n, cs_real_t, amode);
   cs_real_3_t *a2;
-  CS_MALLOC_HD(a2, n/10, cs_real_3_t, amode);
+  CS_MALLOC_HD(a2, n / 10, cs_real_3_t, amode);
 
   // cs_host_context &h_ctx = static_cast<cs_host_context&>(ctx);
 #if defined(HAVE_ACCEL)
@@ -126,7 +130,6 @@ _cs_dispatch_test(void)
 #endif
 
   for (int i = 0; i < 3; i++) {
-
     if (i == 1) {
       ctx.set_use_gpu(false);
       ctx.set_n_min_per_cpu_thread(20);
@@ -135,11 +138,11 @@ _cs_dispatch_test(void)
       ctx.set_use_gpu(true);
     }
 
-    ctx.parallel_for(n, [=] CS_F_HOST_DEVICE (cs_lnum_t ii) {
+    ctx.parallel_for(n, [=] CS_F_HOST_DEVICE(cs_lnum_t ii) {
       cs_lnum_t c_id = ii;
       // Test to show whether we are on GPU or CPU...
-#if defined( __CUDA_ARCH__) || defined( __SYCL_DEVICE_ONLY__)
-      a0[ii] = c_id*0.1;
+#if defined(__CUDA_ARCH__) || defined(__SYCL_DEVICE_ONLY__)
+      a0[ii] = c_id * 0.1;
 #else
       a0[ii] = -c_id*0.1;
 #endif
@@ -148,85 +151,90 @@ _cs_dispatch_test(void)
 
     ctx.wait();
 
-    for (cs_lnum_t ii = 0; ii < n/10; ii++) {
+    for (cs_lnum_t ii = 0; ii < n / 10; ii++) {
       std::cout << ii << " " << a0[ii] << " " << a1[ii] << std::endl;
     }
 
-    for (cs_lnum_t ii = 0; ii < n/10; ii++) {
+    for (cs_lnum_t ii = 0; ii < n / 10; ii++) {
       a2[ii][0] = 0;
       a2[ii][1] = 0;
       a2[ii][2] = 0;
     }
 
-    ctx.parallel_for(n, [=] CS_F_HOST_DEVICE (cs_lnum_t ii) {
-#if defined( __CUDA_ARCH__) || defined( __SYCL_DEVICE_ONLY__)
-      cs_real_t s[3] = {0, -1, -2};
+    ctx.parallel_for(n, [=] CS_F_HOST_DEVICE(cs_lnum_t ii) {
+#if defined(__CUDA_ARCH__) || defined(__SYCL_DEVICE_ONLY__)
+      cs_real_t s[3] = { 0, -1, -2 };
 #else
       cs_real_t s[3] = {0, 1, 2};
 #endif
 
-      cs_dispatch_sum<3>(a2[ii/10], s, CS_DISPATCH_SUM_ATOMIC);
+      cs_dispatch_sum<3>(a2[ii / 10], s, CS_DISPATCH_SUM_ATOMIC);
     });
 
     ctx.wait();
 
     cs_real_t pi = cs_math_pi;
 
-    for (cs_lnum_t ii = 0; ii < n/10; ii++) {
-      std::cout << ii << " " << a2[ii][0]
-                      << " " << a2[ii][1]
-                      << " " << a2[ii][2] << std::endl;
+    for (cs_lnum_t ii = 0; ii < n / 10; ii++) {
+      std::cout << ii << " " << a2[ii][0] << " " << a2[ii][1] << " "
+                << a2[ii][2] << std::endl;
     }
 
     // reference sum
     double r_sum = 0;
     for (cs_lnum_t ii = 0; ii < n_sum; ii++) {
-      cs_real_t x = (ii%10 - 3)*pi;
+      cs_real_t x = (ii % 10 - 3) * pi;
       r_sum -= (double)x;
     };
 
     double s1 = 0;
-    ctx.parallel_for_reduce_sum
-      (n_sum, s1, [=] CS_F_HOST_DEVICE (cs_lnum_t ii,
-                                        CS_DISPATCH_REDUCER_TYPE(double) &sum) {
-        cs_real_t x = (ii%10 - 3)*pi;
-#if defined( __CUDA_ARCH__) || defined( __SYCL_DEVICE_ONLY__)
-      {sum += (double)x;}
+    ctx.parallel_for_reduce_sum(
+      n_sum,
+      s1,
+      [=] CS_F_HOST_DEVICE(cs_lnum_t ii,
+                           CS_DISPATCH_REDUCER_TYPE(double) & sum) {
+        cs_real_t x = (ii % 10 - 3) * pi;
+#if defined(__CUDA_ARCH__) || defined(__SYCL_DEVICE_ONLY__)
+        {
+          sum += (double)x;
+        }
 #else
-      {sum += -(double)x;}
+        {
+          sum += -(double)x;
+        }
 #endif
-    });
-
-    ctx.wait();
-
-    std::cout << "reduction (sum) " << s1 << " (ref " << r_sum << ")" \
-              << std::endl;
-
-    struct cs_data_1r_2i rd;
-    struct cs_reduce_sum1r1i_max1i reducer;
-
-    ctx.parallel_for_reduce
-      (n_sum, rd, reducer,
-       [=] CS_F_HOST_DEVICE (cs_lnum_t ii, cs_data_1r_2i &res)
-      {
-#if defined( __CUDA_ARCH__) || defined( __SYCL_DEVICE_ONLY__)
-        cs_real_t x = (ii%10 - 3)*pi;
-#else
-        cs_real_t x = -(ii%10 - 3)*pi;
-#endif
-        cs_lnum_t y = (ii%10 + 1);
-
-        // The following is not allowed with CUDA
-        // (or needs __host__ __device__ constructor).
-        // res = cs_data_1r_2i(x, y, y);
-        res.r[0] = x, res.i[0] = y, res.i[1] = y;
       });
 
     ctx.wait();
 
-    std::cout << "reduction (mixed) " << rd.r[0] << " " \
-              << rd.i[0] << " " << rd.i[1] << std::endl;
+    std::cout << "reduction (sum) " << s1 << " (ref " << r_sum << ")"
+              << std::endl;
 
+    struct cs_data_1r_2i           rd;
+    struct cs_reduce_sum1r1i_max1i reducer;
+
+    ctx.parallel_for_reduce(n_sum,
+                            rd,
+                            reducer,
+                            [=] CS_F_HOST_DEVICE(cs_lnum_t ii,
+                                                 cs_data_1r_2i & res) {
+#if defined(__CUDA_ARCH__) || defined(__SYCL_DEVICE_ONLY__)
+                              cs_real_t x = (ii % 10 - 3) * pi;
+#else
+        cs_real_t x = -(ii%10 - 3)*pi;
+#endif
+                              cs_lnum_t y = (ii % 10 + 1);
+
+                              // The following is not allowed with CUDA
+                              // (or needs __host__ __device__ constructor).
+                              // res = cs_data_1r_2i(x, y, y);
+                              res.r[0] = x, res.i[0] = y, res.i[1] = y;
+                            });
+
+    ctx.wait();
+
+    std::cout << "reduction (mixed) " << rd.r[0] << " " << rd.i[0] << " "
+              << rd.i[1] << std::endl;
   }
 
 #ifdef __NVCC__
@@ -238,6 +246,28 @@ _cs_dispatch_test(void)
 }
 
 /*----------------------------------------------------------------------------*/
+
+/// Runs several iterations of cs_cuda_kernel_parallel_for
+/// with a given unroll factor
+template <std::size_t UnrollFactor, typename T>
+void
+run_dispatch_unroll(thrust::device_vector<T> &working_vector,
+                    std::size_t               grid_size,
+                    unsigned                  iterations = 16)
+{
+  CS_PROFILE_FUNC_RANGE();
+  for (unsigned iteration_index = 0; iteration_index < iterations;
+       iteration_index++) {
+    cs_cuda_kernel_parallel_for<UnrollFactor><<<grid_size, 512>>>(
+      working_vector.size(),
+      [] __host__ __device__(cs_lnum_t i, T * values_inout) {
+        values_inout[i] = i;
+      },
+      working_vector.data().get());
+
+    cudaDeviceSynchronize();
+  }
+}
 
 int
 main(int argc, char *argv[])
@@ -260,6 +290,39 @@ main(int argc, char *argv[])
 #endif
 
   _cs_dispatch_test();
+
+  // Benchmark code
+
+  std::size_t array_size = 1024 * 1024 * 512; // 512M
+  std::size_t grid_size  = 8;
+
+  if (argc > 1) {
+    grid_size = std::stoi(argv[1]);
+  }
+
+  if (argc > 2) {
+    array_size = std::stoi(argv[2]);
+  }
+
+  thrust::device_vector<double> working_vector(array_size);
+
+  // warmup
+
+  run_dispatch_unroll<1>(working_vector, grid_size);
+  run_dispatch_unroll<2>(working_vector, grid_size);
+  run_dispatch_unroll<4>(working_vector, grid_size);
+  run_dispatch_unroll<8>(working_vector, grid_size);
+  run_dispatch_unroll<16>(working_vector, grid_size);
+  run_dispatch_unroll<32>(working_vector, grid_size);
+
+  // actual benchmark
+
+  run_dispatch_unroll<1>(working_vector, grid_size);
+  run_dispatch_unroll<2>(working_vector, grid_size);
+  run_dispatch_unroll<4>(working_vector, grid_size);
+  run_dispatch_unroll<8>(working_vector, grid_size);
+  run_dispatch_unroll<16>(working_vector, grid_size);
+  run_dispatch_unroll<32>(working_vector, grid_size);
 
   exit(EXIT_SUCCESS);
 }

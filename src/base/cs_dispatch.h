@@ -490,42 +490,78 @@ public:
 
 #if defined(__CUDACC__)
 
-/* Default kernel that loops over an integer range and calls a device functor.
-   This kernel uses a grid_size-stride loop and thus guarantees that all
-   integers are processed, even if the grid is smaller.
-   All arguments *must* be passed by value to avoid passing CPU references
-   to the GPU. */
-
+namespace detail {
+/// Static unroll implementation code.
+/// It relies on std::make_index_sequence to generate a sequence of integers
+/// at compile-time.
+/// std::integral_constant is then used to embed the indexes as types
+/// for practical reasons such as lambdas not accepting template parameters
+/// until C++23.
+/// A fold expression is used to generate each call of the function f.
 template <class F, class... Args, std::size_t... IDs>
 inline CS_F_HOST_DEVICE void
-_unroll_impl(F f, Args... args, std::index_sequence<IDs...>)
+_cs_static_unroll_impl(F f, std::index_sequence<IDs...>, Args... args)
 {
-  (f(args..., std::integral_constant<std::size_t, IDs>{}), ...);
+  (f(std::integral_constant<std::size_t, IDs>{}, args...), ...);
+}
 }
 
+/// Static unroll function.
+/// Calls a function N times with an invocation index passed
+/// as an std::integral_constant for each call,
+/// as well as a pack of arbitrary arguments.
+/// Function calls are generated at compile-time using a fold expression.
 template <std::size_t UnrollFactor = 1, class F, class... Args>
 inline CS_F_HOST_DEVICE void
-unroll(F f, Args... args)
+cs_static_unroll(F f, Args... args)
 {
-  _unroll_impl(f, args..., std::make_index_sequence<UnrollFactor>{});
+  detail::_cs_static_unroll_impl(f,
+                                 std::make_index_sequence<UnrollFactor>{},
+                                 args...);
 }
+
+/*  Default kernel that loops over an integer range and calls a device functor.
+    This kernel uses a grid_size-stride loop and thus guarantees that all
+    integers are processed, even if the grid is smaller.
+    All arguments *must* be passed by value to avoid passing CPU references
+    to the GPU.
+    The loop can be unrolled by passing an arbitrary unroll factor
+    as a template parameter, eg:
+
+    cs_cuda_kernel_parallel_for<8><<<16,512>>>(...);
+
+    will invoke the kernel with an unroll factor of 8.
+    The unroll factor is optional, and setting it to 1 or 0 will disable the
+    unrolled code altogether.
+*/
 
 template <std::size_t UnrollFactor = 1, class F, class... Args>
 __global__ void
 cs_cuda_kernel_parallel_for(cs_lnum_t n, F f, Args... args)
 {
-  // grid_size-stride loop
-  cs_lnum_t const elements_per_block     = blockDim.x * UnrollFactor;
-  cs_lnum_t const elements_per_iteration = gridDim.x * elements_per_block;
+  cs_lnum_t const grid_size = gridDim.x * blockDim.x;
 
-  for (cs_lnum_t loop_id = blockIdx.x * elements_per_block + threadIdx.x;
-       loop_id < n;
-       loop_id += elements_per_iteration) {
-    unroll(
-      [&](auto UnrollIndex, auto... args) {
-        f(loop_id + UnrollIndex() * blockDim.x, args...);
-      },
-      args...);
+  // The starting index is the kernel's position in the grid
+  cs_lnum_t index = blockIdx.x * blockDim.x + threadIdx.x;
+
+  // Unrolled code, compiled only if UnrollFactor is greater than 1
+  if constexpr (UnrollFactor > 1) {
+    cs_lnum_t const unrolled_iteration_step = UnrollFactor * grid_size;
+    for (; index + unrolled_iteration_step <= n;
+         index += unrolled_iteration_step) {
+      cs_static_unroll<UnrollFactor>(
+        [&](auto UnrollIndex, auto... args) {
+          // NB: UnrollIndex is an std::integral_constant object,
+          // its value is stored only at compile-time as a type.
+          f(index + (UnrollIndex() * grid_size), args...);
+        },
+        args...);
+    }
+  }
+
+  // Non-unrolled code
+  for (; index < n; index += grid_size) {
+    f(index, args...);
   }
 }
 
