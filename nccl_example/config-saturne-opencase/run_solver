@@ -1,0 +1,50 @@
+#!/bin/bash
+
+# Export paths here if necessary or recommended.
+export LD_LIBRARY_PATH="/home/rocky/damien/hpcx/hpcx-v2.23-gcc-inbox-redhat8-cuda12-x86_64/ompi/lib":$LD_LIBRARY_PATH
+
+# Load environment if this script is run directly.
+if test "$CS_ENVIRONMENT_SET" != "true" ; then
+  export LMOD_PAGER=none
+  module purge
+fi
+
+# Additional library search paths for dependencies.
+export LD_LIBRARY_PATH="/usr/local/cuda/lib64":$LD_LIBRARY_PATH
+# Library search path for code_saturne.
+export LD_LIBRARY_PATH="/home/rocky/damien/exe_code_saturne_gpu_public/lib":$LD_LIBRARY_PATH
+
+
+export OMP_NUM_THREADS=12
+
+cd /home/rocky/damien/saturne-open-cases/BUNDLE/BENCH_F128_01/RESU/20250715-1104
+
+# Run solver.
+
+# Run solver.
+#mpiexec -n 4 --npernode 4 ./cs_solver --mpi "$@"
+export UCX_TLS=sm,cuda_copy,cuda_ipc
+export NCCL_UCX_TLS=rc_x,cuda_copy
+export NCCL_UCX_RNDV_THRESH=0
+export UCX_MEMTYPE_CACHE=n
+export NCCL_COLLNET_ENABLE=0
+export NCCL_PLUGIN_P2P=ucx
+export NCCL_DEBUG=info
+export NCCL_DEBUG_SUBSYS=NET
+#export LD_LIBRARY_PATH=$HPX_HOME/nccl_rdma_sharp_plugin/lib/:$LD_LIBRARY_PATH
+
+mpiexec -np $SLURM_NTASKS                               \
+        -x LD_LIBRARY_PATH                              \
+        -x UCX_TLS                                      \
+        -x NCCL_UCX_TLS                                 \
+        -x NCCL_UCX_RNDV_THRESH                         \
+        -x UCX_MEMTYPE_CACHE                            \
+        -x NCCL_COLLNET_ENABLE                          \
+        -x NCCL_PLUGIN_P2P                              \
+        -x NCCL_DEBUG                                   \
+        -x NCCL_DEBUG_SUBSYS                            \
+        /home/rocky/damien/exe_code_saturne_gpu_public/libexec/code_saturne/cs_solver --mpi "$@"
+
+export CS_RET=$?
+
+exit $CS_RET

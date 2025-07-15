@@ -49,6 +49,9 @@
 
 #include "base/cs_base_cuda.h"
 
+# if defined(HAVE_NCCL)
+  #include <nccl.h>
+#endif
 /*----------------------------------------------------------------------------*/
 
 BEGIN_C_DECLS
@@ -83,6 +86,10 @@ int  cs_glob_cuda_n_mp = -1;
 
 static int            _cs_glob_cuda_n_streams = -1;
 static cudaStream_t  *_cs_glob_cuda_streams = nullptr;
+
+#if defined(HAVE_NCCL)
+  ncclComm_t    cs_glob_nccl_comm;
+#endif
 
 /* Reduce buffers associated with streams in pool */
 
@@ -632,6 +639,37 @@ cs_base_cuda_select_default_device(void)
   }
 
   return device_id;
+}
+
+#include "cs_fp_exception.h"
+
+extern "C" void 
+cs_initialize_nccl()
+{
+  
+# if defined(HAVE_NCCL)
+  if (cs_glob_node_n_ranks > 1) {
+    cs_fp_exception_disable_trap();
+    /* 1. Sélectionner un GPU = rang local                          */
+    cs_log_printf(CS_LOG_DEFAULT,
+                  _("  NCCL setup\n"));
+
+    int rank  = -1, size = -1;
+    MPI_Comm_rank(cs_glob_mpi_comm, &rank);
+    MPI_Comm_size(cs_glob_mpi_comm, &size);
+
+    /* 2. Obtenir / diffuser l’identifiant NCCL                    */
+    ncclUniqueId id;
+    if (rank == 0)
+      ncclGetUniqueId(&id);
+    MPI_Bcast(&id, sizeof(id), MPI_BYTE, 0, cs_glob_mpi_comm);
+
+    /* 3. Initialiser le communicateur NCCL                        */
+    ncclCommInitRank(&cs_glob_nccl_comm, size, id, rank);
+    cs_fp_exception_enable_trap();
+  }
+# endif
+
 }
 
 /*----------------------------------------------------------------------------*/

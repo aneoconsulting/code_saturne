@@ -439,6 +439,9 @@ cs_base_cuda_compiler_info(cs_log_t  log_id);
 int
 cs_base_cuda_select_default_device(void);
 
+void 
+cs_initialize_nccl(void);
+
 /*----------------------------------------------------------------------------*/
 /*
  * \brief Return currently selected CUDA devices.

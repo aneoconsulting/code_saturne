@@ -221,6 +221,11 @@ _run(void)
 #if defined(HAVE_CUDA)
   cs_base_cuda_select_default_device();
 #endif
+
+#if defined(HAVE_NCCL)
+  cs_initialize_nccl();
+#endif
+
 #if defined(HAVE_SYCL)
   cs_sycl_select_default_device();
 #endif

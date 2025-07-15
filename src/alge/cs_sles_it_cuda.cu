@@ -1030,21 +1030,63 @@ _prefetch_h2d(const void   *dst,
  *----------------------------------------------------------------------------*/
 
 static void
-_sync_reduction_sum(const cs_sles_it_t  *c,
-                    cudaStream_t         stream,
-                    cs_lnum_t            tuple_size,
-                    double               res[])
+_sync_reduction_sum(const cs_sles_it_t *c,
+                    cudaStream_t        stream,
+                    cs_lnum_t           tuple_size,
+                    double             *res)   /* device pointer */
 {
-  CS_CUDA_CHECK(cudaStreamSynchronize(stream));
-  CS_CUDA_CHECK(cudaGetLastError());
+  /* 1. Ensure all preceding work on this stream has completed            */
+  cudaStreamSynchronize(stream);
+
+#if defined(CS_HAVE_NCCL)
+  /*---------------------------------------------------------------------*/
+  /*  Use NCCL for an in-place GPU→GPU all-reduce (sum)                   */
+  /*---------------------------------------------------------------------*/
+  if (c->use_nccl) {
+
+    ncclAllReduce((const void *)res,       /* send buffer (device)        */
+                  (void *)res,             /* recv buffer (same)          */
+                  tuple_size,              /* number of elements          */
+                  ncclDouble,              /* data type                   */
+                  ncclSum,                 /* reduction operation         */
+                  c->nccl_comm,            /* communicator                */
+                  stream);                 /* associated CUDA stream      */
+
+    /* Wait until the collective has finished before returning            */
+    cudaStreamSynchronize(stream);
+    return;                                /* nothing else to do          */
+  }
+#endif /* CS_HAVE_NCCL */
 
 #if defined(HAVE_MPI)
+  /*---------------------------------------------------------------------*/
+  /*  Fallback: host-side reduction via MPI                               */
+  /*  (assumes 'res' is host-visible: unified memory or copied earlier)   */
+  /*---------------------------------------------------------------------*/
+  if (c->comm != MPI_COMM_NULL) {
+    MPI_Allreduce(MPI_IN_PLACE,             /* in-place receive buffer    */
+                  res,
+                  tuple_size,
+                  MPI_DOUBLE,
+                  MPI_SUM,
+                  c->comm);
+  }
+#endif /* HAVE_MPI */
+}
 
-  if (c->comm != MPI_COMM_NULL)
-    MPI_Allreduce(MPI_IN_PLACE, res, tuple_size, MPI_DOUBLE, MPI_SUM, c->comm);
-
+#if defined(HAVE_MPI)
+  /*------------------------------------------------------------*/
+  /*  Fallback : réduction MPI sur CPU                          */
+  /*  (présume que res est accessible côté host : mémoire unifiée
+      ou déjà rapatriée avant l’appel)                          */
+  /*------------------------------------------------------------*/
+  if (c->comm != MPI_COMM_NULL) {
+    MPI_Allreduce(MPI_IN_PLACE, res, tuple_size,
+                  MPI_DOUBLE, MPI_SUM, c->comm);
+  }
 #endif /* defined(HAVE_MPI) */
 }
+
 
 /*----------------------------------------------------------------------------
  * Compute dot product, summing result over all participating ranks.

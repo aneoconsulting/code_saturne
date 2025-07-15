@@ -137,8 +137,6 @@ fi
 # Check for CUDA compiler
 CS_AC_TEST_CUDA
 
-# check for nccl cuda
-CS_CHECK_NCCL
 
 # Needed to use Microsoft archiver lib.exe
 # It copies the ar-lib script, similar to the compile script
@@ -812,6 +810,7 @@ CS_AC_TEST_MELISSA
 CS_AC_TEST_MUMPS
 CS_AC_TEST_PETSC
 CS_AC_TEST_HYPRE
+CS_AC_TEST_NCCL
 CS_AC_TEST_AMGX
 
 CS_AC_TEST_DOCS
@@ -1346,6 +1345,7 @@ echo " CoolProp support: "$cs_have_coolprop""
 echo " PETSc support: "$cs_have_petsc""
 echo " MUMPS support: "$cs_have_mumps""
 echo " HYPRE support: "$cs_have_hypre""
+echo " NCCL support: "$cs_have_nccl""
 echo " AMGX support: "$cs_have_amgx""
 echo " Dynamic loader support: "$cs_have_dlloader""
 if (test "x$cs_env_modules" != "x") ; then
